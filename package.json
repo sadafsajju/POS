@@ -1,0 +1,32 @@
+{
+  "name": "pos-system",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:desktop": "turbo run dev --filter=@pos/desktop",
+    "dev:web": "turbo run dev --filter=@pos/web",
+    "build": "turbo run build",
+    "build:desktop": "turbo run build --filter=@pos/desktop",
+    "build:mac": "cd apps/desktop && npm run tauri build -- --target universal-apple-darwin",
+    "build:win": "cd apps/desktop && npm run tauri build -- --target x86_64-pc-windows-msvc",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "backend:dev": "cd backend && air",
+    "db:up": "docker-compose up -d postgres redis",
+    "db:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "packageManager": "npm@10.2.0"
+}

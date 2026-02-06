@@ -24,13 +24,18 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 	occupiedOnly := c.Query("occupied_only") == "true"
 	availableOnly := c.Query("available_only") == "true"
 
+	// Query tables with optional LEFT JOIN to get the parent bill (not KOTs)
+	// Using DISTINCT ON to ensure one row per table, prioritizing tables with active orders
 	queryBuilder := `
-		SELECT t.id, t.table_number, t.seating_capacity, t.location, t.is_occupied, 
+		SELECT DISTINCT ON (t.id)
+		       t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.is_occupied,
 		       t.created_at, t.updated_at,
 		       o.id as order_id, o.order_number, o.customer_name, o.status as order_status,
 		       o.created_at as order_created_at, o.total_amount
 		FROM dining_tables t
-		LEFT JOIN orders o ON t.id = o.table_id AND o.status NOT IN ('completed', 'cancelled')
+		LEFT JOIN orders o ON t.id = o.table_id
+		    AND o.status NOT IN ('completed', 'cancelled')
+		    AND (o.is_kot = false OR o.is_kot IS NULL)
 		WHERE 1=1
 	`
 
@@ -49,7 +54,8 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 		queryBuilder += ` AND t.is_occupied = false`
 	}
 
-	queryBuilder += ` ORDER BY t.table_number ASC`
+	// Order by table_number for the final result, with DISTINCT ON ordering by t.id first
+	queryBuilder += ` ORDER BY t.id, o.created_at DESC NULLS LAST`
 
 	rows, err := h.db.Query(queryBuilder, args...)
 	if err != nil {
@@ -70,7 +76,7 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 		var totalAmount sql.NullFloat64
 
 		err := rows.Scan(
-			&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.IsOccupied,
+			&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor, &table.IsOccupied,
 			&table.CreatedAt, &table.UpdatedAt,
 			&orderID, &orderNumber, &customerName, &orderStatus, &orderCreatedAt, &totalAmount,
 		)
@@ -83,39 +89,41 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 			return
 		}
 
-		// Create a map to hold table data including current order info
-		tableData := map[string]interface{}{
-			"id":               table.ID,
-			"table_number":     table.TableNumber,
-			"seating_capacity": table.SeatingCapacity,
-			"location":         table.Location,
-			"is_occupied":      table.IsOccupied,
-			"created_at":       table.CreatedAt,
-			"updated_at":       table.UpdatedAt,
-			"current_order":    nil,
-		}
-
-		// Add current order info if available
+		// Add current order info to table struct if available
 		if orderID.Valid {
-			tableData["current_order"] = map[string]interface{}{
-				"id":            orderID.String,
-				"order_number":  orderNumber.String,
-				"customer_name": customerName.String,
-				"status":        orderStatus.String,
-				"created_at":    orderCreatedAt.Time,
-				"total_amount":  totalAmount.Float64,
+			table.CurrentOrder = &models.Order{
+				ID:           uuid.MustParse(orderID.String),
+				OrderNumber:  orderNumber.String,
+				CustomerName: &customerName.String,
+				Status:       orderStatus.String,
+				CreatedAt:    orderCreatedAt.Time,
+				TotalAmount:  totalAmount.Float64,
 			}
 		}
 
-		// Convert to table struct for consistent response
 		tables = append(tables, table)
 	}
+
+	// Sort by table number for consistent display
+	// (DISTINCT ON requires ordering by t.id first, so we re-sort here)
+	sortTablesByNumber(tables)
 
 	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "Tables retrieved successfully",
 		Data:    tables,
 	})
+}
+
+// sortTablesByNumber sorts tables by their table_number field
+func sortTablesByNumber(tables []models.DiningTable) {
+	for i := 0; i < len(tables)-1; i++ {
+		for j := i + 1; j < len(tables); j++ {
+			if tables[i].TableNumber > tables[j].TableNumber {
+				tables[i], tables[j] = tables[j], tables[i]
+			}
+		}
+	}
 }
 
 // GetTable retrieves a specific table by ID
@@ -133,13 +141,13 @@ func (h *TableHandler) GetTable(c *gin.Context) {
 	var table models.DiningTable
 
 	query := `
-		SELECT id, table_number, seating_capacity, location, is_occupied, created_at, updated_at
+		SELECT id, table_number, seating_capacity, location, floor, is_occupied, created_at, updated_at
 		FROM dining_tables
 		WHERE id = $1
 	`
 
 	err = h.db.QueryRow(query, tableID).Scan(
-		&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location,
+		&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor,
 		&table.IsOccupied, &table.CreatedAt, &table.UpdatedAt,
 	)
 
@@ -191,6 +199,7 @@ func (h *TableHandler) GetTable(c *gin.Context) {
 		"table_number":     table.TableNumber,
 		"seating_capacity": table.SeatingCapacity,
 		"location":         table.Location,
+		"floor":            table.Floor,
 		"is_occupied":      table.IsOccupied,
 		"created_at":       table.CreatedAt,
 		"updated_at":       table.UpdatedAt,
@@ -206,13 +215,17 @@ func (h *TableHandler) GetTable(c *gin.Context) {
 
 // GetTablesByLocation retrieves tables grouped by location
 func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
+	// Use DISTINCT ON to avoid duplicate tables when multiple orders exist
 	query := `
-		SELECT t.id, t.table_number, t.seating_capacity, t.location, t.is_occupied, 
+		SELECT DISTINCT ON (t.id)
+		       t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.is_occupied,
 		       t.created_at, t.updated_at,
 		       o.id as order_id, o.order_number, o.customer_name, o.status as order_status
 		FROM dining_tables t
-		LEFT JOIN orders o ON t.id = o.table_id AND o.status NOT IN ('completed', 'cancelled')
-		ORDER BY t.location ASC, t.table_number ASC
+		LEFT JOIN orders o ON t.id = o.table_id
+		    AND o.status NOT IN ('completed', 'cancelled')
+		    AND (o.is_kot = false OR o.is_kot IS NULL)
+		ORDER BY t.id, o.created_at DESC NULLS LAST
 	`
 
 	rows, err := h.db.Query(query)
@@ -235,7 +248,7 @@ func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
 		var location sql.NullString
 
 		err := rows.Scan(
-			&table.ID, &table.TableNumber, &table.SeatingCapacity, &location, &table.IsOccupied,
+			&table.ID, &table.TableNumber, &table.SeatingCapacity, &location, &table.Floor, &table.IsOccupied,
 			&table.CreatedAt, &table.UpdatedAt,
 			&orderID, &orderNumber, &customerName, &orderStatus,
 		)
@@ -258,6 +271,11 @@ func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
 
 		locationKey := *table.Location
 		locationMap[locationKey] = append(locationMap[locationKey], table)
+	}
+
+	// Sort tables within each location by table number
+	for loc := range locationMap {
+		sortTablesByNumber(locationMap[loc])
 	}
 
 	// Convert map to structured response
@@ -342,6 +360,91 @@ func (h *TableHandler) GetTableStatus(c *gin.Context) {
 		Success: true,
 		Message: "Table status retrieved successfully",
 		Data:    response,
+	})
+}
+
+// ClearTable marks a table as available and completes all associated orders
+func (h *TableHandler) ClearTable(c *gin.Context) {
+	tableID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid table ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to start transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	// Mark all active orders (parent bills) for this table as completed + cleared
+	_, err = tx.Exec(`
+		UPDATE orders
+		SET status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+		    cleared_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE table_id = $1
+		  AND is_kot = false
+		  AND parent_order_id IS NULL
+		  AND status NOT IN ('completed', 'cancelled')
+	`, tableID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to complete orders",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Mark all child KOTs for this table as completed + cleared
+	_, err = tx.Exec(`
+		UPDATE orders
+		SET status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+		    cleared_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE table_id = $1
+		  AND is_kot = true
+		  AND status NOT IN ('completed', 'cancelled')
+	`, tableID)
+	if err != nil {
+		// Log but don't fail
+	}
+
+	// Mark table as available
+	_, err = tx.Exec(`
+		UPDATE dining_tables
+		SET is_occupied = false, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, tableID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update table status",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Table cleared successfully",
 	})
 }
 

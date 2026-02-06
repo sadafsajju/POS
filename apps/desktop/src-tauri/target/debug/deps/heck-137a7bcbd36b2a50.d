@@ -1,0 +1,13 @@
+/Users/admin/Documents/sadaf/Apps/POS/apps/desktop/src-tauri/target/debug/deps/heck-137a7bcbd36b2a50.d: /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lib.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/kebab.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lower_camel.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_kebab.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_snake.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/snake.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/title.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/train.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/upper_camel.rs
+
+/Users/admin/Documents/sadaf/Apps/POS/apps/desktop/src-tauri/target/debug/deps/libheck-137a7bcbd36b2a50.rmeta: /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lib.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/kebab.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lower_camel.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_kebab.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_snake.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/snake.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/title.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/train.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/upper_camel.rs
+
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lib.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/kebab.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/lower_camel.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_kebab.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/shouty_snake.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/snake.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/title.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/train.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/heck-0.5.0/src/upper_camel.rs:

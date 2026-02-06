@@ -1,0 +1,237 @@
+import { Badge } from '@/components/ui/badge'
+import { ImageOff, Clock, Barcode, Settings2 } from 'lucide-react'
+import { useSettingsStore } from '@pos/core'
+import type { Product, CartItem, Category } from '../types'
+
+const dietaryColors: Record<string, string> = {
+  veg: '#22c55e',
+  non_veg: '#ef4444',
+  vegan: '#16a34a',
+  egg: '#eab308',
+}
+
+interface CreateOrderViewProps {
+  products: Product[]
+  categories: Category[]
+  cart: CartItem[]
+  onAddToCart: (product: Product) => void
+  onRemoveFromCart: (productId: string) => void
+  onConfigureProduct?: (product: Product) => void
+  formatCurrency: (amount: number) => string
+}
+
+/**
+ * Touch-friendly product grid view for creating orders
+ * Products are grouped by category with sticky headers
+ */
+export function CreateOrderView({
+  products,
+  categories,
+  cart,
+  onAddToCart,
+  onConfigureProduct,
+  formatCurrency
+}: CreateOrderViewProps) {
+  const { settings } = useSettingsStore()
+  const displaySettings = settings.productDisplay ?? {
+    showImage: true,
+    showDescription: false,
+    showPrice: true,
+    showSku: false,
+    showBarcode: false,
+    showDietaryType: true,
+    showPreparationTime: false,
+    showCategory: true,
+    showAvailability: true,
+  }
+
+  const safeProducts = Array.isArray(products) ? products : []
+  const safeCategories = Array.isArray(categories) ? categories : []
+
+  // Get cart item for a product
+  const getCartItem = (productId: string) => {
+    return cart.find(item => item.product.id === productId)
+  }
+
+  // Group products by category
+  const productsByCategory = safeCategories.map(category => ({
+    category,
+    products: safeProducts.filter(p => p.category_id === category.id)
+  })).filter(group => group.products.length > 0)
+
+  // Products without a category
+  const uncategorizedProducts = safeProducts.filter(
+    p => !safeCategories.some(c => c.id === p.category_id)
+  )
+
+  const handleProductClick = (product: Product) => {
+    if ((product.has_option_groups || product.product_type === 'combo') && onConfigureProduct) {
+      onConfigureProduct(product)
+    } else {
+      onAddToCart(product)
+    }
+  }
+
+  const renderProductCard = (product: Product) => {
+    const cartItem = getCartItem(product.id)
+    const isUnavailable = !product.is_available
+    const hasOptions = !!product.has_option_groups
+    const isCombo = product.product_type === 'combo'
+
+    return (
+      <div
+        key={product.id}
+        onClick={() => !isUnavailable && handleProductClick(product)}
+        className={`
+          relative overflow-hidden cursor-pointer transition-all
+          ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-card
+          ${isUnavailable
+            ? 'opacity-50 cursor-not-allowed'
+            : 'hover:bg-muted/50 active:scale-[0.98]'
+          }
+          ${cartItem ? 'ring-2 ring-primary z-10' : ''}
+        `}
+      >
+        {/* Product Image */}
+        {displaySettings.showImage && (
+          <div className="relative h-2/3 bg-muted overflow-hidden">
+            {product.image_url ? (
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-muted">
+                <ImageOff className="w-12 h-12 text-muted-foreground/30" />
+              </div>
+            )}
+
+            {/* Top Right: Quantity Badge */}
+            {cartItem && (
+              <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
+                {cartItem.quantity}
+              </div>
+            )}
+
+            {/* Bottom Right: Prep Time */}
+            {displaySettings.showPreparationTime && product.preparation_time > 0 && (
+              <div className="absolute bottom-2 right-2">
+                <Badge variant="secondary" className="text-xs bg-black/60 text-white border-0 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {product.preparation_time}m
+                </Badge>
+              </div>
+            )}
+
+            {/* Unavailable Overlay */}
+            {displaySettings.showAvailability && isUnavailable && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <Badge variant="secondary" className="text-xs">
+                  Unavailable
+                </Badge>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quantity badge when image is hidden */}
+        {!displaySettings.showImage && cartItem && (
+          <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
+            {cartItem.quantity}
+          </div>
+        )}
+
+        {/* Product Info */}
+        <div className={`flex-1 p-2 flex flex-col justify-between ${!displaySettings.showImage ? 'py-3' : ''}`}>
+          <div>
+            <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1">
+              {displaySettings.showDietaryType && product.dietary_type && (
+                <span
+                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: dietaryColors[product.dietary_type] || '#888' }}
+                />
+              )}
+              {product.name}
+              {(hasOptions || isCombo) && (
+                <Settings2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              )}
+            </h3>
+            {displaySettings.showDescription && product.description && (
+              <p className="text-xs text-muted-foreground truncate">
+                {product.description}
+              </p>
+            )}
+            {displaySettings.showSku && product.sku && (
+              <p className="text-xs text-muted-foreground">
+                SKU: {product.sku}
+              </p>
+            )}
+            {displaySettings.showBarcode && product.barcode && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Barcode className="w-3 h-3" />
+                {product.barcode}
+              </p>
+            )}
+            {!displaySettings.showImage && displaySettings.showPreparationTime && product.preparation_time > 0 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {product.preparation_time} min
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            {displaySettings.showPrice && (
+              <span className="text-base font-bold text-primary">
+                {formatCurrency(product.price)}
+              </span>
+            )}
+            {displaySettings.showAvailability && !displaySettings.showImage && isUnavailable && (
+              <Badge variant="secondary" className="text-xs">
+                Unavailable
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-0">
+      {productsByCategory.map(({ category, products: categoryProducts }) => (
+        <div key={category.id}>
+          {/* Category Header */}
+          <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 text-lg font-semibold flex items-center justify-between">
+            <span>{category.name}</span>
+            <span className="text-muted-foreground text-xs">{categoryProducts.length} items</span>
+          </div>
+          {/* Products Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+            {categoryProducts.map(renderProductCard)}
+          </div>
+        </div>
+      ))}
+
+      {/* Uncategorized Products */}
+      {uncategorizedProducts.length > 0 && (
+        <div>
+          <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 font-semibold text-sm flex items-center justify-between">
+            <span>Other Items</span>
+            <span className="text-muted-foreground text-xs">{uncategorizedProducts.length} items</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+            {uncategorizedProducts.map(renderProductCard)}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {safeProducts.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <p className="text-lg">No products available</p>
+        </div>
+      )}
+    </div>
+  )
+}

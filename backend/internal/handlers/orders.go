@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -46,9 +47,11 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 
 	// Build query with filters
 	queryBuilder := `
-		SELECT DISTINCT o.id, o.order_number, o.table_id, o.user_id, o.customer_name, 
-		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount, 
+		SELECT DISTINCT o.id, o.order_number, o.table_id, o.user_id, o.customer_name,
+		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount,
 		       o.total_amount, o.notes, o.created_at, o.updated_at, o.served_at, o.completed_at,
+		       o.confirmed_at, o.preparing_at, o.ready_at, o.paid_at, o.cleared_at,
+		       o.is_kot, o.parent_order_id,
 		       t.table_number, t.location,
 		       u.username, u.first_name, u.last_name
 		FROM orders o
@@ -114,6 +117,8 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 			&order.ID, &order.OrderNumber, &order.TableID, &order.UserID, &order.CustomerName,
 			&order.OrderType, &order.Status, &order.Subtotal, &order.TaxAmount, &order.DiscountAmount,
 			&order.TotalAmount, &order.Notes, &order.CreatedAt, &order.UpdatedAt, &order.ServedAt, &order.CompletedAt,
+			&order.ConfirmedAt, &order.PreparingAt, &order.ReadyAt, &order.PaidAt, &order.ClearedAt,
+			&order.IsKOT, &order.ParentOrderID,
 			&tableNumber, &tableLocation,
 			&username, &firstName, &lastName,
 		)
@@ -209,7 +214,157 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 	})
 }
 
+// GetOrdersByCustomer retrieves all orders for a specific customer
+func (h *OrderHandler) GetOrdersByCustomer(c *gin.Context) {
+	customerID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid customer ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	page := 1
+	perPage := 20
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if perPageStr := c.Query("per_page"); perPageStr != "" {
+		if pp, err := strconv.Atoi(perPageStr); err == nil && pp > 0 && pp <= 100 {
+			perPage = pp
+		}
+	}
+
+	offset := (page - 1) * perPage
+
+	// Count total orders for this customer
+	var total int
+	err = h.db.QueryRow("SELECT COUNT(*) FROM orders WHERE customer_id = $1", customerID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to count orders",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch orders
+	query := `
+		SELECT o.id, o.order_number, o.table_id, o.user_id, o.customer_name,
+		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount,
+		       o.total_amount, o.notes, o.created_at, o.updated_at, o.served_at, o.completed_at,
+		       o.confirmed_at, o.preparing_at, o.ready_at, o.paid_at, o.cleared_at,
+		       t.table_number, t.location,
+		       u.username, u.first_name, u.last_name
+		FROM orders o
+		LEFT JOIN dining_tables t ON o.table_id = t.id
+		LEFT JOIN users u ON o.user_id = u.id
+		WHERE o.customer_id = $1
+		ORDER BY o.created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := h.db.Query(query, customerID, perPage, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch orders",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var order models.Order
+		var tableNumber, tableLocation sql.NullString
+		var username, firstName, lastName sql.NullString
+		var servedAt, completedAt, confirmedAt, preparingAt, readyAt, paidAt, clearedAt sql.NullTime
+
+		err := rows.Scan(
+			&order.ID, &order.OrderNumber, &order.TableID, &order.UserID, &order.CustomerName,
+			&order.OrderType, &order.Status, &order.Subtotal, &order.TaxAmount, &order.DiscountAmount,
+			&order.TotalAmount, &order.Notes, &order.CreatedAt, &order.UpdatedAt, &servedAt, &completedAt,
+			&confirmedAt, &preparingAt, &readyAt, &paidAt, &clearedAt,
+			&tableNumber, &tableLocation,
+			&username, &firstName, &lastName,
+		)
+		if err != nil {
+			continue
+		}
+
+		if servedAt.Valid {
+			order.ServedAt = &servedAt.Time
+		}
+		if completedAt.Valid {
+			order.CompletedAt = &completedAt.Time
+		}
+		if confirmedAt.Valid {
+			order.ConfirmedAt = &confirmedAt.Time
+		}
+		if preparingAt.Valid {
+			order.PreparingAt = &preparingAt.Time
+		}
+		if readyAt.Valid {
+			order.ReadyAt = &readyAt.Time
+		}
+		if paidAt.Valid {
+			order.PaidAt = &paidAt.Time
+		}
+		if clearedAt.Valid {
+			order.ClearedAt = &clearedAt.Time
+		}
+
+		if tableNumber.Valid {
+			var loc *string
+			if tableLocation.Valid {
+				loc = &tableLocation.String
+			}
+			order.Table = &models.DiningTable{
+				TableNumber: tableNumber.String,
+				Location:    loc,
+			}
+		}
+
+		if username.Valid {
+			order.User = &models.User{
+				Username:  username.String,
+				FirstName: firstName.String,
+				LastName:  lastName.String,
+			}
+		}
+
+		// Load order items
+		h.loadOrderItems(&order)
+
+		orders = append(orders, order)
+	}
+
+	totalPages := (total + perPage - 1) / perPage
+
+	c.JSON(http.StatusOK, models.PaginatedResponse{
+		Success: true,
+		Message: "Customer orders retrieved successfully",
+		Data:    orders,
+		Meta: models.MetaData{
+			CurrentPage: page,
+			PerPage:     perPage,
+			Total:       total,
+			TotalPages:  totalPages,
+		},
+	})
+}
+
 // CreateOrder creates a new order
+// For dine-in orders with CreateAsKOT=true, it creates a parent bill + KOT structure
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	userID, _, _, ok := middleware.GetUserFromContext(c)
 	if !ok {
@@ -253,13 +408,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	// Generate order number
-	orderNumber := h.generateOrderNumber()
-
-	// Calculate totals
+	// Calculate totals for items (including option price adjustments)
 	var subtotal float64
 	for _, item := range req.Items {
-		// Get product price
 		var price float64
 		err := tx.QueryRow("SELECT price FROM products WHERE id = $1 AND is_available = true", item.ProductID).Scan(&price)
 		if err == sql.ErrNoRows {
@@ -278,36 +429,196 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			})
 			return
 		}
-		subtotal += price * float64(item.Quantity)
+		// Include option price adjustments
+		var optionAdjustment float64
+		for _, opt := range item.SelectedOptions {
+			optionAdjustment += opt.PriceAdjustment
+		}
+		// Include combo choice price adjustments
+		for _, choice := range item.ComboChoices {
+			optionAdjustment += choice.PriceAdjustment
+		}
+		subtotal += (price + optionAdjustment) * float64(item.Quantity)
 	}
 
-	// Calculate tax (10% for example)
 	taxRate := 0.10
 	taxAmount := subtotal * taxRate
 	totalAmount := subtotal + taxAmount
 
-	// Create order
-	orderID := uuid.New()
-	orderQuery := `
-		INSERT INTO orders (id, order_number, table_id, user_id, customer_name, order_type, status, 
-		                   subtotal, tax_amount, discount_amount, total_amount, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`
+	// Determine if this should be KOT mode (dine-in with CreateAsKOT flag)
+	isKOTMode := req.OrderType == "dine_in" && req.CreateAsKOT
 
-	_, err = tx.Exec(orderQuery, orderID, orderNumber, req.TableID, userID, req.CustomerName,
-		req.OrderType, "pending", subtotal, taxAmount, 0, totalAmount, req.Notes)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{
-			Success: false,
-			Message: "Failed to create order",
-			Error:   stringPtr(err.Error()),
-		})
-		return
+	var orderID uuid.UUID
+	var parentOrderID *uuid.UUID
+
+	if isKOTMode {
+		// KOT MODE: Create bill + KOT structure
+		if req.ParentOrderID != nil {
+			// Adding to existing bill
+			parentOrderID = req.ParentOrderID
+
+			// Verify parent bill exists and is active
+			var parentStatus string
+			var parentIsKOT bool
+			err := tx.QueryRow("SELECT status, is_kot FROM orders WHERE id = $1", *parentOrderID).Scan(&parentStatus, &parentIsKOT)
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusBadRequest, models.APIResponse{
+					Success: false,
+					Message: "Parent bill not found",
+					Error:   stringPtr("parent_not_found"),
+				})
+				return
+			}
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to verify parent bill",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+			if parentIsKOT {
+				c.JSON(http.StatusBadRequest, models.APIResponse{
+					Success: false,
+					Message: "Cannot add KOT to another KOT. Use the parent bill ID.",
+					Error:   stringPtr("invalid_parent"),
+				})
+				return
+			}
+			if parentStatus == "completed" || parentStatus == "cancelled" {
+				c.JSON(http.StatusBadRequest, models.APIResponse{
+					Success: false,
+					Message: "Cannot add KOT to a closed bill",
+					Error:   stringPtr("bill_closed"),
+				})
+				return
+			}
+		} else {
+			// First KOT - create parent bill first
+			billID := uuid.New()
+			billNumber := h.generateBillNumber()
+
+			billQuery := `
+				INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
+				                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, 0, 0, 0, $8, false, NULL)
+			`
+			_, err = tx.Exec(billQuery, billID, billNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
+				req.OrderType, req.Notes)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to create bill",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+			parentOrderID = &billID
+		}
+
+		// Generate KOT number
+		kotNumber, err := h.generateKOTNumber(tx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to generate KOT number",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		// Create KOT order
+		orderID = uuid.New()
+		kotQuery := `
+			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
+			                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id, kot_number)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', $8, $9, 0, $10, $11, true, $12, $13)
+		`
+		_, err = tx.Exec(kotQuery, orderID, kotNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
+			req.OrderType, subtotal, taxAmount, totalAmount, req.Notes, parentOrderID, kotNumber)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to create KOT",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		// Update parent bill totals (aggregate all KOTs)
+		updateBillQuery := `
+			UPDATE orders
+			SET subtotal = (SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE parent_order_id = $1),
+			    tax_amount = (SELECT COALESCE(SUM(tax_amount), 0) FROM orders WHERE parent_order_id = $1),
+			    total_amount = (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE parent_order_id = $1),
+			    updated_at = NOW()
+			WHERE id = $1
+		`
+		_, err = tx.Exec(updateBillQuery, parentOrderID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to update bill totals",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+	} else {
+		// LEGACY MODE: Single order (for takeout, delivery, or dine-in without KOT flag)
+		orderID = uuid.New()
+		orderNumber := h.generateOrderNumber()
+
+		// Determine initial status
+		initialStatus := "confirmed"
+		if req.Status != nil && *req.Status != "" {
+			validStatuses := []string{"pending", "confirmed", "completed"}
+			for _, s := range validStatuses {
+				if *req.Status == s {
+					initialStatus = s
+					break
+				}
+			}
+		}
+
+		var completedAt interface{}
+		if initialStatus == "completed" {
+			completedAt = time.Now()
+		}
+
+		orderQuery := `
+			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
+			                   subtotal, tax_amount, discount_amount, total_amount, notes, completed_at, is_kot, parent_order_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, false, NULL)
+		`
+		_, err = tx.Exec(orderQuery, orderID, orderNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
+			req.OrderType, initialStatus, subtotal, taxAmount, totalAmount, req.Notes, completedAt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to create order",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		// Update customer stats if order is immediately completed (instant sale)
+		if initialStatus == "completed" && req.CustomerID != nil {
+			_, err = tx.Exec(`
+				UPDATE customers
+				SET total_orders = total_orders + 1,
+				    total_spent = total_spent + $1,
+				    last_order_at = NOW(),
+				    updated_at = NOW()
+				WHERE id = $2
+			`, totalAmount, *req.CustomerID)
+			if err != nil {
+				fmt.Printf("Warning: Failed to update customer stats: %v\n", err)
+			}
+		}
 	}
 
-	// Create order items
+	// Create order items (same for both modes)
 	for _, item := range req.Items {
-		// Get product price again for consistency
 		var price float64
 		err := tx.QueryRow("SELECT price FROM products WHERE id = $1", item.ProductID).Scan(&price)
 		if err != nil {
@@ -319,15 +630,24 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			return
 		}
 
-		totalPrice := price * float64(item.Quantity)
+		// Include option price adjustments in unit price
+		var optionAdjustment float64
+		for _, opt := range item.SelectedOptions {
+			optionAdjustment += opt.PriceAdjustment
+		}
+		// Include combo choice price adjustments
+		for _, choice := range item.ComboChoices {
+			optionAdjustment += choice.PriceAdjustment
+		}
+		unitPrice := price + optionAdjustment
+		totalPrice := unitPrice * float64(item.Quantity)
 		itemID := uuid.New()
 
 		itemQuery := `
 			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, total_price, special_instructions)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
 		`
-
-		_, err = tx.Exec(itemQuery, itemID, orderID, item.ProductID, item.Quantity, price, totalPrice, item.SpecialInstructions)
+		_, err = tx.Exec(itemQuery, itemID, orderID, item.ProductID, item.Quantity, unitPrice, totalPrice, item.SpecialInstructions)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -335,6 +655,39 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 				Error:   stringPtr(err.Error()),
 			})
 			return
+		}
+
+		// Insert order item options (denormalized snapshot)
+		for _, opt := range item.SelectedOptions {
+			_, err = tx.Exec(`
+				INSERT INTO order_item_options (id, order_item_id, option_group_name, option_item_name, price_adjustment)
+				VALUES ($1, $2, $3, $4, $5)
+			`, uuid.New(), itemID, opt.OptionGroupName, opt.OptionItemName, opt.PriceAdjustment)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to save order item options",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+		}
+
+		// Insert order item combo choices (denormalized snapshot)
+		for _, choice := range item.ComboChoices {
+			optionsJSON, _ := json.Marshal(choice.SelectedOptions)
+			_, err = tx.Exec(`
+				INSERT INTO order_item_combo_choices (id, order_item_id, slot_name, product_id, product_name, price_adjustment, selected_options)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`, uuid.New(), itemID, choice.SlotName, choice.ProductID, choice.ProductName, choice.PriceAdjustment, string(optionsJSON))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to save order item combo choices",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
 		}
 	}
 
@@ -361,7 +714,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// Fetch and return the created order
+	// Fetch and return the created order (KOT or regular order)
 	order, err := h.getOrderByID(orderID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
@@ -372,9 +725,14 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	message := "Order created successfully"
+	if isKOTMode {
+		message = "KOT created successfully"
+	}
+
 	c.JSON(http.StatusCreated, models.APIResponse{
 		Success: true,
-		Message: "Order created successfully",
+		Message: message,
 		Data:    order,
 	})
 }
@@ -462,20 +820,40 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	// Update order status
-	updateQuery := "UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP"
-	args := []interface{}{req.Status, orderID}
-
-	// Set served_at or completed_at timestamps
-	if req.Status == "served" {
-		updateQuery += ", served_at = CURRENT_TIMESTAMP"
-	} else if req.Status == "completed" {
-		updateQuery += ", completed_at = CURRENT_TIMESTAMP"
+	// Determine timestamp column for the new status
+	var timestampCol string
+	switch req.Status {
+	case "confirmed":
+		timestampCol = "confirmed_at"
+	case "preparing":
+		timestampCol = "preparing_at"
+	case "ready":
+		timestampCol = "ready_at"
+	case "served":
+		timestampCol = "served_at"
+	case "completed":
+		timestampCol = "completed_at"
 	}
 
-	updateQuery += " WHERE id = $2"
-
-	_, err = tx.Exec(updateQuery, args...)
+	// If order is already paid and being moved to served/ready/preparing,
+	// only set the timestamp — don't change status away from 'paid'
+	if currentStatus == "paid" && (req.Status == "served" || req.Status == "preparing" || req.Status == "ready") {
+		if timestampCol != "" {
+			_, err = tx.Exec(
+				"UPDATE orders SET "+timestampCol+" = COALESCE("+timestampCol+", CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+				orderID,
+			)
+		}
+	} else {
+		// Normal status update
+		updateQuery := "UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP"
+		args := []interface{}{req.Status, orderID}
+		if timestampCol != "" {
+			updateQuery += ", " + timestampCol + " = COALESCE(" + timestampCol + ", CURRENT_TIMESTAMP)"
+		}
+		updateQuery += " WHERE id = $2"
+		_, err = tx.Exec(updateQuery, args...)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -500,16 +878,41 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	// If order is completed or cancelled, free up the table
-	if (req.Status == "completed" || req.Status == "cancelled") {
+	// If cancelling a parent bill, also cancel all child KOTs
+	if req.Status == "cancelled" {
 		_, err = tx.Exec(`
-			UPDATE dining_tables 
-			SET is_occupied = false 
-			WHERE id IN (SELECT table_id FROM orders WHERE id = $1 AND table_id IS NOT NULL)
+			UPDATE orders
+			SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+			WHERE parent_order_id = $1
+			  AND is_kot = true
+			  AND status NOT IN ('completed', 'cancelled')
 		`, orderID)
 		if err != nil {
-			// Log error but don't fail the transaction
-			fmt.Printf("Warning: Failed to update table status: %v\n", err)
+			// Log but don't fail — child KOT cancellation is best-effort
+			fmt.Printf("Warning: Failed to cancel child KOTs for order %s: %v\n", orderID, err)
+		}
+	}
+
+	// NOTE: Table is never auto-freed by status changes.
+	// Staff must explicitly "Clear Table" when the customer leaves.
+
+	// If order is completed, update customer stats
+	if req.Status == "completed" {
+		var customerID *uuid.UUID
+		var orderTotal float64
+		err = tx.QueryRow("SELECT customer_id, total_amount FROM orders WHERE id = $1", orderID).Scan(&customerID, &orderTotal)
+		if err == nil && customerID != nil {
+			_, err = tx.Exec(`
+				UPDATE customers
+				SET total_orders = total_orders + 1,
+				    total_spent = total_spent + $1,
+				    last_order_at = NOW(),
+				    updated_at = NOW()
+				WHERE id = $2
+			`, orderTotal, *customerID)
+			if err != nil {
+				fmt.Printf("Warning: Failed to update customer stats: %v\n", err)
+			}
 		}
 	}
 
@@ -547,29 +950,86 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 	var order models.Order
 	var tableNumber, tableLocation sql.NullString
 	var username, firstName, lastName sql.NullString
+	var customerPhone, customerName, customerEmail sql.NullString
+	var customerTotalOrders sql.NullInt64
+	var customerTotalSpent sql.NullFloat64
+	var parentOrderID sql.NullString
+	var kotNumber sql.NullString
+	var orderSource sql.NullString
+	var externalOrderID, externalData sql.NullString
+	var deliveryPartnerName, deliveryPartnerPhone sql.NullString
+	var aggregatorConfirmedAt sql.NullTime
+	var acceptDeadline sql.NullTime
 
 	query := `
-		SELECT o.id, o.order_number, o.table_id, o.user_id, o.customer_name, 
-		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount, 
+		SELECT o.id, o.order_number, o.table_id, o.user_id, o.customer_id, o.customer_name,
+		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount,
 		       o.total_amount, o.notes, o.created_at, o.updated_at, o.served_at, o.completed_at,
+		       o.confirmed_at, o.preparing_at, o.ready_at, o.paid_at, o.cleared_at,
+		       o.parent_order_id, o.is_kot, o.kot_number,
+		       o.order_source, o.external_order_id, o.external_data,
+		       o.delivery_partner_name, o.delivery_partner_phone,
+		       o.aggregator_confirmed_at, o.accept_deadline,
 		       t.table_number, t.location,
-		       u.username, u.first_name, u.last_name
+		       u.username, u.first_name, u.last_name,
+		       c.phone, c.name, c.email, c.total_orders, c.total_spent
 		FROM orders o
 		LEFT JOIN dining_tables t ON o.table_id = t.id
 		LEFT JOIN users u ON o.user_id = u.id
+		LEFT JOIN customers c ON o.customer_id = c.id
 		WHERE o.id = $1
 	`
 
 	err := h.db.QueryRow(query, orderID).Scan(
-		&order.ID, &order.OrderNumber, &order.TableID, &order.UserID, &order.CustomerName,
+		&order.ID, &order.OrderNumber, &order.TableID, &order.UserID, &order.CustomerID, &order.CustomerName,
 		&order.OrderType, &order.Status, &order.Subtotal, &order.TaxAmount, &order.DiscountAmount,
 		&order.TotalAmount, &order.Notes, &order.CreatedAt, &order.UpdatedAt, &order.ServedAt, &order.CompletedAt,
+		&order.ConfirmedAt, &order.PreparingAt, &order.ReadyAt, &order.PaidAt, &order.ClearedAt,
+		&parentOrderID, &order.IsKOT, &kotNumber,
+		&orderSource, &externalOrderID, &externalData,
+		&deliveryPartnerName, &deliveryPartnerPhone,
+		&aggregatorConfirmedAt, &acceptDeadline,
 		&tableNumber, &tableLocation,
 		&username, &firstName, &lastName,
+		&customerPhone, &customerName, &customerEmail, &customerTotalOrders, &customerTotalSpent,
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Set KOT fields
+	if parentOrderID.Valid {
+		parentID, _ := uuid.Parse(parentOrderID.String)
+		order.ParentOrderID = &parentID
+	}
+	if kotNumber.Valid {
+		order.KOTNumber = &kotNumber.String
+	}
+
+	// Set aggregator fields
+	if orderSource.Valid {
+		order.OrderSource = orderSource.String
+	} else {
+		order.OrderSource = "pos"
+	}
+	if externalOrderID.Valid {
+		order.ExternalOrderID = &externalOrderID.String
+	}
+	if externalData.Valid {
+		order.ExternalData = &externalData.String
+	}
+	if deliveryPartnerName.Valid {
+		order.DeliveryPartnerName = &deliveryPartnerName.String
+	}
+	if deliveryPartnerPhone.Valid {
+		order.DeliveryPartnerPhone = &deliveryPartnerPhone.String
+	}
+	if aggregatorConfirmedAt.Valid {
+		order.AggregatorConfirmedAt = &aggregatorConfirmedAt.Time
+	}
+	if acceptDeadline.Valid {
+		order.AcceptDeadline = &acceptDeadline.Time
 	}
 
 	// Add table info if available
@@ -586,6 +1046,18 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 			Username:  username.String,
 			FirstName: firstName.String,
 			LastName:  lastName.String,
+		}
+	}
+
+	// Add customer info if available
+	if customerPhone.Valid && order.CustomerID != nil {
+		order.Customer = &models.Customer{
+			ID:          *order.CustomerID,
+			Phone:       customerPhone.String,
+			Name:        &customerName.String,
+			Email:       &customerEmail.String,
+			TotalOrders: int(customerTotalOrders.Int64),
+			TotalSpent:  customerTotalSpent.Float64,
 		}
 	}
 
@@ -644,11 +1116,78 @@ func (h *OrderHandler) loadOrderItems(order *models.Order) error {
 			PreparationTime: preparationTime,
 		}
 
+		// Load options for this item
+		options, err := h.loadOrderItemOptions(item.ID)
+		if err != nil {
+			return err
+		}
+		item.Options = options
+
+		// Load combo choices for this item
+		comboChoices, err := h.loadOrderItemComboChoices(item.ID)
+		if err != nil {
+			return err
+		}
+		item.ComboChoices = comboChoices
+
 		items = append(items, item)
 	}
 
 	order.Items = items
 	return nil
+}
+
+// loadOrderItemOptions loads the denormalized option snapshot for an order item
+func (h *OrderHandler) loadOrderItemOptions(orderItemID uuid.UUID) ([]models.OrderItemOption, error) {
+	query := `
+		SELECT id, order_item_id, option_group_name, option_item_name, price_adjustment, created_at
+		FROM order_item_options
+		WHERE order_item_id = $1
+		ORDER BY created_at
+	`
+	rows, err := h.db.Query(query, orderItemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var options []models.OrderItemOption
+	for rows.Next() {
+		var opt models.OrderItemOption
+		err := rows.Scan(&opt.ID, &opt.OrderItemID, &opt.OptionGroupName, &opt.OptionItemName, &opt.PriceAdjustment, &opt.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, opt)
+	}
+	return options, nil
+}
+
+// loadOrderItemComboChoices loads combo choices for an order item
+func (h *OrderHandler) loadOrderItemComboChoices(orderItemID uuid.UUID) ([]models.OrderItemComboChoice, error) {
+	query := `
+		SELECT id, order_item_id, slot_name, product_id, product_name, price_adjustment, selected_options, created_at
+		FROM order_item_combo_choices
+		WHERE order_item_id = $1
+		ORDER BY created_at
+	`
+	rows, err := h.db.Query(query, orderItemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var choices []models.OrderItemComboChoice
+	for rows.Next() {
+		var choice models.OrderItemComboChoice
+		err := rows.Scan(&choice.ID, &choice.OrderItemID, &choice.SlotName, &choice.ProductID,
+			&choice.ProductName, &choice.PriceAdjustment, &choice.SelectedOptions, &choice.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		choices = append(choices, choice)
+	}
+	return choices, nil
 }
 
 func (h *OrderHandler) loadOrderPayments(order *models.Order) error {
@@ -703,5 +1242,1309 @@ func (h *OrderHandler) loadOrderPayments(order *models.Order) error {
 func (h *OrderHandler) generateOrderNumber() string {
 	timestamp := time.Now().Format("20060102")
 	return fmt.Sprintf("ORD%s%04d", timestamp, time.Now().UnixNano()%10000)
+}
+
+// generateKOTNumber generates a sequential KOT number using the database sequence
+func (h *OrderHandler) generateKOTNumber(tx *sql.Tx) (string, error) {
+	var seqNum int
+	err := tx.QueryRow("SELECT nextval('kot_number_seq')").Scan(&seqNum)
+	if err != nil {
+		// If sequence doesn't exist, create it
+		_, createErr := tx.Exec("CREATE SEQUENCE IF NOT EXISTS kot_number_seq START 1")
+		if createErr != nil {
+			return "", fmt.Errorf("failed to create KOT sequence: %w", createErr)
+		}
+		// Retry getting the value
+		err = tx.QueryRow("SELECT nextval('kot_number_seq')").Scan(&seqNum)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate KOT number: %w", err)
+		}
+	}
+	return fmt.Sprintf("KOT%03d", seqNum), nil
+}
+
+// AcceptAggregatorOrder accepts an incoming aggregator order and confirms it
+func (h *OrderHandler) AcceptAggregatorOrder(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid order ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Get the order and verify it's an aggregator order in pending status
+	var orderSource, currentStatus string
+	var acceptDeadline *time.Time
+	err = h.db.QueryRow(
+		"SELECT order_source, status, accept_deadline FROM orders WHERE id = $1",
+		orderID,
+	).Scan(&orderSource, &currentStatus, &acceptDeadline)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if orderSource == "pos" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "This is not an aggregator order",
+			Error:   stringPtr("not_aggregator_order"),
+		})
+		return
+	}
+
+	if currentStatus != "pending" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Order is not in pending status",
+			Error:   stringPtr("invalid_status"),
+		})
+		return
+	}
+
+	// Check if accept deadline has passed
+	if acceptDeadline != nil && time.Now().After(*acceptDeadline) {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Accept deadline has passed",
+			Error:   stringPtr("deadline_expired"),
+		})
+		return
+	}
+
+	// Accept the order - move to confirmed
+	now := time.Now()
+	_, err = h.db.Exec(`
+		UPDATE orders
+		SET status = 'confirmed',
+		    confirmed_at = $1,
+		    aggregator_confirmed_at = $1,
+		    updated_at = $1
+		WHERE id = $2
+	`, now, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to accept order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch and return the updated order
+	order, err := h.getOrderByID(orderID)
+	if err != nil {
+		c.JSON(http.StatusOK, models.APIResponse{
+			Success: true,
+			Message: "Order accepted but failed to fetch details",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Aggregator order accepted successfully",
+		Data:    order,
+	})
+}
+
+// RejectAggregatorOrder rejects an incoming aggregator order with a reason
+func (h *OrderHandler) RejectAggregatorOrder(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid order ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	var req models.RejectAggregatorOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Get the order and verify it's an aggregator order
+	var orderSource, currentStatus string
+	err = h.db.QueryRow(
+		"SELECT order_source, status FROM orders WHERE id = $1",
+		orderID,
+	).Scan(&orderSource, &currentStatus)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if orderSource == "pos" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "This is not an aggregator order",
+			Error:   stringPtr("not_aggregator_order"),
+		})
+		return
+	}
+
+	if currentStatus != "pending" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Order is not in pending status",
+			Error:   stringPtr("invalid_status"),
+		})
+		return
+	}
+
+	// Reject the order
+	rejectNote := fmt.Sprintf("Rejected: %s", req.Reason)
+	_, err = h.db.Exec(`
+		UPDATE orders
+		SET status = 'cancelled',
+		    notes = COALESCE(notes || ' | ', '') || $1,
+		    updated_at = NOW()
+		WHERE id = $2
+	`, rejectNote, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to reject order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Aggregator order rejected",
+		Data: map[string]interface{}{
+			"order_id": orderID.String(),
+			"reason":   req.Reason,
+		},
+	})
+}
+
+// GetAggregatorOrders returns orders from aggregator platforms with optional filtering
+func (h *OrderHandler) GetAggregatorOrders(c *gin.Context) {
+	status := c.Query("status")
+	platform := c.Query("platform")
+
+	query := `
+		SELECT o.id, o.order_number, o.order_type, o.status, o.customer_name,
+		       o.subtotal, o.tax_amount, o.discount_amount, o.total_amount,
+		       o.notes, o.created_at, o.updated_at,
+		       o.order_source, o.external_order_id,
+		       o.delivery_partner_name, o.delivery_partner_phone,
+		       o.accept_deadline, o.aggregator_confirmed_at
+		FROM orders o
+		WHERE o.order_source != 'pos'
+	`
+	var args []interface{}
+	argIdx := 0
+
+	if status != "" {
+		argIdx++
+		query += fmt.Sprintf(" AND o.status = $%d", argIdx)
+		args = append(args, status)
+	}
+	if platform != "" {
+		argIdx++
+		query += fmt.Sprintf(" AND o.order_source = $%d", argIdx)
+		args = append(args, platform)
+	}
+
+	query += " ORDER BY o.created_at DESC LIMIT 50"
+
+	rows, err := h.db.Query(query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch aggregator orders",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var orders []map[string]interface{}
+	for rows.Next() {
+		var id, orderNumber, orderType, orderStatus string
+		var customerName, notes sql.NullString
+		var subtotal, taxAmount, discountAmount, totalAmount float64
+		var createdAt, updatedAt time.Time
+		var orderSource string
+		var externalOrderID sql.NullString
+		var deliveryPartnerName, deliveryPartnerPhone sql.NullString
+		var acceptDeadline, aggregatorConfirmedAt sql.NullTime
+
+		err := rows.Scan(
+			&id, &orderNumber, &orderType, &orderStatus, &customerName,
+			&subtotal, &taxAmount, &discountAmount, &totalAmount,
+			&notes, &createdAt, &updatedAt,
+			&orderSource, &externalOrderID,
+			&deliveryPartnerName, &deliveryPartnerPhone,
+			&acceptDeadline, &aggregatorConfirmedAt,
+		)
+		if err != nil {
+			continue
+		}
+
+		order := map[string]interface{}{
+			"id":                     id,
+			"order_number":           orderNumber,
+			"order_type":             orderType,
+			"status":                 orderStatus,
+			"customer_name":          customerName.String,
+			"subtotal":               subtotal,
+			"tax_amount":             taxAmount,
+			"discount_amount":        discountAmount,
+			"total_amount":           totalAmount,
+			"notes":                  notes.String,
+			"created_at":             createdAt,
+			"updated_at":             updatedAt,
+			"order_source":           orderSource,
+			"external_order_id":      externalOrderID.String,
+			"delivery_partner_name":  deliveryPartnerName.String,
+			"delivery_partner_phone": deliveryPartnerPhone.String,
+		}
+
+		if acceptDeadline.Valid {
+			order["accept_deadline"] = acceptDeadline.Time
+		}
+		if aggregatorConfirmedAt.Valid {
+			order["aggregator_confirmed_at"] = aggregatorConfirmedAt.Time
+		}
+
+		// Load items
+		itemRows, err := h.db.Query(`
+			SELECT oi.id, oi.product_id, oi.quantity, oi.unit_price, oi.total_price,
+			       oi.special_instructions, oi.status,
+			       p.name as product_name
+			FROM order_items oi
+			LEFT JOIN products p ON oi.product_id = p.id
+			WHERE oi.order_id = $1
+			ORDER BY oi.created_at
+		`, id)
+		if err == nil {
+			var items []map[string]interface{}
+			for itemRows.Next() {
+				var itemID, productID, itemStatus string
+				var qty int
+				var unitPrice, totalPrice float64
+				var specialInstr, productName sql.NullString
+
+				if scanErr := itemRows.Scan(
+					&itemID, &productID, &qty, &unitPrice, &totalPrice,
+					&specialInstr, &itemStatus, &productName,
+				); scanErr == nil {
+					items = append(items, map[string]interface{}{
+						"id":                   itemID,
+						"product_id":           productID,
+						"quantity":             qty,
+						"unit_price":           unitPrice,
+						"total_price":          totalPrice,
+						"special_instructions": specialInstr.String,
+						"status":               itemStatus,
+						"product": map[string]interface{}{
+							"id":   productID,
+							"name": productName.String,
+						},
+					})
+				}
+			}
+			itemRows.Close()
+			if items == nil {
+				items = []map[string]interface{}{}
+			}
+			order["items"] = items
+		} else {
+			order["items"] = []map[string]interface{}{}
+		}
+
+		orders = append(orders, order)
+	}
+
+	if orders == nil {
+		orders = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Aggregator orders retrieved successfully",
+		Data:    orders,
+	})
+}
+
+// generateBillNumber generates a bill number for parent orders
+func (h *OrderHandler) generateBillNumber() string {
+	timestamp := time.Now().Format("20060102")
+	return fmt.Sprintf("BILL%s%04d", timestamp, time.Now().UnixNano()%10000)
+}
+
+// AddItemsToOrder adds items to an existing order
+func (h *OrderHandler) AddItemsToOrder(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid order ID",
+			Error:   stringPtr("invalid_order_id"),
+		})
+		return
+	}
+
+	// Get user from context
+	userID, _, _, ok := middleware.GetUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Authentication required",
+			Error:   stringPtr("auth_required"),
+		})
+		return
+	}
+	_ = userID // User is authenticated
+
+	// Parse request body
+	var req struct {
+		Items []models.CreateOrderItem `json:"items"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if len(req.Items) == 0 {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "No items provided",
+			Error:   stringPtr("empty_items"),
+		})
+		return
+	}
+
+	// Check if order exists and is not completed/cancelled
+	var orderStatus string
+	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1", orderID).Scan(&orderStatus)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Don't allow adding items to completed or cancelled orders
+	if orderStatus == "completed" || orderStatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Cannot add items to a completed or cancelled order",
+			Error:   stringPtr("order_closed"),
+		})
+		return
+	}
+
+	// Start transaction
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to start transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	// Calculate new items subtotal (including option price adjustments)
+	var newItemsSubtotal float64
+	for _, item := range req.Items {
+		// Get product price
+		var price float64
+		err := tx.QueryRow("SELECT price FROM products WHERE id = $1 AND is_available = true", item.ProductID).Scan(&price)
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusBadRequest, models.APIResponse{
+				Success: false,
+				Message: "Product not found or not available",
+				Error:   stringPtr("product_not_found"),
+			})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to fetch product price",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+		// Include option price adjustments
+		var optionAdjustment float64
+		for _, opt := range item.SelectedOptions {
+			optionAdjustment += opt.PriceAdjustment
+		}
+		// Include combo choice price adjustments
+		for _, choice := range item.ComboChoices {
+			optionAdjustment += choice.PriceAdjustment
+		}
+		newItemsSubtotal += (price + optionAdjustment) * float64(item.Quantity)
+	}
+
+	// Create new order items (always separate entries so kitchen can track each addition)
+	for _, item := range req.Items {
+		var price float64
+		err := tx.QueryRow("SELECT price FROM products WHERE id = $1", item.ProductID).Scan(&price)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to fetch product price",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		// Include option price adjustments in unit price
+		var optionAdjustment float64
+		for _, opt := range item.SelectedOptions {
+			optionAdjustment += opt.PriceAdjustment
+		}
+		// Include combo choice price adjustments
+		for _, choice := range item.ComboChoices {
+			optionAdjustment += choice.PriceAdjustment
+		}
+		unitPrice := price + optionAdjustment
+		totalPrice := unitPrice * float64(item.Quantity)
+		itemID := uuid.New()
+
+		// Always create new item entry - kitchen needs to see each addition separately
+		itemQuery := `
+			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, total_price, special_instructions, status)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+		`
+
+		_, err = tx.Exec(itemQuery, itemID, orderID, item.ProductID, item.Quantity, unitPrice, totalPrice, item.SpecialInstructions)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to create order item",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		// Insert order item options (denormalized snapshot)
+		for _, opt := range item.SelectedOptions {
+			_, err = tx.Exec(`
+				INSERT INTO order_item_options (id, order_item_id, option_group_name, option_item_name, price_adjustment)
+				VALUES ($1, $2, $3, $4, $5)
+			`, uuid.New(), itemID, opt.OptionGroupName, opt.OptionItemName, opt.PriceAdjustment)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to save order item options",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+		}
+
+		// Insert order item combo choices (denormalized snapshot)
+		for _, choice := range item.ComboChoices {
+			optionsJSON, _ := json.Marshal(choice.SelectedOptions)
+			_, err = tx.Exec(`
+				INSERT INTO order_item_combo_choices (id, order_item_id, slot_name, product_id, product_name, price_adjustment, selected_options)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`, uuid.New(), itemID, choice.SlotName, choice.ProductID, choice.ProductName, choice.PriceAdjustment, string(optionsJSON))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to save order item combo choices",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+		}
+	}
+
+	// Update order totals
+	taxRate := 0.10
+	newTaxAmount := newItemsSubtotal * taxRate
+
+	updateQuery := `
+		UPDATE orders
+		SET subtotal = subtotal + $1,
+		    tax_amount = tax_amount + $2,
+		    total_amount = total_amount + $1 + $2,
+		    updated_at = NOW()
+		WHERE id = $3
+	`
+	_, err = tx.Exec(updateQuery, newItemsSubtotal, newTaxAmount, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update order totals",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// If order was already past confirmed, set back to confirmed so kitchen sees new items
+	if orderStatus == "preparing" || orderStatus == "ready" || orderStatus == "served" {
+		_, err = tx.Exec("UPDATE orders SET status = 'confirmed', updated_at = NOW() WHERE id = $1", orderID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to update order status",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch updated order
+	order, err := h.getOrderByID(orderID)
+	if err != nil {
+		c.JSON(http.StatusOK, models.APIResponse{
+			Success: true,
+			Message: "Items added but failed to fetch updated order",
+			Data:    nil,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Items added to order successfully",
+		Data:    order,
+	})
+}
+
+// UpdateOrderItem updates the quantity or special instructions of an order item
+func (h *OrderHandler) UpdateOrderItem(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	itemIDStr := c.Param("item_id")
+
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid order ID",
+			Error:   stringPtr("invalid_order_id"),
+		})
+		return
+	}
+
+	itemID, err := uuid.Parse(itemIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid item ID",
+			Error:   stringPtr("invalid_item_id"),
+		})
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		Quantity            *int    `json:"quantity"`
+		SpecialInstructions *string `json:"special_instructions"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid request body",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Check if order exists and is editable
+	var orderStatus string
+	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1", orderID).Scan(&orderStatus)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if orderStatus == "completed" || orderStatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Cannot edit a completed or cancelled order",
+			Error:   stringPtr("order_closed"),
+		})
+		return
+	}
+
+	// Get current item details
+	var currentQuantity int
+	var unitPrice float64
+	err = h.db.QueryRow("SELECT quantity, unit_price FROM order_items WHERE id = $1 AND order_id = $2", itemID, orderID).Scan(&currentQuantity, &unitPrice)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order item not found",
+			Error:   stringPtr("item_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order item",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Start transaction
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to start transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	newQuantity := currentQuantity
+	if req.Quantity != nil {
+		if *req.Quantity < 1 {
+			c.JSON(http.StatusBadRequest, models.APIResponse{
+				Success: false,
+				Message: "Quantity must be at least 1. Use delete to remove items.",
+				Error:   stringPtr("invalid_quantity"),
+			})
+			return
+		}
+		newQuantity = *req.Quantity
+	}
+
+	// Update item
+	newTotalPrice := unitPrice * float64(newQuantity)
+	updateItemQuery := `
+		UPDATE order_items
+		SET quantity = $1, total_price = $2, special_instructions = COALESCE($3, special_instructions), updated_at = NOW()
+		WHERE id = $4 AND order_id = $5
+	`
+	_, err = tx.Exec(updateItemQuery, newQuantity, newTotalPrice, req.SpecialInstructions, itemID, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update order item",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Recalculate order totals
+	var newSubtotal float64
+	err = tx.QueryRow("SELECT COALESCE(SUM(total_price), 0) FROM order_items WHERE order_id = $1", orderID).Scan(&newSubtotal)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to calculate order subtotal",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	taxRate := 0.10
+	newTaxAmount := newSubtotal * taxRate
+	newTotal := newSubtotal + newTaxAmount
+
+	_, err = tx.Exec(`
+		UPDATE orders
+		SET subtotal = $1, tax_amount = $2, total_amount = $3, updated_at = NOW()
+		WHERE id = $4
+	`, newSubtotal, newTaxAmount, newTotal, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update order totals",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch updated order
+	order, _ := h.getOrderByID(orderID)
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Order item updated successfully",
+		Data:    order,
+	})
+}
+
+// RemoveOrderItem removes an item from an order
+func (h *OrderHandler) RemoveOrderItem(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	itemIDStr := c.Param("item_id")
+
+	orderID, err := uuid.Parse(orderIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid order ID",
+			Error:   stringPtr("invalid_order_id"),
+		})
+		return
+	}
+
+	itemID, err := uuid.Parse(itemIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid item ID",
+			Error:   stringPtr("invalid_item_id"),
+		})
+		return
+	}
+
+	// Check if order exists and is editable, also get KOT info for cleanup
+	var orderStatus string
+	var isKOT bool
+	var parentOrderID sql.NullString
+	var tableID sql.NullString
+	err = h.db.QueryRow(`
+		SELECT status, is_kot, parent_order_id, table_id
+		FROM orders WHERE id = $1
+	`, orderID).Scan(&orderStatus, &isKOT, &parentOrderID, &tableID)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch order",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if orderStatus == "completed" || orderStatus == "cancelled" {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Cannot edit a completed or cancelled order",
+			Error:   stringPtr("order_closed"),
+		})
+		return
+	}
+
+	// Start transaction
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to start transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	// Delete the item
+	result, err := tx.Exec("DELETE FROM order_items WHERE id = $1 AND order_id = $2", itemID, orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to remove order item",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order item not found",
+			Error:   stringPtr("item_not_found"),
+		})
+		return
+	}
+
+	// Check if order has any remaining items
+	var itemCount int
+	err = tx.QueryRow("SELECT COUNT(*) FROM order_items WHERE order_id = $1", orderID).Scan(&itemCount)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to count remaining items",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	var orderDeleted bool
+	var parentBillDeleted bool
+	if itemCount == 0 {
+		// No items left - if it's a KOT, delete it completely; otherwise cancel it
+		if isKOT {
+			// Delete any payments associated with this KOT
+			_, err = tx.Exec("DELETE FROM payments WHERE order_id = $1", orderID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to delete KOT payments",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+
+			// Delete the KOT order
+			_, err = tx.Exec("DELETE FROM orders WHERE id = $1", orderID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to delete empty KOT",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+			orderDeleted = true
+
+			// Check if parent bill has any remaining KOTs
+			if parentOrderID.Valid {
+				var remainingKOTs int
+				err = tx.QueryRow(`
+					SELECT COUNT(*) FROM orders
+					WHERE parent_order_id = $1 AND is_kot = true
+				`, parentOrderID.String).Scan(&remainingKOTs)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, models.APIResponse{
+						Success: false,
+						Message: "Failed to count remaining KOTs",
+						Error:   stringPtr(err.Error()),
+					})
+					return
+				}
+
+				// If no remaining KOTs, delete the parent bill too
+				if remainingKOTs == 0 {
+					// Delete payments for parent bill
+					_, err = tx.Exec("DELETE FROM payments WHERE order_id = $1", parentOrderID.String)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, models.APIResponse{
+							Success: false,
+							Message: "Failed to delete parent bill payments",
+							Error:   stringPtr(err.Error()),
+						})
+						return
+					}
+
+					// Delete order items from parent bill (if any)
+					_, err = tx.Exec("DELETE FROM order_items WHERE order_id = $1", parentOrderID.String)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, models.APIResponse{
+							Success: false,
+							Message: "Failed to delete parent bill items",
+							Error:   stringPtr(err.Error()),
+						})
+						return
+					}
+
+					// Delete the parent bill
+					_, err = tx.Exec("DELETE FROM orders WHERE id = $1", parentOrderID.String)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, models.APIResponse{
+							Success: false,
+							Message: "Failed to delete empty parent bill",
+							Error:   stringPtr(err.Error()),
+						})
+						return
+					}
+					parentBillDeleted = true
+				}
+			}
+
+			// Update table status if no other active orders exist
+			if tableID.Valid {
+				var otherOrderCount int
+				err = tx.QueryRow(`
+					SELECT COUNT(*) FROM orders
+					WHERE table_id = $1 AND status NOT IN ('completed', 'cancelled')
+				`, tableID.String).Scan(&otherOrderCount)
+				if err == nil && otherOrderCount == 0 {
+					_, _ = tx.Exec(`
+						UPDATE dining_tables SET is_occupied = false, updated_at = CURRENT_TIMESTAMP
+						WHERE id = $1
+					`, tableID.String)
+				}
+			}
+		} else {
+			// Not a KOT, just cancel the order
+			_, err = tx.Exec("UPDATE orders SET status = 'cancelled', updated_at = NOW() WHERE id = $1", orderID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.APIResponse{
+					Success: false,
+					Message: "Failed to cancel empty order",
+					Error:   stringPtr(err.Error()),
+				})
+				return
+			}
+		}
+	} else {
+		// Recalculate order totals
+		var newSubtotal float64
+		err = tx.QueryRow("SELECT COALESCE(SUM(total_price), 0) FROM order_items WHERE order_id = $1", orderID).Scan(&newSubtotal)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to calculate order subtotal",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+
+		taxRate := 0.10
+		newTaxAmount := newSubtotal * taxRate
+		newTotal := newSubtotal + newTaxAmount
+
+		_, err = tx.Exec(`
+			UPDATE orders
+			SET subtotal = $1, tax_amount = $2, total_amount = $3, updated_at = NOW()
+			WHERE id = $4
+		`, newSubtotal, newTaxAmount, newTotal, orderID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.APIResponse{
+				Success: false,
+				Message: "Failed to update order totals",
+				Error:   stringPtr(err.Error()),
+			})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Build response based on what happened
+	var message string
+	var responseData interface{}
+
+	if orderDeleted {
+		// KOT was deleted - return a minimal object with cancelled status for frontend compatibility
+		message = "KOT removed (no items remaining)"
+		if parentBillDeleted {
+			message = "KOT and bill removed (no items remaining)"
+		}
+		// Return a minimal order-like object so frontend knows to close the dialog
+		responseData = map[string]interface{}{
+			"id":     orderID.String(),
+			"status": "cancelled",
+		}
+	} else if itemCount == 0 {
+		// Order was cancelled (not deleted)
+		message = "Order item removed and order cancelled (no items remaining)"
+		order, _ := h.getOrderByID(orderID)
+		responseData = order
+	} else {
+		// Normal case - order still has items
+		message = "Order item removed successfully"
+		order, _ := h.getOrderByID(orderID)
+		responseData = order
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: message,
+		Data:    responseData,
+	})
+}
+
+// GetBillSummary returns a bill with all its KOTs aggregated
+func (h *OrderHandler) GetBillSummary(c *gin.Context) {
+	billID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid bill ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Get the bill
+	bill, err := h.getOrderByID(billID)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Bill not found",
+			Error:   stringPtr("bill_not_found"),
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch bill",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Verify this is a bill (parent order), not a KOT
+	if bill.IsKOT {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "This is a KOT, not a bill. Use the parent_order_id to get the bill summary.",
+			Error:   stringPtr("not_a_bill"),
+		})
+		return
+	}
+
+	// Get all KOTs for this bill
+	kots, err := h.getKOTsForBill(billID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch KOTs",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Calculate aggregated totals
+	var totalItems int
+	var aggregatedSubtotal, aggregatedTax, aggregatedDiscount, aggregatedTotal float64
+
+	for _, kot := range kots {
+		totalItems += len(kot.Items)
+		aggregatedSubtotal += kot.Subtotal
+		aggregatedTax += kot.TaxAmount
+		aggregatedDiscount += kot.DiscountAmount
+		aggregatedTotal += kot.TotalAmount
+	}
+
+	isBillClosed := bill.Status == "completed" || bill.Status == "cancelled"
+
+	response := models.BillSummaryResponse{
+		Bill:               *bill,
+		KOTs:               kots,
+		TotalItems:         totalItems,
+		AggregatedSubtotal: aggregatedSubtotal,
+		AggregatedTax:      aggregatedTax,
+		AggregatedDiscount: aggregatedDiscount,
+		AggregatedTotal:    aggregatedTotal,
+		IsBillClosed:       isBillClosed,
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Bill summary retrieved successfully",
+		Data:    response,
+	})
+}
+
+// GetActiveBillForTable returns the active bill for a specific table
+func (h *OrderHandler) GetActiveBillForTable(c *gin.Context) {
+	tableID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid table ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Find active bill (parent order) for this table
+	var billID uuid.UUID
+	query := `
+		SELECT id FROM orders
+		WHERE table_id = $1
+		  AND is_kot = false
+		  AND parent_order_id IS NULL
+		  AND status NOT IN ('completed', 'cancelled')
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	err = h.db.QueryRow(query, tableID).Scan(&billID)
+	if err == sql.ErrNoRows {
+		// No active bill found - return null (not an error)
+		c.JSON(http.StatusOK, models.APIResponse{
+			Success: true,
+			Message: "No active bill for this table",
+			Data:    nil,
+		})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch active bill",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Get the bill with KOTs
+	bill, err := h.getOrderByID(billID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch bill details",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	kots, err := h.getKOTsForBill(billID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch KOTs",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	var totalItems int
+	var aggregatedSubtotal, aggregatedTax, aggregatedDiscount, aggregatedTotal float64
+
+	for _, kot := range kots {
+		totalItems += len(kot.Items)
+		aggregatedSubtotal += kot.Subtotal
+		aggregatedTax += kot.TaxAmount
+		aggregatedDiscount += kot.DiscountAmount
+		aggregatedTotal += kot.TotalAmount
+	}
+
+	response := models.BillSummaryResponse{
+		Bill:               *bill,
+		KOTs:               kots,
+		TotalItems:         totalItems,
+		AggregatedSubtotal: aggregatedSubtotal,
+		AggregatedTax:      aggregatedTax,
+		AggregatedDiscount: aggregatedDiscount,
+		AggregatedTotal:    aggregatedTotal,
+		IsBillClosed:       false,
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Active bill retrieved successfully",
+		Data:    response,
+	})
+}
+
+// getKOTsForBill retrieves all KOTs for a given bill (parent order)
+func (h *OrderHandler) getKOTsForBill(billID uuid.UUID) ([]models.Order, error) {
+	query := `
+		SELECT id FROM orders
+		WHERE parent_order_id = $1
+		  AND is_kot = true
+		ORDER BY created_at ASC
+	`
+	rows, err := h.db.Query(query, billID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var kots []models.Order
+	for rows.Next() {
+		var kotID uuid.UUID
+		if err := rows.Scan(&kotID); err != nil {
+			return nil, err
+		}
+
+		kot, err := h.getOrderByID(kotID)
+		if err != nil {
+			return nil, err
+		}
+		kots = append(kots, *kot)
+	}
+
+	return kots, nil
 }
 

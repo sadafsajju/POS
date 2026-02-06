@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utility classes for touch-friendly interfaces */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+  
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Custom warm palette */
+    --background: 0 0% 11%;              /* #1C1C1C soft black */
+    --foreground: 30 52% 90%;            /* #F5E8D8 warm beige */
+    --card: 0 0% 14%;                    /* slightly lighter than bg */
+    --card-foreground: 30 52% 90%;       /* warm beige */
+    --popover: 0 0% 14%;
+    --popover-foreground: 30 52% 90%;
+    --primary: 210 100% 52%;             /* #0A84FF blue */
+    --primary-foreground: 0 0% 100%;     /* white text on blue */
+    --secondary: 43 74% 49%;             /* #DAA520 golden yellow */
+    --secondary-foreground: 0 0% 11%;    /* dark text on yellow */
+    --muted: 0 0% 18%;                   /* subtle dark gray */
+    --muted-foreground: 30 20% 65%;      /* muted warm beige */
+    --accent: 0 0% 24%;                  /* #3d3d3d darker gray (hover) */
+    --accent-foreground: 30 52% 90%;     /* warm beige text on accent */
+    --destructive: 0 84% 60%;            /* keep red for errors */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 22%;                  /* subtle border */
+    --input: 0 0% 18%;                   /* input background */
+    --ring: 210 100% 52%;                /* #0A84FF blue focus ring */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .pos-grid {
+    display: grid;
+    grid-template-columns: 1fr 3fr 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+  }
+  
+  .pos-sidebar {
+    @apply border-r bg-card;
+  }
+  
+  .pos-main {
+    @apply bg-background;
+  }
+  
+  .pos-cart {
+    @apply border-l bg-card;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+}
+

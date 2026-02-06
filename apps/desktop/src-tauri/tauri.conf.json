@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "POS System",
+  "version": "0.1.0",
+  "identifier": "com.pos.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "POS System",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [],
+    "category": "Business",
+    "shortDescription": "Point of Sale System",
+    "longDescription": "A modern, offline-first Point of Sale system for restaurants and retail.",
+    "copyright": "Copyright 2024",
+    "targets": ["app", "dmg", "nsis"],
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": null,
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": null,
+      "timestampUrl": null,
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    }
+  },
+  "plugins": {
+    "sql": {
+      "preload": ["sqlite:pos.db"]
+    }
+  }
+}

@@ -16,6 +16,24 @@ services:
       - ./database/init:/docker-entrypoint-initdb.d
     networks:
       - pos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pos_system"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and real-time
+  redis:
+    image: redis:7-alpine
+    container_name: pos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pos-network
+    command: redis-server --appendonly yes
+    restart: unless-stopped
 
   # Golang Backend API
   backend:
@@ -29,23 +47,29 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres123
       - DB_NAME=pos_system
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - PORT=8080
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - pos-network
     volumes:
       - ./backend:/app
     restart: unless-stopped
 
-  # Frontend (TanStack Start)
-  frontend:
+  # Web Admin Dashboard (can also serve as POS in browser)
+  web-admin:
     build:
-      context: ./frontend
+      context: ./apps/desktop
       dockerfile: Dockerfile
-    container_name: pos-frontend
+    container_name: pos-web-admin
     environment:
       - VITE_API_URL=http://localhost:8080
     ports:
@@ -55,14 +79,14 @@ services:
     networks:
       - pos-network
     volumes:
-      - ./frontend:/app
+      - ./apps/desktop:/app
       - /app/node_modules
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   pos-network:
     driver: bridge
-

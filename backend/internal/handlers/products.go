@@ -44,8 +44,10 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	// Build query with filters
 	queryBuilder := `
-		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url, 
+		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
+		       p.dietary_type, p.product_type,
+		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -118,6 +120,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 			&product.ID, &product.CategoryID, &product.Name, &product.Description,
 			&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 			&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
+			&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
 			&product.CreatedAt, &product.UpdatedAt,
 			&categoryName, &categoryColor,
 		)
@@ -173,8 +176,10 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	var categoryName, categoryColor sql.NullString
 
 	query := `
-		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url, 
+		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
+		       p.dietary_type, p.product_type,
+		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -186,6 +191,7 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		&product.ID, &product.CategoryID, &product.Name, &product.Description,
 		&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 		&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
+		&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
 		&product.CreatedAt, &product.UpdatedAt,
 		&categoryName, &categoryColor,
 	)
@@ -292,8 +298,10 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 	availableOnly := c.Query("available_only") == "true"
 
 	query := `
-		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url, 
+		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
+		       p.dietary_type, p.product_type,
+		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -327,6 +335,7 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 			&product.ID, &product.CategoryID, &product.Name, &product.Description,
 			&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 			&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
+			&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
 			&product.CreatedAt, &product.UpdatedAt,
 			&categoryName, &categoryColor,
 		)

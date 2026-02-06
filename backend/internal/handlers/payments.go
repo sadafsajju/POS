@@ -114,7 +114,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	}
 
 	// Check if order is in a valid state for payment
-	if orderStatus == "cancelled" || orderStatus == "completed" {
+	if orderStatus == "cancelled" || orderStatus == "completed" || orderStatus == "paid" {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
 			Success: false,
 			Message: "Order cannot be paid - order is " + orderStatus,
@@ -187,13 +187,34 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
+	// Link customer to order if provided
+	if req.CustomerID != nil && *req.CustomerID != "" {
+		_, err = tx.Exec(`
+			UPDATE orders
+			SET customer_id = $1, customer_name = COALESCE($2, customer_name), updated_at = CURRENT_TIMESTAMP
+			WHERE id = $3
+		`, *req.CustomerID, req.CustomerName, orderID)
+		if err != nil {
+			// Non-fatal: log but continue
+		}
+	} else if req.CustomerName != nil && *req.CustomerName != "" {
+		_, err = tx.Exec(`
+			UPDATE orders
+			SET customer_name = $1, updated_at = CURRENT_TIMESTAMP
+			WHERE id = $2
+		`, *req.CustomerName, orderID)
+		if err != nil {
+			// Non-fatal: log but continue
+		}
+	}
+
 	// Check if order is now fully paid
 	newTotalPaid := totalPaid + req.Amount
 	if newTotalPaid >= orderTotalAmount {
-		// Update order status to completed if fully paid
+		// Mark bill as paid (table is NOT freed — staff will clear it manually when customer leaves)
 		_, err = tx.Exec(`
-			UPDATE orders 
-			SET status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+			UPDATE orders
+			SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $1
 		`, orderID)
 		if err != nil {
@@ -205,25 +226,13 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 			return
 		}
 
-		// Free up the table
-		_, err = tx.Exec(`
-			UPDATE dining_tables 
-			SET is_occupied = false 
-			WHERE id IN (SELECT table_id FROM orders WHERE id = $1 AND table_id IS NOT NULL)
-		`, orderID)
-		if err != nil {
-			// Log error but don't fail the transaction
-			// fmt.Printf("Warning: Failed to update table status: %v\n", err)
-		}
-
 		// Log status change
 		_, err = tx.Exec(`
 			INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by, notes)
-			VALUES ($1, $2, 'completed', $3, 'Order completed after payment')
+			VALUES ($1, $2, 'paid', $3, 'Order marked as paid after payment')
 		`, orderID, orderStatus, userID)
 		if err != nil {
 			// Log error but don't fail the transaction
-			// fmt.Printf("Warning: Failed to log status change: %v\n", err)
 		}
 	}
 

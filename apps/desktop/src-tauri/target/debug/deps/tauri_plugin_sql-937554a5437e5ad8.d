@@ -1,0 +1,10 @@
+/Users/admin/Documents/sadaf/Apps/POS/apps/desktop/src-tauri/target/debug/deps/tauri_plugin_sql-937554a5437e5ad8.d: /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/lib.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/commands.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/mod.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/sqlite.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/error.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/wrapper.rs
+
+/Users/admin/Documents/sadaf/Apps/POS/apps/desktop/src-tauri/target/debug/deps/libtauri_plugin_sql-937554a5437e5ad8.rmeta: /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/lib.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/commands.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/mod.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/sqlite.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/error.rs /Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/wrapper.rs
+
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/lib.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/commands.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/mod.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/decode/sqlite.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/error.rs:
+/Users/admin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-sql-2.3.1/src/wrapper.rs:

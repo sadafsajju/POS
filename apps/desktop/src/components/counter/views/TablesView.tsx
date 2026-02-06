@@ -1,0 +1,401 @@
+import { useState, useCallback } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, UtensilsCrossed, CircleCheck, CircleDollarSign, ClipboardList } from 'lucide-react'
+import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
+import { QWERTY_LAYOUT, NUMBERS_LAYOUT, SYMBOLS_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
+import type { KeyConfig, KeyboardLayout } from '@/components/ui/on-screen-keyboard/types'
+import type { DiningTable, Order, OrderType } from '../types'
+import { formatElapsedTime, formatDuration, getTableOrders, getTableKOTs, calculateTableTotal } from '../utils/orderUtils'
+
+/** Determine the most relevant order status to show on a table card */
+function getTableOrderStatus(tableOrders: Order[], tableKOTs: Order[]) {
+  // Priority: show the most actionable status across all KOTs and parent orders
+  const allStatuses = [...tableKOTs, ...tableOrders].map(o => o.status)
+
+  if (allStatuses.includes('preparing')) return 'preparing'
+  if (allStatuses.includes('ready')) return 'ready'
+  if (allStatuses.includes('served')) return 'served'
+  if (allStatuses.includes('confirmed')) return 'confirmed'
+  if (allStatuses.includes('paid')) return 'paid'
+  if (allStatuses.includes('pending')) return 'pending'
+  return tableOrders[0]?.status || 'pending'
+}
+
+const orderStatusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string }> = {
+  pending: { label: 'Pending', icon: <ClipboardList className="w-3 h-3" />, bg: 'bg-amber-500' },
+  confirmed: { label: 'Confirmed', icon: <CircleCheck className="w-3 h-3" />, bg: 'bg-blue-500' },
+  preparing: { label: 'Preparing', icon: <ChefHat className="w-3 h-3" />, bg: 'bg-orange-500' },
+  ready: { label: 'Ready', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-emerald-500' },
+  served: { label: 'Served', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-teal-500' },
+  paid: { label: 'Paid', icon: <CircleDollarSign className="w-3 h-3" />, bg: 'bg-green-700' },
+}
+
+/**
+ * Centered customer name input with integrated on-screen keyboard for takeout/delivery
+ */
+function TakeoutCustomerInput({
+  customerName,
+  onCustomerNameChange,
+  onProceedToProducts,
+  orderType
+}: {
+  customerName: string
+  onCustomerNameChange: (name: string) => void
+  onProceedToProducts: () => void
+  orderType: OrderType
+}) {
+  const [isShifted, setIsShifted] = useState(false)
+  const [currentLayout, setCurrentLayout] = useState<KeyboardLayout>(QWERTY_LAYOUT)
+  const maxLength = 100
+
+  const handleKeyPress = useCallback(
+    (config: KeyConfig) => {
+      switch (config.type) {
+        case 'char':
+          if (customerName.length < maxLength) {
+            const char = isShifted
+              ? (config.value || '').toUpperCase()
+              : config.value || ''
+            onCustomerNameChange(customerName + char)
+            if (isShifted) setIsShifted(false)
+          }
+          break
+
+        case 'backspace':
+          onCustomerNameChange(customerName.slice(0, -1))
+          break
+
+        case 'space':
+          if (customerName.length < maxLength) {
+            onCustomerNameChange(customerName + ' ')
+          }
+          break
+
+        case 'shift':
+          setIsShifted((prev) => !prev)
+          break
+
+        case 'symbols':
+          if (config.id === 'numbers' || config.id === '123') {
+            setCurrentLayout(NUMBERS_LAYOUT)
+          } else if (config.id === 'abc' || config.id === 'ABC') {
+            setCurrentLayout(QWERTY_LAYOUT)
+          } else if (config.id === 'symbols') {
+            setCurrentLayout(SYMBOLS_LAYOUT)
+          }
+          break
+
+        case 'clear':
+          onCustomerNameChange('')
+          break
+
+        case 'enter':
+          onProceedToProducts()
+          break
+      }
+    },
+    [customerName, isShifted, maxLength, onCustomerNameChange, onProceedToProducts]
+  )
+
+  return (
+    <>
+      {/* Centered input area - with padding at bottom for fixed keyboard */}
+      <div className="flex flex-col items-center justify-center px-8 pb-80 min-h-[calc(100vh-200px)]">
+        <div className="w-full max-w-2xl text-center">
+          <h2 className="text-2xl font-semibold mb-2">
+            {orderType === 'takeout' ? 'Takeout Order' : 'Delivery Order'}
+          </h2>
+          <p className="text-muted-foreground mb-6">Enter customer name (optional)</p>
+
+          {/* Input display */}
+          <div className="relative mb-6">
+            <div className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-input bg-background text-2xl flex items-center justify-center">
+              {customerName || (
+                <span className="text-muted-foreground">Customer name...</span>
+              )}
+              <span className="inline-block w-0.5 h-7 bg-primary ml-1 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Skip button */}
+          <Button
+            onClick={onProceedToProducts}
+            variant="outline"
+            size="lg"
+            className="h-14 px-8 text-lg"
+          >
+            Skip <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Keyboard - Fixed at bottom, slides in */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 animate-in slide-in-from-bottom duration-300 z-50">
+        <div className="space-y-2 max-w-4xl mx-auto">
+          {currentLayout.rows.map((row, index) => (
+            <KeyboardRow
+              key={`row-${index}`}
+              row={row}
+              isShifted={isShifted}
+              onKeyPress={handleKeyPress}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+interface TablesViewProps {
+  tables: DiningTable[]
+  allOrders: Order[]
+  selectedTable: DiningTable | null
+  onTableSelect: (table: DiningTable) => void
+  formatCurrency: (amount: number) => string
+  orderType: OrderType
+  onOrderTypeChange: (type: OrderType) => void
+  customerName: string
+  onCustomerNameChange: (name: string) => void
+  onProceedToProducts: () => void
+  /** If true, only dine-in orders are allowed (for server role) */
+  serverOnly?: boolean
+  /** Function to check if a table has items in its cart */
+  hasCartItems?: (tableId: string) => boolean
+  /** If true, details panel is expanded (show fewer columns) */
+  detailsExpanded?: boolean
+}
+
+/**
+ * Tables grid view showing all dining tables with their status
+ */
+export function TablesView({
+  tables,
+  allOrders,
+  selectedTable,
+  onTableSelect,
+  formatCurrency,
+  orderType,
+  onOrderTypeChange,
+  customerName,
+  onCustomerNameChange,
+  onProceedToProducts,
+  serverOnly = false,
+  hasCartItems,
+  detailsExpanded = false
+}: TablesViewProps) {
+  const safeTables = Array.isArray(tables) ? tables : []
+
+  // Group tables by floor
+  const tablesByFloor = safeTables.reduce<Record<string, DiningTable[]>>((acc, table) => {
+    const floor = table.floor || 'Ground'
+    if (!acc[floor]) {
+      acc[floor] = []
+    }
+    acc[floor].push(table)
+    return acc
+  }, {})
+
+  // Custom sort to put Ground first, then sort rest logically
+  const floorOrder = ['Ground', 'Mezzanine', 'Basement', '1st Floor', '2nd Floor', '3rd Floor', 'Rooftop']
+  const floors = Object.keys(tablesByFloor).sort((a, b) => {
+    const indexA = floorOrder.indexOf(a)
+    const indexB = floorOrder.indexOf(b)
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b)
+    if (indexA === -1) return 1
+    if (indexB === -1) return -1
+    return indexA - indexB
+  })
+
+  return (
+    <div className="space-y-4 p-6">
+      {/* Order Type Selection - Only show Takeout/Delivery for non-server roles */}
+      {!serverOnly && (
+        <div className="flex gap-3 mb-4">
+          <Button
+            variant={orderType === 'dine_in' ? 'default' : 'outline'}
+            onClick={() => onOrderTypeChange('dine_in')}
+            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'dine_in' ? 'border-b-4 border-blue-700' : ''}`}
+            style={{
+              backgroundImage: 'url(/images/dine-in.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'top',
+            }}
+          >
+            <span className="absolute inset-0 bg-black/50" />
+            <span className="relative z-10 flex items-center text-white">
+               Dine-In
+            </span>
+          </Button>
+          <Button
+            variant={orderType === 'takeout' ? 'default' : 'outline'}
+            onClick={() => onOrderTypeChange('takeout')}
+            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'takeout' ? 'border-b-4 border-orange-700' : ''}`}
+            style={{
+              backgroundImage: 'url(/images/takeout.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'top',
+            }}
+          >
+            <span className="absolute inset-0 bg-black/50" />
+            <span className="relative z-10 flex items-center text-white">
+              Takeout
+            </span>
+          </Button>
+          <Button
+            variant={orderType === 'delivery' ? 'default' : 'outline'}
+            onClick={() => onOrderTypeChange('delivery')}
+            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'delivery' ? 'border-b-4 border-green-700' : ''}`}
+            style={{
+              backgroundImage: 'url(/images/delivery.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'top',
+            }}
+          >
+            <span className="absolute inset-0 bg-black/50" />
+            <span className="relative z-10 flex items-center text-white">
+              Delivery
+            </span>
+          </Button>
+        </div>
+      )}
+
+      {/* Show centered customer name input with keyboard for takeout/delivery */}
+      {orderType !== 'dine_in' ? (
+        <TakeoutCustomerInput
+          customerName={customerName}
+          onCustomerNameChange={onCustomerNameChange}
+          onProceedToProducts={onProceedToProducts}
+          orderType={orderType}
+        />
+      ) : (
+        <>
+          {/* Header with legend */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Select a Table</h3>
+            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-blue-700 border border-blue-700"></span> Available
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-green-500 dark:bg-green-600"></span> Occupied
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
+                  <ShoppingCart className="w-2.5 h-2.5 text-white" />
+                </span> Cart
+              </span>
+            </div>
+          </div>
+
+          {/* Tables Grid by Floor */}
+          <div className="space-y-6">
+            {floors.map(floor => (
+              <div key={floor}>
+                <h4 className="text-md font-semibold mb-3 text-muted-foreground">{floor}</h4>
+                <div className={`grid gap-1 ${detailsExpanded ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6' : 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8'}`}>
+                  {tablesByFloor[floor].map(table => {
+                    const tableOrders = getTableOrders(allOrders, table.id)
+                    const tableKOTs = getTableKOTs(allOrders, table.id)
+                    const hasOrders = tableOrders.length > 0
+                    const tableTotal = calculateTableTotal(tableOrders)
+                    const tableHasCartItems = hasCartItems?.(table.id) || false
+                    const currentStatus = hasOrders ? getTableOrderStatus(tableOrders, tableKOTs) : null
+                    const statusConf = currentStatus ? orderStatusConfig[currentStatus] : null
+
+                    return (
+                      <Card
+                        key={table.id}
+                        className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-none aspect-square ${
+                          selectedTable?.id === table.id ? 'ring-2 ring-primary' : ''
+                        } ${hasOrders
+                          ? 'bg-green-500 dark:bg-green-600'
+                          : 'bg-white border-2 border-blue-700 '}`}
+                        onClick={() => onTableSelect(table)}
+                      >
+                        {/* Cart indicator for tables with pending items */}
+                        {tableHasCartItems && (
+                          <div className="absolute -top-2 -right-2 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                            <ShoppingCart className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        <CardContent className="p-4 h-full flex items-center justify-center">
+                          <div className="text-center">
+                            <div className={`text-2xl font-bold mb-1 ${hasOrders
+                              ? 'text-white'
+                              : 'text-blue-700'}`}>
+                              {table.table_number}
+                            </div>
+                            <div className={`text-xs mb-2 ${hasOrders
+                              ? 'text-white/80'
+                              : 'text-primary'}`}>
+                              {table.seating_capacity} seats
+                            </div>
+                            {hasOrders ? (
+                              <div className="space-y-1">
+                                {/* Order status badge */}
+                                {statusConf && (
+                                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${statusConf.bg}`}>
+                                    {statusConf.icon}
+                                    {statusConf.label}
+                                  </div>
+                                )}
+                                <div className="text-sm font-semibold text-white">
+                                  {formatCurrency(tableTotal)}
+                                </div>
+                                {/* Dual timers: Order time | Served time */}
+                                {(() => {
+                                  const firstOrder = tableOrders[0]
+                                  const servedAt = firstOrder.served_at
+                                  return (
+                                    <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-white/80">
+                                      {/* Order timer: stops at served_at if served, otherwise live */}
+                                      <div className="flex items-center gap-0.5" title="Order time">
+                                        <Clock className="w-2.5 h-2.5" />
+                                        {servedAt
+                                          ? formatDuration(firstOrder.created_at, servedAt)
+                                          : formatElapsedTime(firstOrder.created_at)}
+                                      </div>
+                                      {/* Served timer: live counter since served */}
+                                      {servedAt && (
+                                        <>
+                                          <span className="text-white/50">|</span>
+                                          <div className="flex items-center gap-0.5" title="Since served">
+                                            <Timer className="w-2.5 h-2.5" />
+                                            {formatElapsedTime(servedAt)}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            ) : (
+                              <Badge className="bg-blue-700 text-white text-xs">
+                                Available
+                              </Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Empty state */}
+          {safeTables.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No tables configured</p>
+              <p className="text-sm">Add tables in the admin settings</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
