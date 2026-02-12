@@ -84,17 +84,17 @@ export function CreateOrderView({
         onClick={() => !isUnavailable && handleProductClick(product)}
         className={`
           relative overflow-hidden cursor-pointer transition-all
-          ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-card
+          ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-zinc-900
           ${isUnavailable
             ? 'opacity-50 cursor-not-allowed'
-            : 'hover:bg-muted/50 active:scale-[0.98]'
+            : 'hover:bg-zinc-800 active:scale-[0.98]'
           }
-          ${cartItem ? 'ring-2 ring-primary z-10' : ''}
+          ${cartItem ? 'ring-2 ring-amber-500 z-10' : ''}
         `}
       >
         {/* Product Image */}
         {displaySettings.showImage && (
-          <div className="relative h-2/3 bg-muted overflow-hidden">
+          <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
             {product.image_url ? (
               <img
                 src={product.image_url}
@@ -102,14 +102,14 @@ export function CreateOrderView({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-muted">
-                <ImageOff className="w-12 h-12 text-muted-foreground/30" />
+              <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                <ImageOff className="w-12 h-12 text-zinc-700" />
               </div>
             )}
 
             {/* Top Right: Quantity Badge */}
             {cartItem && (
-              <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
+              <div className="absolute top-2 right-2 bg-amber-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
                 {cartItem.quantity}
               </div>
             )}
@@ -137,7 +137,7 @@ export function CreateOrderView({
 
         {/* Quantity badge when image is hidden */}
         {!displaySettings.showImage && cartItem && (
-          <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
+          <div className="absolute top-2 right-2 bg-amber-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
             {cartItem.quantity}
           </div>
         )}
@@ -145,7 +145,7 @@ export function CreateOrderView({
         {/* Product Info */}
         <div className={`flex-1 p-2 flex flex-col justify-between ${!displaySettings.showImage ? 'py-3' : ''}`}>
           <div>
-            <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1">
+            <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1 text-zinc-100">
               {displaySettings.showDietaryType && product.dietary_type && (
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
@@ -154,27 +154,27 @@ export function CreateOrderView({
               )}
               {product.name}
               {(hasOptions || isCombo) && (
-                <Settings2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                <Settings2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
               )}
             </h3>
             {displaySettings.showDescription && product.description && (
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-zinc-500 truncate">
                 {product.description}
               </p>
             )}
             {displaySettings.showSku && product.sku && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-zinc-500">
                 SKU: {product.sku}
               </p>
             )}
             {displaySettings.showBarcode && product.barcode && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-zinc-500 flex items-center gap-1">
                 <Barcode className="w-3 h-3" />
                 {product.barcode}
               </p>
             )}
             {!displaySettings.showImage && displaySettings.showPreparationTime && product.preparation_time > 0 && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-xs text-zinc-500 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {product.preparation_time} min
               </p>
@@ -182,7 +182,7 @@ export function CreateOrderView({
           </div>
           <div className="flex items-center justify-between gap-2">
             {displaySettings.showPrice && (
-              <span className="text-base font-bold text-primary">
+              <span className="text-base font-bold text-amber-400">
                 {formatCurrency(product.price)}
               </span>
             )}
@@ -202,9 +202,9 @@ export function CreateOrderView({
       {productsByCategory.map(({ category, products: categoryProducts }) => (
         <div key={category.id}>
           {/* Category Header */}
-          <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 text-lg font-semibold flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-4 py-3 text-lg font-black tracking-tight text-zinc-100 flex items-center justify-between">
             <span>{category.name}</span>
-            <span className="text-muted-foreground text-xs">{categoryProducts.length} items</span>
+            <span className="text-zinc-500 text-xs">{categoryProducts.length} items</span>
           </div>
           {/* Products Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
@@ -216,9 +216,9 @@ export function CreateOrderView({
       {/* Uncategorized Products */}
       {uncategorizedProducts.length > 0 && (
         <div>
-          <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3 font-semibold text-sm flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-4 py-3 font-black tracking-tight text-zinc-100 text-sm flex items-center justify-between">
             <span>Other Items</span>
-            <span className="text-muted-foreground text-xs">{uncategorizedProducts.length} items</span>
+            <span className="text-zinc-500 text-xs">{uncategorizedProducts.length} items</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
             {uncategorizedProducts.map(renderProductCard)}
@@ -228,7 +228,7 @@ export function CreateOrderView({
 
       {/* Empty state */}
       {safeProducts.length === 0 && (
-        <div className="text-center py-12 text-muted-foreground">
+        <div className="text-center py-12 text-zinc-500">
           <p className="text-lg">No products available</p>
         </div>
       )}

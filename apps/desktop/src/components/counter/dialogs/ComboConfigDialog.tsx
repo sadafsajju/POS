@@ -164,16 +164,16 @@ export function ComboConfigDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+      <Card className="w-full max-w-lg mx-4 max-h-[90vh] flex flex-col bg-zinc-900 border-zinc-800 text-zinc-100">
         <CardHeader className="pb-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">{product.name}</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
+              <CardTitle className="text-lg font-black tracking-tight text-zinc-100">{product.name}</CardTitle>
+              <p className="text-sm text-zinc-400 mt-1">
                 Base price: {formatCurrency(product.price)}
               </p>
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -188,7 +188,7 @@ export function ComboConfigDialog({
               <div key={slot.id} className="space-y-2">
                 {/* Slot header */}
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{slot.name}</span>
+                  <span className="font-medium text-sm text-zinc-100">{slot.name}</span>
                   {slot.is_required && (
                     <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                       Required
@@ -208,8 +208,8 @@ export function ComboConfigDialog({
                           className={`
                             w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-all
                             ${isSelected
-                              ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                              : 'border-border hover:border-muted-foreground/40'
+                              ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/20'
+                              : 'border-zinc-700 hover:border-zinc-500'
                             }
                           `}
                           onClick={() => handleSelectChoice(slot.id, choice.product_id, choiceProduct)}
@@ -218,23 +218,23 @@ export function ComboConfigDialog({
                             <div className={`
                               w-5 h-5 flex items-center justify-center rounded-full border-2 flex-shrink-0
                               ${isSelected
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'border-muted-foreground/40'
+                                ? 'border-amber-500 bg-amber-500 text-white'
+                                : 'border-zinc-600'
                               }
                             `}>
                               {isSelected && <Check className="h-3 w-3" />}
                             </div>
-                            <span className="text-sm">{choiceProduct?.name || 'Unknown'}</span>
+                            <span className="text-sm text-zinc-100">{choiceProduct?.name || 'Unknown'}</span>
                             {choiceProduct?.product_type === 'configurable' && (
-                              <Settings2 className="h-3 w-3 text-muted-foreground" />
+                              <Settings2 className="h-3 w-3 text-zinc-500" />
                             )}
                           </div>
                           {choice.price_override != null && choice.price_override > 0 ? (
-                            <span className="text-sm font-medium text-orange-600">
+                            <span className="text-sm font-medium text-orange-400">
                               +{formatCurrency(choice.price_override)}
                             </span>
                           ) : (
-                            <span className="text-xs text-green-600">Included</span>
+                            <span className="text-xs text-emerald-400">Included</span>
                           )}
                         </button>
 
@@ -242,16 +242,16 @@ export function ComboConfigDialog({
                         {isSelected && choiceProduct?.product_type === 'configurable' && (
                           <div className="ml-7 mt-2 space-y-3">
                             {loadingOptions[choice.product_id] && (
-                              <p className="text-xs text-muted-foreground">Loading options...</p>
+                              <p className="text-xs text-zinc-500">Loading options...</p>
                             )}
                             {(optionGroupsCache[choice.product_id] || []).map(group => {
                               const slotOpts = nestedOptions[slot.id] || []
                               return (
                                 <div key={group.id} className="space-y-1">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-medium">{group.name}</span>
+                                    <span className="text-xs font-medium text-zinc-100">{group.name}</span>
                                     {group.is_required && (
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0">Req</Badge>
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 border-zinc-700 text-zinc-300">Req</Badge>
                                     )}
                                   </div>
                                   <div className="grid gap-1">
@@ -267,8 +267,8 @@ export function ComboConfigDialog({
                                             className={`
                                               flex items-center justify-between px-2 py-1.5 rounded border text-left text-xs transition-all
                                               ${isOptSelected
-                                                ? 'border-primary/60 bg-primary/5'
-                                                : 'border-border hover:border-muted-foreground/30'
+                                                ? 'border-amber-500/60 bg-amber-500/10'
+                                                : 'border-zinc-700 hover:border-zinc-500'
                                               }
                                             `}
                                             onClick={() => handleNestedOptionToggle(slot.id, group, item)}
@@ -277,16 +277,16 @@ export function ComboConfigDialog({
                                               <div className={`
                                                 w-3.5 h-3.5 flex items-center justify-center rounded-${group.selection_type === 'single' ? 'full' : 'sm'} border flex-shrink-0
                                                 ${isOptSelected
-                                                  ? 'border-primary bg-primary text-primary-foreground'
-                                                  : 'border-muted-foreground/40'
+                                                  ? 'border-amber-500 bg-amber-500 text-white'
+                                                  : 'border-zinc-600'
                                                 }
                                               `}>
                                                 {isOptSelected && <Check className="h-2 w-2" />}
                                               </div>
-                                              <span>{item.name}</span>
+                                              <span className="text-zinc-100">{item.name}</span>
                                             </div>
                                             {item.price_adjustment !== 0 && (
-                                              <span className={`font-medium ${item.price_adjustment > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                              <span className={`font-medium ${item.price_adjustment > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                                                 {item.price_adjustment > 0 ? '+' : ''}{formatCurrency(item.price_adjustment)}
                                               </span>
                                             )}
@@ -308,25 +308,25 @@ export function ComboConfigDialog({
           })}
         </CardContent>
 
-        <CardFooter className="flex-shrink-0 border-t pt-4 flex flex-col gap-3">
+        <CardFooter className="flex-shrink-0 border-t border-zinc-800 pt-4 flex flex-col gap-3">
           {/* Quantity selector */}
           <div className="flex items-center justify-between w-full">
-            <span className="text-sm font-medium">Quantity</span>
+            <span className="text-sm font-medium text-zinc-100">Quantity</span>
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                 onClick={() => setQuantity(q => Math.max(1, q - 1))}
                 disabled={quantity <= 1}
               >
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="text-lg font-semibold w-8 text-center">{quantity}</span>
+              <span className="text-lg font-semibold w-8 text-center text-zinc-100">{quantity}</span>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                 onClick={() => setQuantity(q => q + 1)}
               >
                 <Plus className="h-3 w-3" />
@@ -336,7 +336,7 @@ export function ComboConfigDialog({
 
           {/* Add to cart button */}
           <Button
-            className="w-full h-12 text-base"
+            className="w-full h-12 text-base bg-amber-500 hover:bg-amber-400 text-white font-black tracking-wider"
             onClick={handleAddToCart}
             disabled={!isValid}
           >

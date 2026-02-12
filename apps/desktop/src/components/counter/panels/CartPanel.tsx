@@ -133,20 +133,20 @@ export function CartPanel({
     {/* Clear Table Confirmation Dialog */}
     {showClearTableConfirm && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <Card className="w-full max-w-md mx-4">
+        <Card className="w-full max-w-md mx-4 bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-                <DoorOpen className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 rounded-full bg-orange-500/15 flex items-center justify-center">
+                <DoorOpen className="w-6 h-6 text-orange-400" />
               </div>
               <div>
-                <CardTitle>Clear Table</CardTitle>
-                <CardDescription>Mark the table as available</CardDescription>
+                <CardTitle className="text-zinc-100">Clear Table</CardTitle>
+                <CardDescription className="text-zinc-400">Mark the table as available</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">
+            <p className="text-zinc-400">
               Are you sure the customer has left? This will mark all orders as completed and free up the table.
             </p>
           </CardContent>
@@ -154,7 +154,7 @@ export function CartPanel({
             <Button
               variant="outline"
               size="lg"
-              className="flex-1 h-14"
+              className="flex-1 h-14 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
               onClick={() => setShowClearTableConfirm(false)}
             >
               Cancel
@@ -178,20 +178,20 @@ export function CartPanel({
     {/* Clear Cart Confirmation Dialog */}
     {showClearConfirm && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <Card className="w-full max-w-md mx-4">
+        <Card className="w-full max-w-md mx-4 bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+              <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
               </div>
               <div>
-                <CardTitle>Clear Cart</CardTitle>
-                <CardDescription>Remove all items from your order</CardDescription>
+                <CardTitle className="text-zinc-100">Clear Cart</CardTitle>
+                <CardDescription className="text-zinc-400">Remove all items from your order</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">
+            <p className="text-zinc-400">
               Are you sure you want to clear all {cart.length} item{cart.length !== 1 ? 's' : ''} from your cart? This action cannot be undone.
             </p>
           </CardContent>
@@ -199,7 +199,7 @@ export function CartPanel({
             <Button
               variant="outline"
               size="lg"
-              className="flex-1 h-14"
+              className="flex-1 h-14 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
               onClick={() => setShowClearConfirm(false)}
             >
               Cancel
@@ -228,7 +228,7 @@ export function CartPanel({
             {activeKOTs.map((kot: Order) => (
               <div
                 key={kot.id}
-                className="bg-slate-800 p-3 rounded-lg border border-slate-600"
+                className="bg-zinc-800 p-3 rounded-lg border border-zinc-700"
               >
                 {/* KOT Header: badge + trash icon */}
                 <div className="flex justify-between items-center mb-2">
@@ -237,11 +237,11 @@ export function CartPanel({
                       {kot.kot_number || kot.order_number}
                     </Badge>
                     {kot.customer_name && (
-                      <span className="text-sm text-slate-300">
+                      <span className="text-sm text-zinc-300">
                         {kot.customer_name}
                       </span>
                     )}
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 text-white border-slate-500">
+                    <Badge variant="outline" className="text-xs px-2 py-0.5 text-white border-zinc-600">
                       {kot.status}
                     </Badge>
                   </div>
@@ -252,7 +252,7 @@ export function CartPanel({
                       e.stopPropagation()
                       onCancelOrder(kot)
                     }}
-                    className="h-10 w-10 p-0 text-slate-400 hover:text-red-500 hover:bg-red-500/10"
+                    className="h-10 w-10 p-0 text-zinc-400 hover:text-red-400 hover:bg-red-500/10"
                   >
                     <Trash2 className="w-5 h-5" />
                   </Button>
@@ -267,7 +267,7 @@ export function CartPanel({
                     {consolidateItems(kot.items).map((item, idx) => (
                       <div
                         key={item.product_id || idx}
-                        className="flex justify-between text-sm text-slate-300 py-1 hover:text-white active:bg-slate-700 rounded px-1"
+                        className="flex justify-between text-sm text-zinc-300 py-1 hover:text-zinc-100 active:bg-zinc-700 rounded px-1"
                       >
                         <span>{item.quantity}x {item.name}</span>
                       </div>
@@ -276,8 +276,8 @@ export function CartPanel({
                 )}
 
                 {/* KOT Subtotal */}
-                <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-600 text-sm">
-                  <span className="text-slate-400">
+                <div className="flex justify-between items-center pt-2 mt-2 border-t border-zinc-700 text-sm">
+                  <span className="text-zinc-400">
                     {consolidateItems(kot.items || []).reduce((sum, item) => sum + item.quantity, 0)} items
                   </span>
                   <span className="font-semibold text-white">
@@ -295,17 +295,17 @@ export function CartPanel({
             {tableOrders.map(order => (
               <div
                 key={order.id}
-                className="bg-slate-800 p-3 rounded-lg border border-slate-600"
+                className="bg-zinc-800 p-3 rounded-lg border border-zinc-700"
               >
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-base text-white">#{order.order_number}</span>
                     {order.customer_name && (
-                      <span className="text-sm text-slate-300">
+                      <span className="text-sm text-zinc-300">
                         {order.customer_name}
                       </span>
                     )}
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 text-white border-slate-500">
+                    <Badge variant="outline" className="text-xs px-2 py-0.5 text-white border-zinc-600">
                       {order.status}
                     </Badge>
                   </div>
@@ -316,7 +316,7 @@ export function CartPanel({
                       e.stopPropagation()
                       onCancelOrder(order)
                     }}
-                    className="h-10 w-10 p-0 text-slate-400 hover:text-red-500 hover:bg-red-500/10"
+                    className="h-10 w-10 p-0 text-zinc-400 hover:text-red-400 hover:bg-red-500/10"
                   >
                     <Trash2 className="w-5 h-5" />
                   </Button>
@@ -329,15 +329,15 @@ export function CartPanel({
                     {consolidateItems(order.items).map((item, idx) => (
                       <div
                         key={item.product_id || idx}
-                        className="flex justify-between text-sm text-slate-300 py-1 hover:text-white active:bg-slate-700 rounded px-1"
+                        className="flex justify-between text-sm text-zinc-300 py-1 hover:text-zinc-100 active:bg-zinc-700 rounded px-1"
                       >
                         <span>{item.quantity}x {item.name}</span>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex justify-between items-center pt-2 mt-2 border-t border-slate-600 text-sm">
-                  <span className="text-slate-400">
+                <div className="flex justify-between items-center pt-2 mt-2 border-t border-zinc-700 text-sm">
+                  <span className="text-zinc-400">
                     {consolidateItems(order.items || []).reduce((sum, item) => sum + item.quantity, 0)} items
                   </span>
                   <span className="font-semibold text-white">
@@ -353,13 +353,13 @@ export function CartPanel({
         {hasNewItems && (
           <div className="flex justify-between items-center px-4 pt-3 pb-1">
             {hasActiveOrders && isDineIn && (
-              <div className="w-full mb-2 border-t-4 border-primary/30" />
+              <div className="w-full mb-2 border-t-4 border-amber-500/30" />
             )}
           </div>
         )}
         {hasNewItems && (
           <div className="flex justify-between items-center px-4 pb-2">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+            <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
               {hasActiveOrders && isDineIn ? 'New Items' : 'Order Items'}
             </p>
             <Button
@@ -372,7 +372,7 @@ export function CartPanel({
                   setShowClearConfirm(true)
                 }
               }}
-              className="h-8 px-2 text-destructive hover:bg-destructive/10"
+              className="h-8 px-2 text-red-400 hover:bg-red-500/10"
             >
               <Trash2 className="w-4 h-4 mr-1" />
               Clear
@@ -383,28 +383,28 @@ export function CartPanel({
         {/* New cart items (editable) */}
         {hasNewItems && (
           <div className="px-4 pb-4">
-            <div className="border-l border-t border-border">
+            <div className="border-l border-t border-zinc-800">
               {cart.map(item => {
                 const itemKey = item.cartItemId || item.product.id
                 const unitPrice = getItemUnitPrice(item)
                 const hasOptions = item.selectedOptions && item.selectedOptions.length > 0
 
                 return (
-                <div key={itemKey} className="border-r border-b border-border bg-card">
-                  <div className="flex items-center p-4 gap-4 hover:bg-muted/50 active:bg-muted touch-manipulation">
+                <div key={itemKey} className="border-r border-b border-zinc-800 bg-zinc-900">
+                  <div className="flex items-center p-4 gap-4 hover:bg-zinc-800 active:bg-zinc-700 touch-manipulation">
                     <Button
                       variant="ghost"
                       size="lg"
                       onClick={() => onRemoveItem(item.product.id, item.cartItemId)}
-                      className="h-12 w-12 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 active:bg-destructive/20 flex-shrink-0 rounded-none"
+                      className="h-12 w-12 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 flex-shrink-0 rounded-none"
                     >
                       <Trash2 className="h-5 w-5" />
                     </Button>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-base truncate">{item.product.name}</div>
+                      <div className="font-semibold text-base truncate text-zinc-100">{item.product.name}</div>
                       {/* Selected options display */}
                       {hasOptions && (
-                        <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                        <div className="text-xs text-zinc-500 mt-0.5 space-y-0.5">
                           {/* Group options by group name */}
                           {Object.entries(
                             item.selectedOptions!.reduce<Record<string, Array<{ name: string; adj: number }>>>((acc, opt) => {
@@ -432,7 +432,7 @@ export function CartPanel({
                       )}
                       {/* Combo choices display */}
                       {item.selectedComboChoices && item.selectedComboChoices.length > 0 && (
-                        <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                        <div className="text-xs text-zinc-500 mt-0.5 space-y-0.5">
                           {item.selectedComboChoices.map((choice, idx) => (
                             <div key={idx}>
                               <span className="font-medium">{choice.slotName}:</span>{' '}
@@ -444,7 +444,7 @@ export function CartPanel({
                               )}
                               {/* Nested options for configurable sub-items */}
                               {choice.selectedOptions && choice.selectedOptions.length > 0 && (
-                                <span className="text-muted-foreground/70">
+                                <span className="text-zinc-600">
                                   {' — '}
                                   {choice.selectedOptions.map((opt, oi) => (
                                     <span key={oi}>
@@ -463,8 +463,8 @@ export function CartPanel({
                           ))}
                         </div>
                       )}
-                      <div className="text-sm text-muted-foreground">
-                        {formatCurrency(unitPrice)} × {item.quantity} = <span className="font-semibold text-foreground">{formatCurrency(unitPrice * item.quantity)}</span>
+                      <div className="text-sm text-zinc-400">
+                        {formatCurrency(unitPrice)} × {item.quantity} = <span className="font-semibold text-zinc-100">{formatCurrency(unitPrice * item.quantity)}</span>
                       </div>
                     </div>
                     {cartSettings?.showSpecialInstructions !== false && (
@@ -475,7 +475,7 @@ export function CartPanel({
                         setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
                         setKeyboardValue(item.special_instructions || '')
                       }}
-                      className={`h-12 w-12 p-0 flex-shrink-0 ${item.special_instructions ? 'text-primary' : 'text-muted-foreground'}`}
+                      className={`h-12 w-12 p-0 flex-shrink-0 ${item.special_instructions ? 'text-amber-400' : 'text-zinc-500'}`}
                       title="Add note"
                     >
                       <MessageSquare className="h-5 w-5" />
@@ -486,16 +486,16 @@ export function CartPanel({
                         variant="outline"
                         size="lg"
                         onClick={() => onRemoveFromCart(item.product.id, item.cartItemId)}
-                        className="h-12 w-12 p-0 rounded-none border-r-0"
+                        className="h-12 w-12 p-0 rounded-none border-r-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                       >
                         <Minus className="h-5 w-5" />
                       </Button>
-                      <span className="h-12 w-12 flex items-center justify-center text-lg font-semibold border border-border">{item.quantity}</span>
+                      <span className="h-12 w-12 flex items-center justify-center text-lg font-semibold border border-zinc-700 text-zinc-100">{item.quantity}</span>
                       <Button
                         variant="outline"
                         size="lg"
                         onClick={() => onAddToCart(item.product)}
-                        className="h-12 w-12 p-0 rounded-none border-l-0"
+                        className="h-12 w-12 p-0 rounded-none border-l-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                       >
                         <Plus className="h-5 w-5" />
                       </Button>
@@ -503,7 +503,7 @@ export function CartPanel({
                   </div>
                   {cartSettings?.showSpecialInstructions !== false && item.special_instructions && (
                     <div
-                      className="px-4 pb-3 pt-0 text-sm text-muted-foreground cursor-pointer hover:text-foreground"
+                      className="px-4 pb-3 pt-0 text-sm text-zinc-500 cursor-pointer hover:text-zinc-300"
                       onClick={() => {
                         setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
                         setKeyboardValue(item.special_instructions || '')
@@ -519,15 +519,15 @@ export function CartPanel({
             {/* Order Notes */}
             {cartSettings?.showOrderNotes !== false && (
             <div className="mt-4">
-              <label className="text-sm font-medium">Order Notes</label>
+              <label className="text-sm font-medium text-zinc-300">Order Notes</label>
               <div
                 onClick={() => setShowOrderNotesKeyboard(true)}
-                className="mt-1 flex min-h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer hover:bg-muted/50 active:bg-muted"
+                className="mt-1 flex min-h-[44px] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 active:bg-zinc-600 text-zinc-100"
               >
                 {orderNotes ? (
                   <span>{orderNotes}</span>
                 ) : (
-                  <span className="text-muted-foreground">Special requests or notes...</span>
+                  <span className="text-zinc-500">Special requests or notes...</span>
                 )}
               </div>
             </div>
@@ -537,8 +537,8 @@ export function CartPanel({
 
         {/* Empty state */}
         {!hasActiveOrders && !hasNewItems && (
-          <div className="flex flex-col items-center justify-center text-muted-foreground h-[calc(100vh-300px)] min-h-[200px]">
-            <ShoppingCart className="w-12 h-12 mb-3 opacity-50" />
+          <div className="flex flex-col items-center justify-center text-zinc-500 h-[calc(100vh-300px)] min-h-[200px]">
+            <ShoppingCart className="w-12 h-12 mb-3 opacity-20" />
             <p>No items in order</p>
             <p className="text-sm">Add items from the menu to get started</p>
           </div>
@@ -547,22 +547,22 @@ export function CartPanel({
 
       {/* Order Summary and Actions */}
       {(hasActiveOrders || hasNewItems) && (
-        <div className="border-t border-border bg-card flex-shrink-0">
+        <div className="border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
           {/* Summary rows */}
-          <div className="border-b border-border">
+          <div className="border-b border-zinc-800">
             {hasActiveBill && (
-              <div className="flex justify-between text-sm text-muted-foreground px-4 py-2 border-b border-border">
+              <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
                 <span>Session ({activeKOTs.length} KOT{activeKOTs.length !== 1 ? 's' : ''}):</span>
                 <span>{formatCurrency(activeBill?.aggregated_total || 0)}</span>
               </div>
             )}
             {hasNewItems && (
-              <div className="flex justify-between text-sm text-muted-foreground px-4 py-2 border-b border-border">
+              <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
                 <span>New Items:</span>
                 <span>{formatCurrency(getTotalAmount())}</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-semibold px-4 py-3">
+            <div className="flex justify-between text-lg font-black text-zinc-100 px-4 py-3">
               <span>Total:</span>
               <span>{formatCurrency(
                 getTotalAmount() +
@@ -584,8 +584,8 @@ export function CartPanel({
             // 1 button = full-width blue primary
             // 2 buttons = side by side, last one blue primary
             // 3 buttons = Save+KOT top row (outline), Pay bottom row (blue)
-            const primaryClass = 'flex-1 h-14 text-base rounded-none bg-blue-600 hover:bg-blue-700 text-white'
-            const secondaryClass = 'flex-1 h-14 text-base rounded-none border-0 border-r border-border'
+            const primaryClass = 'flex-1 h-14 text-base rounded-none bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-black tracking-wider'
+            const secondaryClass = 'flex-1 h-14 text-base rounded-none border-0 border-r border-zinc-800 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
 
             const getSaveClass = () => {
               if (visibleCount === 1) return primaryClass
@@ -656,7 +656,7 @@ export function CartPanel({
                 {/* Bottom row: Pay (or in top row if Save/KOT hidden) */}
                 {showPay && (
                   <Button
-                    className={`w-full h-14 text-base rounded-none bg-blue-600 hover:bg-blue-700 text-white${(showSave || showKot) ? ' border-t border-border' : ''}`}
+                    className={`w-full h-14 text-base rounded-none bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-black tracking-wider${(showSave || showKot) ? ' border-t border-zinc-800' : ''}`}
                     size="lg"
                     onClick={onOpenPayment}
                   >
@@ -675,13 +675,13 @@ export function CartPanel({
               )
               return (
                 <div className="flex">
-                  <div className="flex-1 h-14 flex items-center justify-center gap-2 text-white bg-green-600 rounded-none">
+                  <div className="flex-1 h-14 flex items-center justify-center gap-2 text-white bg-emerald-500 rounded-none">
                     <CheckCircle2 className="w-5 h-5" />
                     <span className="text-base font-medium">Paid{!allKOTsServed ? ' — Awaiting Service' : ''}</span>
                   </div>
                   {onClearTable && (
                     <Button
-                      className="flex-1 h-14 text-base rounded-none"
+                      className="flex-1 h-14 text-base rounded-none bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
                       variant="outline"
                       size="lg"
                       onClick={() => setShowClearTableConfirm(true)}

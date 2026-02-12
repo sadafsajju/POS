@@ -29,20 +29,20 @@ export function MethodStep({
     <div className="w-full max-w-sm space-y-6">
       <button
         onClick={onBack}
-        className="w-12 h-12 rounded-full border border-border bg-background flex items-center justify-center hover:bg-accent active:scale-95 transition-all"
+        className="w-12 h-12 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 active:scale-95 transition-all"
       >
-        <ArrowLeft className="w-6 h-6" />
+        <ArrowLeft className="w-6 h-6 text-zinc-100" />
       </button>
 
       <div className="text-center mb-2">
-        <h3 className="text-2xl font-semibold">How is the customer paying?</h3>
-        <div className=' rounded bg-muted/50 py-3 my-3'>
-          <p className="text-primary font-bold text-3xl mt-2">{formatCurrency(total)}</p>
+        <h3 className="text-2xl font-black tracking-tight text-zinc-100">How is the customer paying?</h3>
+        <div className=' rounded bg-zinc-800 py-3 my-3'>
+          <p className="text-amber-400 font-black text-3xl mt-2">{formatCurrency(total)}</p>
         </div>
         </div>
 
       <Button
-        className="w-full h-20 text-xl justify-start px-8 gap-4"
+        className="w-full h-20 text-xl justify-start px-8 gap-4 border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
         variant="outline"
         size="lg"
         onClick={() => onMethodSelect('cash')}
@@ -53,7 +53,7 @@ export function MethodStep({
       </Button>
 
       <Button
-        className="w-full h-20 text-xl justify-start px-8 gap-4"
+        className="w-full h-20 text-xl justify-start px-8 gap-4 border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
         variant="outline"
         size="lg"
         onClick={() => onMethodSelect('card')}
@@ -61,7 +61,7 @@ export function MethodStep({
       >
         {isProcessing && selectedMethod === 'card' ? (
           <>
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
             Processing...
           </>
         ) : (
@@ -73,7 +73,7 @@ export function MethodStep({
       </Button>
 
       <Button
-        className="w-full h-20 text-xl justify-start px-8 gap-4"
+        className="w-full h-20 text-xl justify-start px-8 gap-4 border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
         variant="outline"
         size="lg"
         onClick={() => onMethodSelect('digital')}
@@ -81,7 +81,7 @@ export function MethodStep({
       >
         {isProcessing && selectedMethod === 'digital' ? (
           <>
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
             Processing...
           </>
         ) : (

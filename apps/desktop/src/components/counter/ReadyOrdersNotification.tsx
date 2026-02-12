@@ -97,10 +97,10 @@ export function ReadyOrdersNotification({
 
   if (orders.length === 0) {
     return (
-      <Card className={cn("border-green-200", className)}>
+      <Card className={cn("border-zinc-800", className)}>
         <CardContent className="p-4 text-center">
-          <Bell className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">No orders ready for pickup</p>
+          <Bell className="h-6 w-6 mx-auto text-zinc-500 mb-2" />
+          <p className="text-sm text-zinc-500">No orders ready for pickup</p>
         </CardContent>
       </Card>
     );
@@ -108,8 +108,8 @@ export function ReadyOrdersNotification({
 
   return (
     <Card className={cn(
-      "border-green-500 shadow-md",
-      newOrders.length > 0 && "ring-2 ring-green-400",
+      "border-emerald-500/50 shadow-md",
+      newOrders.length > 0 && "ring-2 ring-emerald-500/50",
       className
     )}>
       <CardHeader 
@@ -119,13 +119,13 @@ export function ReadyOrdersNotification({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {newOrders.length > 0 ? (
-              <BellRing className="h-5 w-5 text-green-600 animate-pulse" />
+              <BellRing className="h-5 w-5 text-emerald-400 animate-pulse" />
             ) : (
-              <Bell className="h-5 w-5 text-green-600" />
+              <Bell className="h-5 w-5 text-emerald-400" />
             )}
             <span>Ready for Pickup ({orders.length})</span>
             {newOrders.length > 0 && (
-              <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+              <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
                 {newOrders.length} New!
               </Badge>
             )}
@@ -177,9 +177,9 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
   return (
     <Card className={cn(
       "relative transition-all duration-200",
-      order.isNewlyReady && "ring-2 ring-green-400 animate-pulse",
-      urgency.level === 'critical' && "ring-2 ring-red-400",
-      urgency.level === 'high' && "ring-2 ring-orange-400"
+      order.isNewlyReady && "ring-2 ring-emerald-500/50 animate-pulse",
+      urgency.level === 'critical' && "ring-2 ring-red-500/50",
+      urgency.level === 'high' && "ring-2 ring-orange-500/50"
     )}>
       {/* Urgency Indicator */}
       <div className={cn("absolute top-2 right-2 w-3 h-3 rounded-full", urgency.color)} />
@@ -188,7 +188,7 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="font-semibold text-lg">#{order.order_number}</h3>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 mt-1">
               {order.order_type === 'dine_in' && order.table && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
@@ -218,7 +218,7 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
             >
               {urgency.text}
             </Badge>
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <div className="text-xs text-zinc-500 flex items-center gap-1">
               <Clock className="h-3 w-3" />
               {order.readyTime === 0 ? 'Just ready' : `${order.readyTime}m waiting`}
             </div>
@@ -227,7 +227,7 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
 
         {/* Order Summary */}
         <div className="mb-3">
-          <div className="text-sm text-muted-foreground mb-1">
+          <div className="text-sm text-zinc-500 mb-1">
             {order.items?.length || 0} items • {settings.currencySymbol || '$'}{order.total_amount.toFixed(2)}
           </div>
           
@@ -235,14 +235,14 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
           <div className="space-y-1">
             {order.items?.slice(0, 2).map((item) => (
               <div key={item.id} className="flex items-center text-sm">
-                <span className="w-5 h-5 bg-green-100 text-green-800 rounded-full flex items-center justify-center text-xs mr-2">
+                <span className="w-5 h-5 bg-emerald-500/15 text-emerald-400 rounded-full flex items-center justify-center text-xs mr-2">
                   {item.quantity}
                 </span>
                 <span className="flex-1 truncate">{item.product?.name}</span>
               </div>
             ))}
             {(order.items?.length || 0) > 2 && (
-              <div className="text-xs text-muted-foreground ml-7">
+              <div className="text-xs text-zinc-500 ml-7">
                 +{(order.items?.length || 0) - 2} more items
               </div>
             )}

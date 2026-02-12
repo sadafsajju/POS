@@ -30,9 +30,9 @@ export function TableDetailsPanel({
 }: TableDetailsPanelProps) {
   if (!selectedTable) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground">
+      <div className="h-full flex items-center justify-center text-zinc-500">
         <div className="text-center">
-          <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p>Select a table to view details</p>
         </div>
       </div>
@@ -44,9 +44,9 @@ export function TableDetailsPanel({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Table Header */}
-      <div className="p-4 border-b border-border flex-shrink-0">
+      <div className="p-4 border-b border-zinc-800 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold flex items-center">
+          <h3 className="font-black tracking-tight text-zinc-100 flex items-center">
             <TableIcon className="w-4 h-4 mr-2" />
             Table {selectedTable.table_number}
           </h3>
@@ -54,11 +54,12 @@ export function TableDetailsPanel({
             variant="ghost"
             size="sm"
             onClick={onClose}
+            className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
           >
             <X className="w-4 h-4" />
           </Button>
         </div>
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-zinc-400">
           {selectedTable.seating_capacity} seats
           {tableOrders.length > 0 && (
             <span className="ml-2">
@@ -75,19 +76,19 @@ export function TableDetailsPanel({
             {tableOrders.map(order => (
               <div
                 key={order.id}
-                className="space-y-2 p-2 -mx-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                className="space-y-2 p-2 -mx-2 rounded-lg cursor-pointer hover:bg-zinc-800 transition-colors"
                 onClick={() => onEditOrder(order)}
               >
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Order #{order.order_number}</span>
-                  <Badge variant="outline" className="text-xs">{order.status}</Badge>
+                  <span className="text-sm font-medium text-zinc-100">Order #{order.order_number}</span>
+                  <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">{order.status}</Badge>
                 </div>
                 {order.items?.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-start py-1 text-sm">
                     <div className="flex-1">
                       <span>{item.quantity}x {item.product?.name || 'Unknown'}</span>
                     </div>
-                    <span className="text-muted-foreground">
+                    <span className="text-zinc-400">
                       {formatCurrency((item.unit_price || 0) * item.quantity)}
                     </span>
                   </div>
@@ -96,19 +97,19 @@ export function TableDetailsPanel({
             ))}
 
             {/* Total */}
-            <div className="pt-3 border-t border-border">
-              <div className="flex justify-between text-lg font-bold">
+            <div className="pt-3 border-t border-zinc-800">
+              <div className="flex justify-between text-lg font-black text-zinc-100">
                 <span>Total</span>
-                <span className="text-primary">
+                <span className="text-amber-400">
                   {formatCurrency(totalAmount)}
                 </span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center p-8 text-zinc-500">
             <div className="text-center">
-              <Receipt className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <Receipt className="w-12 h-12 mx-auto mb-3 opacity-20" />
               <p>No orders for this table</p>
               <p className="text-sm">Table is available</p>
             </div>
@@ -117,9 +118,9 @@ export function TableDetailsPanel({
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 border-t border-border space-y-3 flex-shrink-0">
+      <div className="p-4 border-t border-zinc-800 space-y-3 flex-shrink-0">
         <Button
-          className="w-full h-14 text-base"
+          className="w-full h-14 text-base bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-black tracking-wider"
           size="lg"
           onClick={onCreateOrder}
         >
@@ -138,7 +139,7 @@ export function TableDetailsPanel({
         {tableOrders.length > 0 && canProcessPayment && (
           <Link to="/admin/bills" className="block">
             <Button
-              className="w-full h-14 text-base"
+              className="w-full h-14 text-base bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
               size="lg"
               variant="outline"
             >

@@ -97,24 +97,24 @@ export function OnScreenKeyboard({
     <div className="fixed inset-0 bg-black/50 flex flex-col z-[9999]">
       {/* Input Dialog - Floating at top */}
       <div className="flex-1 flex items-start justify-center pt-8 px-4">
-        <Card className="w-full max-w-2xl p-4 animate-in fade-in slide-in-from-top-4 duration-200">
+        <Card className="w-full max-w-2xl p-4 animate-in fade-in slide-in-from-top-4 duration-200 bg-zinc-900 border-zinc-800 text-zinc-100">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">{title}</h3>
+            <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleCancel}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
             >
               <X className="w-5 h-5" />
             </Button>
           </div>
           <div className="relative">
-            <div className="w-full min-h-14 px-4 py-3 pr-20 rounded-lg border-2 border-input bg-background text-lg overflow-x-auto whitespace-pre-wrap break-words flex items-center">
+            <div className="w-full min-h-14 px-4 py-3 pr-20 rounded-lg border-2 border-zinc-700 bg-zinc-950 text-lg overflow-x-auto whitespace-pre-wrap break-words flex items-center text-zinc-100">
               {localValue || (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="text-zinc-500">{placeholder}</span>
               )}
-              <span className="inline-block w-0.5 h-5 bg-primary ml-0.5 animate-pulse" />
+              <span className="inline-block w-0.5 h-5 bg-amber-500 ml-0.5 animate-pulse" />
             </div>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
               {localValue.length > 0 && (
@@ -122,12 +122,12 @@ export function OnScreenKeyboard({
                   variant="ghost"
                   size="sm"
                   onClick={handleClear}
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400 hover:bg-zinc-800"
                 >
                   <X className="w-4 h-4" />
                 </Button>
               )}
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-zinc-500">
                 {localValue.length}/{maxLength}
               </span>
             </div>
@@ -136,7 +136,7 @@ export function OnScreenKeyboard({
       </div>
 
       {/* Keyboard - Fixed at bottom */}
-      <div className="w-full bg-card border-t border-border p-6 animate-in slide-in-from-bottom-4 duration-200">
+      <div className="w-full bg-zinc-900 border-t border-zinc-800 p-6 animate-in slide-in-from-bottom-4 duration-200">
         <div className="space-y-2">
           {currentLayout.rows.map((row, index) => (
             <KeyboardRow

@@ -61,15 +61,15 @@ export function EditOrderDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border border-border rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col text-zinc-100">
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
+        <div className="p-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Receipt className="w-6 h-6" />
-            <h3 className="font-semibold text-xl">Edit Order #{order.order_number}</h3>
-            <Badge variant="outline" className="text-sm px-3 py-1">{order.status}</Badge>
+            <Receipt className="w-6 h-6 text-zinc-100" />
+            <h3 className="font-black tracking-tight text-xl text-zinc-100">Edit Order #{order.order_number}</h3>
+            <Badge variant="outline" className="text-sm px-3 py-1 border-zinc-700 text-zinc-300">{order.status}</Badge>
           </div>
-          <Button variant="ghost" size="lg" onClick={onClose} className="h-12 w-12 p-0">
+          <Button variant="ghost" size="lg" onClick={onClose} className="h-12 w-12 p-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">
             <X className="w-6 h-6" />
           </Button>
         </div>
@@ -87,48 +87,48 @@ export function EditOrderDialog({
                   key={item.id}
                   className={`p-4 rounded-lg border ${
                     itemHasChanges
-                      ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-                      : 'border-border bg-muted/30'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-zinc-800 bg-zinc-800/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-lg truncate">
+                      <div className="font-medium text-lg truncate text-zinc-100">
                         {item.product?.name || 'Unknown Product'}
                       </div>
-                      <div className="text-base text-muted-foreground mt-1">
+                      <div className="text-base text-zinc-400 mt-1">
                         {formatCurrency(item.unit_price || 0)} each
                       </div>
                       {item.special_instructions && (
-                        <div className="text-sm text-muted-foreground mt-2 italic">
+                        <div className="text-sm text-zinc-500 mt-2 italic">
                           Note: {item.special_instructions}
                         </div>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="font-semibold text-lg">{formatCurrency(itemTotal)}</div>
+                      <div className="font-semibold text-lg text-zinc-100">{formatCurrency(itemTotal)}</div>
                     </div>
                   </div>
 
                   {/* Quantity Controls */}
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-700">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="lg"
                         onClick={() => handleQuantityChange(item.id, item.quantity, -1)}
                         disabled={currentQty <= 1 || isUpdating}
-                        className="h-12 w-12 p-0"
+                        className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                       >
                         <Minus className="w-5 h-5" />
                       </Button>
-                      <span className="w-12 text-center text-lg font-semibold">{currentQty}</span>
+                      <span className="w-12 text-center text-lg font-semibold text-zinc-100">{currentQty}</span>
                       <Button
                         variant="outline"
                         size="lg"
                         onClick={() => handleQuantityChange(item.id, item.quantity, 1)}
                         disabled={isUpdating}
-                        className="h-12 w-12 p-0"
+                        className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                       >
                         <Plus className="w-5 h-5" />
                       </Button>
@@ -141,7 +141,7 @@ export function EditOrderDialog({
                           size="lg"
                           onClick={() => handleSaveItem(item.id, item.quantity)}
                           disabled={isUpdating}
-                          className="h-12 px-4"
+                          className="h-12 px-4 bg-amber-500 hover:bg-amber-400 text-white font-black tracking-wider"
                         >
                           {isUpdating ? (
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -170,7 +170,7 @@ export function EditOrderDialog({
             })}
 
             {(!order.items || order.items.length === 0) && (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-zinc-500">
                 <Receipt className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No items in this order</p>
               </div>
@@ -179,12 +179,12 @@ export function EditOrderDialog({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border flex-shrink-0">
+        <div className="p-4 border-t border-zinc-800 flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-lg text-muted-foreground">Order Total:</span>
-            <span className="text-2xl font-bold">{formatCurrency(order.total_amount)}</span>
+            <span className="text-lg text-zinc-400">Order Total:</span>
+            <span className="text-2xl font-black tracking-tight text-zinc-100">{formatCurrency(order.total_amount)}</span>
           </div>
-          <Button variant="outline" size="lg" className="w-full h-14 text-lg" onClick={onClose}>
+          <Button variant="outline" size="lg" className="w-full h-14 text-lg bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={onClose}>
             Close
           </Button>
         </div>

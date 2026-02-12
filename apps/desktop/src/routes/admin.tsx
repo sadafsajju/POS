@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router'
 import { AdminTopBar, AdminBottomNav } from '@/components/admin/AdminSidebar'
 
 // Use shared packages
@@ -52,13 +52,17 @@ function AdminLayout() {
     )
   }
 
+  const location = useLocation()
+  const viewParam = (location.search as Record<string, string>).view
+  const isFullScreen = location.pathname === '/admin/pos' && !!viewParam && viewParam !== 'order-type'
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <AdminTopBar user={user} />
+      {!isFullScreen && <AdminTopBar user={user} />}
       <main className="flex-1 min-h-0 overflow-hidden bg-background">
         <Outlet />
       </main>
-      <AdminBottomNav />
+      {!isFullScreen && <AdminBottomNav />}
     </div>
   )
 }

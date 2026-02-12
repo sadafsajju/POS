@@ -25,22 +25,22 @@ export function CancelOrderDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-lg mx-4">
+      <Card className="w-full max-w-lg mx-4 bg-zinc-900 border-zinc-800 text-zinc-100">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-7 h-7 text-red-600" />
+              <div className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center">
+                <AlertTriangle className="w-7 h-7 text-red-400" />
               </div>
               <div>
-                <CardTitle className="text-xl">Cancel Order</CardTitle>
-                <CardDescription className="text-base">This action cannot be undone</CardDescription>
+                <CardTitle className="text-xl font-black tracking-tight text-zinc-100">Cancel Order</CardTitle>
+                <CardDescription className="text-base text-zinc-400">This action cannot be undone</CardDescription>
               </div>
             </div>
             <Button
               variant="ghost"
               size="lg"
-              className="h-12 w-12 p-0"
+              className="h-12 w-12 p-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
               onClick={onCancel}
             >
               <X className="w-6 h-6" />
@@ -49,26 +49,26 @@ export function CancelOrderDialog({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
+            <div className="p-4 bg-zinc-800 rounded-lg">
               <div className="flex justify-between mb-2">
-                <span className="font-semibold text-lg">Order #{order.order_number}</span>
-                <span className="text-base text-muted-foreground">{order.status}</span>
+                <span className="font-semibold text-lg text-zinc-100">Order #{order.order_number}</span>
+                <span className="text-base text-zinc-400">{order.status}</span>
               </div>
               {order.customer_name && (
-                <div className="text-base text-muted-foreground">
+                <div className="text-base text-zinc-400">
                   Customer: {order.customer_name}
                 </div>
               )}
               {order.table?.table_number && (
-                <div className="text-base text-muted-foreground">
+                <div className="text-base text-zinc-400">
                   Table: {order.table.table_number}
                 </div>
               )}
-              <div className="text-base text-muted-foreground mt-2 pt-2 border-t border-border">
-                {order.items?.length || 0} items • <span className="font-semibold text-foreground">{formatCurrency(order.total_amount)}</span>
+              <div className="text-base text-zinc-400 mt-2 pt-2 border-t border-zinc-700">
+                {order.items?.length || 0} items • <span className="font-semibold text-zinc-100">{formatCurrency(order.total_amount)}</span>
               </div>
             </div>
-            <p className="text-base text-muted-foreground">
+            <p className="text-base text-zinc-400">
               Are you sure you want to cancel this order? The order will be removed from the system and cannot be recovered.
             </p>
           </div>
@@ -77,7 +77,7 @@ export function CancelOrderDialog({
           <Button
             variant="outline"
             size="lg"
-            className="flex-1 h-14 text-base"
+            className="flex-1 h-14 text-base bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
             onClick={onCancel}
             disabled={isDeleting}
           >

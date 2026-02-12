@@ -22,14 +22,25 @@ export function KeyboardKey({ config, isShifted, onPress }: KeyboardKeyProps) {
           ? 'secondary'
           : 'outline';
 
+  // Dark zinc theme overrides for each variant
+  const variantClass =
+    variant === 'primary'
+      ? 'bg-amber-500 hover:bg-amber-400 text-white'
+      : variant === 'destructive'
+        ? ''
+        : variant === 'muted'
+          ? 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600 border-zinc-700'
+          : 'bg-zinc-800 border-zinc-700 text-zinc-100 hover:bg-zinc-700';
+
   return (
     <Button
       variant={buttonVariant}
       className={cn(
         'h-[72px] text-2xl font-medium touch-manipulation select-none',
         'active:scale-95 transition-transform',
-        type === 'space' && 'text-muted-foreground',
-        type === 'shift' && isShifted && 'bg-primary text-primary-foreground'
+        variantClass,
+        type === 'space' && 'text-zinc-500',
+        type === 'shift' && isShifted && 'bg-amber-500 text-white'
       )}
       style={{ width: keyWidth, minWidth: keyWidth }}
       onClick={() => onPress(config)}

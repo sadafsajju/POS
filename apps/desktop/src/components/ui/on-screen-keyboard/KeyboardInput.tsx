@@ -22,18 +22,18 @@ export function KeyboardInput({
       <Button
         variant="outline"
         className={cn(
-          'h-12 px-4 justify-start text-left font-normal w-full',
-          !value && 'text-muted-foreground',
+          'h-12 px-4 justify-start text-left font-normal w-full bg-zinc-900 border-zinc-700 text-zinc-100 hover:bg-zinc-800',
+          !value && 'text-zinc-500',
           disabled && 'opacity-50 cursor-not-allowed',
           className
         )}
         onClick={() => !disabled && setIsOpen(true)}
         disabled={disabled}
       >
-        <Keyboard className="w-5 h-5 mr-3 text-muted-foreground flex-shrink-0" />
+        <Keyboard className="w-5 h-5 mr-3 text-zinc-500 flex-shrink-0" />
         <span className="truncate flex-1">{value || placeholder}</span>
         {value && (
-          <MessageSquare className="w-4 h-4 ml-2 text-primary flex-shrink-0" />
+          <MessageSquare className="w-4 h-4 ml-2 text-amber-400 flex-shrink-0" />
         )}
       </Button>
 

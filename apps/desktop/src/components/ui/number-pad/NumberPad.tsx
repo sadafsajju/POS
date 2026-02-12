@@ -84,7 +84,7 @@ export function NumberPad({
             <Button
               key={key}
               variant="outline"
-              className="h-16 flex-1 text-2xl font-medium touch-manipulation select-none active:scale-95 transition-transform"
+              className="h-16 flex-1 text-2xl font-medium touch-manipulation select-none active:scale-95 transition-transform bg-zinc-800 border-zinc-700 text-zinc-100 hover:bg-zinc-700"
               onClick={() => handleKey(key)}
             >
               {key === 'backspace' ? (
@@ -104,7 +104,7 @@ export function NumberPad({
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            className="h-16 flex-1 text-lg font-medium touch-manipulation select-none active:scale-95 transition-transform"
+            className="h-16 flex-1 text-lg font-medium touch-manipulation select-none active:scale-95 transition-transform bg-zinc-700 text-zinc-300 hover:bg-zinc-600 border-zinc-700"
             onClick={() => handleKey('clear')}
           >
             Clear

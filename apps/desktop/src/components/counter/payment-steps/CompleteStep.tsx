@@ -31,27 +31,27 @@ export function CompleteStep({
         <>
           {/* Cash Drawer Screen */}
           <div className="space-y-2">
-            <CheckCircle2 className="w-16 h-16 mx-auto text-green-600" />
-            <h3 className="text-2xl font-semibold">Payment Complete</h3>
+            <CheckCircle2 className="w-16 h-16 mx-auto text-emerald-400" />
+            <h3 className="text-2xl font-black tracking-tight text-zinc-100">Payment Complete</h3>
           </div>
 
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground uppercase tracking-wide">
+            <p className="text-sm text-zinc-400 uppercase tracking-wide">
               Give back to customer
             </p>
-            <p className="text-5xl font-bold text-green-600">
+            <p className="text-5xl font-bold text-emerald-400">
               {formatCurrency(changeAmount)}
             </p>
           </div>
 
-          <div className="space-y-2 text-muted-foreground">
+          <div className="space-y-2 text-zinc-400">
             <div className="flex justify-between px-4">
               <span>Received</span>
-              <span className="font-medium text-foreground">{formatCurrency(cashReceivedNum)}</span>
+              <span className="font-medium text-zinc-100">{formatCurrency(cashReceivedNum)}</span>
             </div>
             <div className="flex justify-between px-4">
               <span>Bill Total</span>
-              <span className="font-medium text-foreground">{formatCurrency(total)}</span>
+              <span className="font-medium text-zinc-100">{formatCurrency(total)}</span>
             </div>
           </div>
         </>
@@ -59,18 +59,18 @@ export function CompleteStep({
         <>
           {/* Card/Digital Complete Screen */}
           <div className="space-y-2">
-            <CheckCircle2 className="w-16 h-16 mx-auto text-green-600" />
-            <h3 className="text-2xl font-semibold">Payment Complete</h3>
+            <CheckCircle2 className="w-16 h-16 mx-auto text-emerald-400" />
+            <h3 className="text-2xl font-black tracking-tight text-zinc-100">Payment Complete</h3>
           </div>
 
-          <div className="space-y-2 text-muted-foreground">
+          <div className="space-y-2 text-zinc-400">
             <div className="flex justify-between px-4">
               <span>Method</span>
-              <span className="font-medium text-foreground capitalize">{selectedMethod}</span>
+              <span className="font-medium text-zinc-100 capitalize">{selectedMethod}</span>
             </div>
             <div className="flex justify-between px-4">
               <span>Amount</span>
-              <span className="font-medium text-foreground">{formatCurrency(total)}</span>
+              <span className="font-medium text-zinc-100">{formatCurrency(total)}</span>
             </div>
           </div>
         </>
@@ -78,7 +78,7 @@ export function CompleteStep({
 
       <div className="pt-4 space-y-3">
         <Button
-          className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 text-white"
+          className="w-full h-14 text-lg bg-amber-500 hover:bg-amber-400 font-black tracking-wider text-white"
           size="lg"
           onClick={onPrint}
         >
@@ -88,7 +88,7 @@ export function CompleteStep({
 
         <button
           onClick={onSkipClose}
-          className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+          className="text-sm text-zinc-400 hover:text-zinc-100 underline-offset-4 hover:underline"
         >
           Skip & Close
         </button>

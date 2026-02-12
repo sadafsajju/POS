@@ -81,14 +81,14 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
       {!hasResult ? (
         <>
           <div className="text-center">
-            <h3 className="text-2xl font-semibold">Customer Phone Number</h3>
-            <p className="text-muted-foreground mt-2">Enter phone to link this bill to a customer</p>
+            <h3 className="text-2xl font-black tracking-tight text-zinc-100">Customer Phone Number</h3>
+            <p className="text-zinc-400 mt-2">Enter phone to link this bill to a customer</p>
           </div>
 
           {/* Phone display */}
-          <div className="w-full h-16 px-6 rounded-lg border-2 border-blue-500 ring-2 ring-blue-500/20 bg-background flex items-center justify-center gap-2">
-            <Phone className="w-5 h-5 text-muted-foreground" />
-            <span className={`text-3xl font-bold ${phoneNumber ? 'text-foreground' : 'text-muted-foreground'}`}>
+          <div className="w-full h-16 px-6 rounded-lg border-2 border-amber-500 ring-2 ring-amber-500/20 bg-zinc-900 flex items-center justify-center gap-2">
+            <Phone className="w-5 h-5 text-zinc-400" />
+            <span className={`text-3xl font-bold ${phoneNumber ? 'text-zinc-100' : 'text-zinc-500'}`}>
               {phoneNumber || 'Phone number'}
             </span>
           </div>
@@ -124,7 +124,7 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
           {/* Skip link */}
           <button
             onClick={onSkip}
-            className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline flex items-center justify-center gap-1 pt-2"
+            className="text-sm text-zinc-400 hover:text-zinc-100 underline-offset-4 hover:underline flex items-center justify-center gap-1 pt-2"
           >
             <SkipForward className="w-4 h-4" />
             Skip — No customer
@@ -135,24 +135,24 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
           {/* Back button */}
           <button
             onClick={handleReset}
-            className="w-12 h-12 rounded-full border border-border bg-background flex items-center justify-center hover:bg-accent active:scale-95 transition-all"
+            className="w-12 h-12 rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 active:scale-95 transition-all"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6 text-zinc-100" />
           </button>
 
           {/* Found customer */}
           {foundCustomer && (
-            <div className="border border-muted bg-muted/50 rounded-lg p-4 space-y-3">
+            <div className="border border-zinc-700 bg-zinc-800 rounded-lg p-4 space-y-3">
               <div>
-                <p className="font-semibold text-lg">{foundCustomer.name || 'No name'}</p>
-                <p className="text-sm text-muted-foreground">{foundCustomer.phone}</p>
+                <p className="font-semibold text-lg text-zinc-100">{foundCustomer.name || 'No name'}</p>
+                <p className="text-sm text-zinc-400">{foundCustomer.phone}</p>
               </div>
-              <div className="flex gap-4 text-sm text-muted-foreground">
+              <div className="flex gap-4 text-sm text-zinc-400">
                 <span>{foundCustomer.total_orders} orders</span>
                 <span>{formatCurrency(foundCustomer.total_spent)} spent</span>
               </div>
               <Button
-                className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full h-12 text-base bg-amber-500 hover:bg-amber-400 font-black tracking-wider text-white"
                 size="lg"
                 onClick={() => handleUseCustomer(foundCustomer)}
               >
@@ -164,14 +164,14 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
 
           {/* Customer not found — offer to create */}
           {customerNotFound && (
-            <div className="border border-border rounded-lg p-5 space-y-4">
-              <p className="text-base text-muted-foreground">Create a new customer record.</p>
+            <div className="border border-zinc-700 rounded-lg p-5 space-y-4">
+              <p className="text-base text-zinc-400">Create a new customer record.</p>
               <button
                 type="button"
                 onClick={() => setShowNameKeyboard(true)}
-                className="w-full h-14 px-5 rounded-lg border-2 border-input bg-background flex items-center gap-3 text-left hover:border-primary active:scale-[0.98] transition-all"
+                className="w-full h-14 px-5 rounded-lg border-2 border-zinc-700 bg-zinc-900 flex items-center gap-3 text-left hover:border-amber-500 active:scale-[0.98] transition-all"
               >
-                <span className={`text-lg flex-1 ${newCustomerName ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span className={`text-lg flex-1 ${newCustomerName ? 'text-zinc-100' : 'text-zinc-500'}`}>
                   {newCustomerName || 'Customer name'}
                 </span>
               </button>
@@ -188,7 +188,7 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
           {/* Skip link */}
           <button
             onClick={onSkip}
-            className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline flex items-center justify-center gap-1"
+            className="text-sm text-zinc-400 hover:text-zinc-100 underline-offset-4 hover:underline flex items-center justify-center gap-1"
           >
             <SkipForward className="w-4 h-4" />
             Skip — No customer

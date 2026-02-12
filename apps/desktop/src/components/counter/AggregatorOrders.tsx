@@ -103,7 +103,7 @@ export function AggregatorOrders() {
 
   if (isLoading) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="p-4 text-center text-zinc-500">
         Loading aggregator orders...
       </div>
     )
@@ -119,7 +119,7 @@ export function AggregatorOrders() {
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-orange-500 animate-pulse" />
-          <h3 className="font-semibold text-sm">
+          <h3 className="font-bold text-sm text-zinc-100">
             Incoming Orders ({orders.length})
           </h3>
         </div>
@@ -127,7 +127,7 @@ export function AggregatorOrders() {
           variant="ghost"
           size="sm"
           onClick={() => refetch()}
-          className="h-7 w-7 p-0"
+          className="h-7 w-7 p-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
         >
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
@@ -190,7 +190,7 @@ function CountdownTimer({ deadline }: { deadline: string }) {
   return (
     <span
       className={`flex items-center gap-1 text-xs font-mono font-bold ${
-        isUrgent ? 'text-red-600 animate-pulse' : 'text-orange-600'
+        isUrgent ? 'text-red-400 animate-pulse' : 'text-orange-400'
       }`}
     >
       <Clock className="h-3 w-3" />
@@ -247,17 +247,17 @@ function AggregatorOrderCard({
   const isRejectMode = rejectingOrderId === order.id
 
   return (
-    <Card className="border-l-4 border-l-orange-500 bg-orange-50/50">
+    <Card className="border-l-4 border-l-orange-500 bg-zinc-900 border-zinc-800">
       <CardContent className="p-3 space-y-3">
         {/* Header Row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PlatformBadge source={order.order_source} />
-            <span className="font-semibold text-sm">
+            <span className="font-semibold text-sm text-zinc-100">
               #{order.order_number}
             </span>
             {order.external_order_id && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-zinc-500">
                 ({order.external_order_id})
               </span>
             )}
@@ -268,7 +268,7 @@ function AggregatorOrderCard({
         </div>
 
         {/* Customer & Delivery Info */}
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
           {order.customer_name && (
             <span className="flex items-center gap-1">
               <User className="h-3 w-3" />
@@ -292,17 +292,17 @@ function AggregatorOrderCard({
         {/* Items */}
         <div className="space-y-1">
           {(order.items || []).map((item, idx) => (
-            <div key={item.id || idx} className="flex justify-between text-sm">
+            <div key={item.id || idx} className="flex justify-between text-sm text-zinc-200">
               <span>
-                <span className="font-medium">{item.quantity}×</span>{' '}
+                <span className="font-medium text-zinc-400">{item.quantity}×</span>{' '}
                 {item.product?.name || 'Unknown Item'}
                 {item.special_instructions && (
-                  <span className="text-xs italic text-muted-foreground ml-1">
+                  <span className="text-xs italic text-zinc-500 ml-1">
                     ({item.special_instructions})
                   </span>
                 )}
               </span>
-              <span className="text-muted-foreground">
+              <span className="text-zinc-400">
                 {format(item.total_price)}
               </span>
             </div>
@@ -310,14 +310,14 @@ function AggregatorOrderCard({
         </div>
 
         {/* Total */}
-        <div className="flex justify-between items-center pt-2 border-t text-sm font-semibold">
+        <div className="flex justify-between items-center pt-2 border-t border-zinc-800 text-sm font-semibold text-zinc-100">
           <span>Total</span>
           <span>{format(order.total_amount)}</span>
         </div>
 
         {/* Notes */}
         {order.notes && (
-          <p className="text-xs text-muted-foreground italic bg-white/70 p-2 rounded">
+          <p className="text-xs text-sky-300 italic bg-sky-500/10 border border-sky-500/20 p-2 rounded">
             {order.notes}
           </p>
         )}
@@ -330,7 +330,7 @@ function AggregatorOrderCard({
               placeholder="Reason for rejection..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full px-3 py-2 text-sm border border-zinc-700 bg-zinc-800 text-zinc-100 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               autoFocus
             />
             <div className="flex gap-2">
@@ -359,7 +359,7 @@ function AggregatorOrderCard({
           <div className="flex gap-2">
             <Button
               size="sm"
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="flex-1 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 font-bold"
               onClick={onAccept}
               disabled={isAccepting}
             >

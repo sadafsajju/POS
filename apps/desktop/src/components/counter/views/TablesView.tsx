@@ -104,18 +104,18 @@ function TakeoutCustomerInput({
       {/* Centered input area - with padding at bottom for fixed keyboard */}
       <div className="flex flex-col items-center justify-center px-8 pb-80 min-h-[calc(100vh-200px)]">
         <div className="w-full max-w-2xl text-center">
-          <h2 className="text-2xl font-semibold mb-2">
+          <h2 className="text-2xl font-black tracking-tight text-zinc-100 mb-2">
             {orderType === 'takeout' ? 'Takeout Order' : 'Delivery Order'}
           </h2>
-          <p className="text-muted-foreground mb-6">Enter customer name (optional)</p>
+          <p className="text-zinc-400 mb-6">Enter customer name (optional)</p>
 
           {/* Input display */}
           <div className="relative mb-6">
-            <div className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-input bg-background text-2xl flex items-center justify-center">
+            <div className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-2xl flex items-center justify-center text-zinc-100">
               {customerName || (
-                <span className="text-muted-foreground">Customer name...</span>
+                <span className="text-zinc-500">Customer name...</span>
               )}
-              <span className="inline-block w-0.5 h-7 bg-primary ml-1 animate-pulse" />
+              <span className="inline-block w-0.5 h-7 bg-amber-500 ml-1 animate-pulse" />
             </div>
           </div>
 
@@ -124,7 +124,7 @@ function TakeoutCustomerInput({
             onClick={onProceedToProducts}
             variant="outline"
             size="lg"
-            className="h-14 px-8 text-lg"
+            className="h-14 px-8 text-lg bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           >
             Skip <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
@@ -132,7 +132,7 @@ function TakeoutCustomerInput({
       </div>
 
       {/* Keyboard - Fixed at bottom, slides in */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 animate-in slide-in-from-bottom duration-300 z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4 animate-in slide-in-from-bottom duration-300 z-50">
         <div className="space-y-2 max-w-4xl mx-auto">
           {currentLayout.rows.map((row, index) => (
             <KeyboardRow
@@ -219,12 +219,12 @@ export function TablesView({
         <>
           {/* Legend */}
           <div className="flex items-center justify-end">
-            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-4 text-sm text-zinc-400">
               <span className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded bg-blue-700 border border-blue-700"></span> Available
               </span>
               <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-green-500 dark:bg-green-600"></span> Occupied
+                <span className="w-3 h-3 rounded bg-green-600"></span> Occupied
               </span>
               <span className="flex items-center gap-2">
                 <span className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
@@ -238,7 +238,7 @@ export function TablesView({
           <div className="space-y-6">
             {floors.map(floor => (
               <div key={floor}>
-                <h4 className="text-md font-semibold mb-3 text-muted-foreground">{floor}</h4>
+                <h4 className="text-md font-bold mb-3 text-zinc-400">{floor}</h4>
                 <div className={`grid gap-1 ${detailsExpanded ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6' : 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8'}`}>
                   {tablesByFloor[floor].map(table => {
                     const tableOrders = getTableOrders(allOrders, table.id)
@@ -253,15 +253,15 @@ export function TablesView({
                       <Card
                         key={table.id}
                         className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-none aspect-square ${
-                          selectedTable?.id === table.id ? 'ring-2 ring-primary' : ''
+                          selectedTable?.id === table.id ? 'ring-2 ring-amber-500' : ''
                         } ${hasOrders
-                          ? 'bg-green-500 dark:bg-green-600'
-                          : 'bg-white border-2 border-blue-700 '}`}
+                          ? 'bg-green-600'
+                          : 'bg-zinc-900'}`}
                         onClick={() => onTableSelect(table)}
                       >
                         {/* Cart indicator for tables with pending items */}
                         {tableHasCartItems && (
-                          <div className="absolute -top-2 -right-2 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                          <div className="absolute -top-2 -right-2 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center shadow-lg z-10">
                             <ShoppingCart className="w-4 h-4 text-white" />
                           </div>
                         )}
@@ -269,12 +269,12 @@ export function TablesView({
                           <div className="text-center">
                             <div className={`text-2xl font-bold mb-1 ${hasOrders
                               ? 'text-white'
-                              : 'text-blue-700'}`}>
+                              : 'text-blue-400'}`}>
                               {table.table_number}
                             </div>
                             <div className={`text-xs mb-2 ${hasOrders
                               ? 'text-white/80'
-                              : 'text-primary'}`}>
+                              : 'text-blue-400'}`}>
                               {table.seating_capacity} seats
                             </div>
                             {hasOrders ? (
@@ -317,7 +317,7 @@ export function TablesView({
                                 })()}
                               </div>
                             ) : (
-                              <Badge className="bg-blue-700 text-white text-xs">
+                              <Badge className="bg-zinc-950 text-white text-xs">
                                 Available
                               </Badge>
                             )}
@@ -333,8 +333,8 @@ export function TablesView({
 
           {/* Empty state */}
           {safeTables.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <div className="text-center py-12 text-zinc-500">
+              <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
               <p>No tables configured</p>
               <p className="text-sm">Add tables in the admin settings</p>
             </div>

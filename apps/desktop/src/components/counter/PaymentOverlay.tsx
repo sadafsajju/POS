@@ -150,31 +150,31 @@ export function PaymentOverlay({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex">
+    <div className="fixed inset-0 z-50 bg-zinc-950 text-zinc-100 flex">
       {/* LEFT PANEL — Bill Summary */}
-      <div className="w-[420px] border-r border-border flex flex-col bg-card">
+      <div className="w-[420px] border-r border-zinc-800 flex flex-col bg-zinc-900">
         {/* Header */}
-        <div className="p-6 border-b border-border">
+        <div className="p-6 border-b border-zinc-800">
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="mb-4 -ml-2 text-muted-foreground hover:text-foreground"
+            className="mb-4 -ml-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-2xl font-black tracking-tight text-zinc-100">
               {selectedTable ? `Table ${selectedTable.table_number}` : activeBill.bill?.order_type === 'takeout' ? 'Takeout Order' : activeBill.bill?.order_type === 'delivery' ? 'Delivery Order' : 'Order'}
             </h2>
             {selectedTable?.floor && (
-              <Badge variant="outline" className="text-sm">
+              <Badge variant="outline" className="text-sm border-zinc-700 text-zinc-400">
                 {selectedTable.floor}
               </Badge>
             )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-zinc-500 mt-1">
             Bill #{activeBill.bill?.order_number}
           </p>
         </div>
@@ -186,7 +186,7 @@ export function PaymentOverlay({
               <div key={item.product_id || idx} className="flex justify-between items-center">
                 <div className="flex-1 min-w-0">
                   <span className="text-base">{item.name}</span>
-                  <span className="text-muted-foreground ml-2">x{item.quantity}</span>
+                  <span className="text-zinc-400 ml-2">x{item.quantity}</span>
                 </div>
               </div>
             ))}
@@ -194,16 +194,16 @@ export function PaymentOverlay({
         </div>
 
         {/* Total */}
-        <div className="p-6 border-t border-border">
+        <div className="p-6 border-t border-zinc-800">
           {linkedCustomerName && (
-            <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 mb-3 text-sm text-zinc-400">
               <User className="w-4 h-4" />
               <span>{linkedCustomerName}</span>
             </div>
           )}
           <div className="flex justify-between items-center">
-            <span className="text-lg text-muted-foreground">Total</span>
-            <span className="text-3xl font-bold">{formatCurrency(total)}</span>
+            <span className="text-lg text-zinc-400">Total</span>
+            <span className="text-3xl font-black text-zinc-100">{formatCurrency(total)}</span>
           </div>
         </div>
       </div>
@@ -212,14 +212,14 @@ export function PaymentOverlay({
       <div className="flex-1 flex flex-col">
         {/* Error Banner */}
         {paymentError && (
-          <div className="mx-8 mt-8 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-            <p className="text-destructive text-sm flex-1">{paymentError}</p>
+          <div className="mx-8 mt-8 p-4 bg-red-500/15 border border-red-500/20 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <p className="text-red-400 text-sm flex-1">{paymentError}</p>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setPaymentError(null)}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
             >
               <X className="w-4 h-4" />
             </Button>

@@ -653,24 +653,24 @@ export function CounterInterface() {
   const showRightPanel = activeTab === 'create'
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex h-full bg-zinc-950 text-zinc-100">
       {/* Left Panel - Main Content */}
-      <div className={`${showRightPanel ? 'w-2/3' : 'w-full'} border-r border-border overflow-hidden flex flex-col transition-all duration-300 relative`}>
+      <div className={`${showRightPanel ? 'w-2/3' : 'w-full'} border-r border-zinc-800 overflow-hidden flex flex-col transition-all duration-300 relative`}>
         {/* Header - tables view */}
         {activeTab === 'tables' && (
-          <div className="p-4 bg-card">
+          <div className="p-4 bg-zinc-900 border-b border-zinc-800">
             <div className="flex items-center gap-3">
               {enabledOrderTypes.length > 1 && (
                 <Button
                   variant="outline"
                   size="lg"
                   onClick={() => navigateTo('order-type')}
-                  className="h-12 w-12 p-0"
+                  className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </Button>
               )}
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
                 {orderType === 'dine_in' ? (
                   <>
                     <TableIcon className="w-6 h-6" />
@@ -700,7 +700,7 @@ export function CounterInterface() {
         )}
         {/* Header - product selection */}
         {activeTab === 'create' && (
-          <div className="p-4 bg-card">
+          <div className="p-4 bg-zinc-900 border-b border-zinc-800">
             <div className="flex items-center gap-3 flex-1">
               {(orderType === 'dine_in' || enabledOrderTypes.length > 1) && (
                 <Button
@@ -714,14 +714,14 @@ export function CounterInterface() {
                       setSelectedTable(null)
                     }
                   }}
-                  className="h-12 w-12 p-0"
+                  className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </Button>
               )}
               <div className="flex items-center gap-3 flex-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
                     {orderType === 'dine_in' && selectedTable ? (
                       <>
                         <TableIcon className="w-6 h-6" />
@@ -752,13 +752,13 @@ export function CounterInterface() {
                   {showSearchKeyboard || searchTerm ? (
                     <div
                       onClick={() => setShowSearchKeyboard(true)}
-                      className="flex items-center gap-2 h-12 px-4 rounded-md border-2 border-primary bg-background cursor-pointer flex-1"
+                      className="flex items-center gap-2 h-12 px-4 rounded-md border-2 border-amber-500 bg-zinc-900 cursor-pointer flex-1"
                     >
-                      <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                      <Search className="w-5 h-5 text-zinc-500 flex-shrink-0" />
                       <span className="text-lg flex-1">
-                        {searchTerm || <span className="text-muted-foreground">Search...</span>}
+                        {searchTerm || <span className="text-zinc-500">Search...</span>}
                       </span>
-                      <span className="inline-block w-0.5 h-5 bg-primary animate-pulse flex-shrink-0" />
+                      <span className="inline-block w-0.5 h-5 bg-amber-500 animate-pulse flex-shrink-0" />
                     </div>
                   ) : null}
                   {showSearchKeyboard || searchTerm ? (
@@ -769,7 +769,7 @@ export function CounterInterface() {
                         setSearchTerm('')
                         setShowSearchKeyboard(false)
                       }}
-                      className="h-12 w-12 p-0 flex-shrink-0"
+                      className="h-12 w-12 p-0 flex-shrink-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                     >
                       <X className="w-6 h-6" />
                     </Button>
@@ -778,7 +778,7 @@ export function CounterInterface() {
                       variant="outline"
                       size="lg"
                       onClick={() => setShowSearchKeyboard(true)}
-                      className="h-12 w-12 p-0"
+                      className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
                     >
                       <Search className="w-6 h-6" />
                     </Button>
@@ -798,12 +798,12 @@ export function CounterInterface() {
                 <AggregatorOrders />
               </div>
               <div className="flex-1 flex flex-col items-center justify-center p-6">
-                <h1 className="text-3xl font-bold text-foreground mb-8">Are you dining in or taking away?</h1>
+                <h1 className="text-3xl font-black tracking-tight text-zinc-100 mb-8">Are you dining in or taking away?</h1>
                 <div className="flex gap-6 w-full max-w-4xl">
                   {(settings.cartSettings?.showDineIn !== false) && (
                     <button
                       onClick={() => navigateTo('tables', 'dine_in')}
-                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-blue-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
+                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-amber-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
                     >
                       <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/dine-in.png)' }} />
                       <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
@@ -898,50 +898,50 @@ export function CounterInterface() {
               </div>
 
       {/* Right Panel - Sidebar */}
-      <div className={`${showRightPanel ? 'w-1/3 translate-x-0' : 'w-0 translate-x-full'} flex flex-col bg-muted/50 overflow-hidden transition-all duration-300 ease-in-out`}>
+      <div className={`${showRightPanel ? 'w-1/3 translate-x-0' : 'w-0 translate-x-full'} flex flex-col bg-zinc-900 overflow-hidden transition-all duration-300 ease-in-out`}>
         {/* Messages */}
         {errorMessage && (
-          <div className="p-3 bg-red-100 border-b border-red-200 text-red-800 text-sm">
+          <div className="p-3 bg-red-500/15 border-b border-red-500/20 text-red-400 text-sm">
             <div className="flex items-center justify-between">
               <span>{errorMessage}</span>
-              <button onClick={() => setErrorMessage(null)} className="text-red-600 hover:text-red-800">×</button>
+              <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-red-300">×</button>
             </div>
           </div>
         )}
         {successMessage && (
-          <div className="p-3 bg-green-100 border-b border-green-200 text-green-800 text-sm">
+          <div className="p-3 bg-emerald-500/15 border-b border-emerald-500/20 text-emerald-400 text-sm">
             <div className="flex items-center justify-between">
               <span>{successMessage}</span>
-              <button onClick={() => setSuccessMessage(null)} className="text-green-600 hover:text-green-800">×</button>
+              <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-300">×</button>
             </div>
           </div>
         )}
 
         {/* Offline Orders Banner */}
         {offlineOrders.length > 0 && (
-          <div className="p-3 bg-amber-50 border-b border-amber-200">
+          <div className="p-3 bg-amber-500/15 border-b border-amber-500/20">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-amber-800">
+              <div className="flex items-center gap-2 text-amber-400">
                 <CloudOff className="w-4 h-4" />
                 <span className="text-sm font-medium">{offlineOrders.length} order{offlineOrders.length > 1 ? 's' : ''} pending sync</span>
               </div>
               {isOnline && (
-                <Button variant="outline" size="sm" onClick={syncPendingOrders} disabled={isSyncing} className="text-amber-800 border-amber-300 hover:bg-amber-100">
+                <Button variant="outline" size="sm" onClick={syncPendingOrders} disabled={isSyncing} className="text-amber-400 border-amber-500/30 hover:bg-amber-500/20">
                   {isSyncing ? <><RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Syncing...</> : <><RefreshCw className="w-3 h-3 mr-1" /> Sync Now</>}
                 </Button>
               )}
             </div>
             <div className="mt-2 space-y-1">
               {offlineOrders.slice(0, 3).map((order) => (
-                <div key={order.localId} className="flex items-center justify-between text-xs text-amber-700 bg-amber-100 rounded px-2 py-1">
+                <div key={order.localId} className="flex items-center justify-between text-xs text-amber-400 bg-amber-500/10 rounded px-2 py-1">
                   <span>#{order.orderNumber} • {order.items.length} items{order.customerName && ` • ${order.customerName}`}</span>
                   <div className="flex items-center gap-2">
-                    {order.status === 'failed' && <span className="text-red-600">Failed</span>}
-                    <button onClick={() => removePendingOrder(order.localId)} className="text-amber-600 hover:text-red-600" title="Remove"><X className="w-3 h-3" /></button>
+                    {order.status === 'failed' && <span className="text-red-400">Failed</span>}
+                    <button onClick={() => removePendingOrder(order.localId)} className="text-amber-500 hover:text-red-400" title="Remove"><X className="w-3 h-3" /></button>
                   </div>
                 </div>
               ))}
-              {offlineOrders.length > 3 && <div className="text-xs text-amber-600">+{offlineOrders.length - 3} more...</div>}
+              {offlineOrders.length > 3 && <div className="text-xs text-amber-500">+{offlineOrders.length - 3} more...</div>}
             </div>
           </div>
         )}
@@ -1033,7 +1033,7 @@ export function CounterInterface() {
 
       {/* Inline Keyboard for Product Search - slides in from bottom */}
       {showSearchKeyboard && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 animate-in slide-in-from-bottom duration-300 z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4 animate-in slide-in-from-bottom duration-300 z-50">
           <div className="space-y-2 max-w-4xl mx-auto">
             {QWERTY_LAYOUT.rows.map((row, index) => (
               <KeyboardRow
