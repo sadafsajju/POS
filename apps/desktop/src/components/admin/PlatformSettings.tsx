@@ -15,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { adminApi } from '@pos/api-client'
+import { useRequirePin } from '@pos/core'
 import type { PlatformConfig, CreatePlatformConfigRequest } from '@pos/types'
 
 const PLATFORMS = [
@@ -120,6 +121,7 @@ interface PlatformCardProps {
 function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const requirePin = useRequirePin()
   const [formData, setFormData] = useState<CreatePlatformConfigRequest>({
     platform: platform.id,
     is_enabled: config?.is_enabled ?? false,
@@ -328,8 +330,9 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => {
-                  if (confirm(`Remove ${platform.name} configuration?`)) {
+                onClick={async () => {
+                  const verified = await requirePin('Remove Platform', `Enter PIN to remove ${platform.name} configuration`)
+                  if (verified) {
                     deleteMutation.mutate()
                   }
                 }}

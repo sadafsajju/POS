@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Card, CardContent } from '@/components/ui/card'
@@ -28,6 +28,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { ProductListSkeleton, CategoryListSkeleton } from '@/components/ui/skeletons'
 import { InlineLoading } from '@/components/ui/loading-spinner'
 import { DietaryIndicator } from '@/components/forms/FormComponents'
+import { useRequirePin } from '@pos/core'
 import type { Product, Category } from '@/types'
 
 type DisplayMode = 'table' | 'cards'
@@ -147,17 +148,21 @@ export function AdminMenuManagement() {
     setEditingCategory(null)
   }
 
-  const handleDeleteProduct = (product: Product) => {
-    if (confirm(`Are you sure you want to delete "${product.name}"?`)) {
+  const requirePin = useRequirePin()
+
+  const handleDeleteProduct = useCallback(async (product: Product) => {
+    const verified = await requirePin('Delete Product', `Enter PIN to delete "${product.name}"`)
+    if (verified) {
       deleteProductMutation.mutate(product.id.toString())
     }
-  }
+  }, [requirePin, deleteProductMutation])
 
-  const handleDeleteCategory = (category: Category) => {
-    if (confirm(`Are you sure you want to delete "${category.name}"?`)) {
+  const handleDeleteCategory = useCallback(async (category: Category) => {
+    const verified = await requirePin('Delete Category', `Enter PIN to delete "${category.name}"`)
+    if (verified) {
       deleteCategoryMutation.mutate(category.id.toString())
     }
-  }
+  }, [requirePin, deleteCategoryMutation])
 
   // Show category form if creating or editing
   if (showCreateCategoryForm || editingCategory) {

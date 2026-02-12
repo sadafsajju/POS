@@ -11,6 +11,8 @@ export const priceSchema = z.number().min(0.01, 'Price must be greater than 0')
 export const userRoles = ['admin', 'manager', 'server', 'counter', 'kitchen'] as const
 export const userRoleSchema = z.enum(userRoles)
 
+export const pinSchema = z.string().length(4, 'PIN must be exactly 4 digits').regex(/^\d{4}$/, 'PIN must contain only digits').optional().or(z.literal(''))
+
 export const createUserSchema = z.object({
   username: requiredStringSchema.min(3, 'Username must be at least 3 characters'),
   email: emailSchema,
@@ -18,6 +20,8 @@ export const createUserSchema = z.object({
   first_name: requiredStringSchema,
   last_name: requiredStringSchema,
   role: userRoleSchema,
+  pin: pinSchema,
+  location_id: z.string().optional(),
 })
 
 export const updateUserSchema = z.object({
@@ -28,6 +32,8 @@ export const updateUserSchema = z.object({
   first_name: requiredStringSchema.optional(),
   last_name: requiredStringSchema.optional(),
   role: userRoleSchema.optional(),
+  pin: pinSchema,
+  location_id: z.string().optional(),
 })
 
 // Product related schemas

@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DollarSign, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
@@ -16,13 +12,16 @@ export const Route = createFileRoute('/admin/settings/financial')({
 
 const currencyOptions = [
   { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+  { code: 'EUR', symbol: '\u20AC', name: 'Euro' },
+  { code: 'GBP', symbol: '\u00A3', name: 'British Pound' },
+  { code: 'INR', symbol: '\u20B9', name: 'Indian Rupee' },
+  { code: 'JPY', symbol: '\u00A5', name: 'Japanese Yen' },
   { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
   { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
 ]
+
+const inputClass = 'w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors'
+const selectClass = inputClass + ' appearance-none cursor-pointer'
 
 function FinancialSettingsPage() {
   const { settings, isLoading, saveSettings } = useSettingsStore()
@@ -90,8 +89,8 @@ function FinancialSettingsPage() {
 
   if (isLoading && !settings.currency) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
       </div>
     )
   }
@@ -107,63 +106,60 @@ function FinancialSettingsPage() {
       onSave={handleSave}
       onReset={handleReset}
     >
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="currency">Currency</Label>
-            <Select value={localSettings.currency || 'USD'} onValueChange={handleCurrencyChange}>
-              <SelectTrigger id="currency">
-                <SelectValue placeholder="Select currency" />
-              </SelectTrigger>
-              <SelectContent>
-                {currencyOptions.map((currency) => (
-                  <SelectItem key={currency.code} value={currency.code}>
-                    {currency.code} ({currency.symbol}) - {currency.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Current symbol: {localSettings.currencySymbol}
-            </p>
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-5">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-zinc-300">Currency</label>
+          <select
+            value={localSettings.currency || 'USD'}
+            onChange={(e) => handleCurrencyChange(e.target.value)}
+            className={selectClass}
+          >
+            {currencyOptions.map((currency) => (
+              <option key={currency.code} value={currency.code}>
+                {currency.code} ({currency.symbol}) - {currency.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-zinc-500">
+            Current symbol: {localSettings.currencySymbol}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-zinc-300">Tax Rate (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={localSettings.taxRate ?? 0}
+              onChange={(e) =>
+                setLocalSettings({ ...localSettings, taxRate: parseFloat(e.target.value) || 0 })
+              }
+              className={inputClass}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="taxRate">Tax Rate (%)</Label>
-              <Input
-                id="taxRate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={localSettings.taxRate ?? 0}
-                onChange={(e) =>
-                  setLocalSettings({ ...localSettings, taxRate: parseFloat(e.target.value) || 0 })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="serviceCharge">Service Charge (%)</Label>
-              <Input
-                id="serviceCharge"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={localSettings.serviceCharge ?? 0}
-                onChange={(e) =>
-                  setLocalSettings({
-                    ...localSettings,
-                    serviceCharge: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-zinc-300">Service Charge (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={localSettings.serviceCharge ?? 0}
+              onChange={(e) =>
+                setLocalSettings({
+                  ...localSettings,
+                  serviceCharge: parseFloat(e.target.value) || 0,
+                })
+              }
+              className={inputClass}
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </SettingsPageLayout>
   )
 }

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { Info, Database, Server, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useSettingsStore } from '@pos/core'
 
 export const Route = createFileRoute('/admin/settings/about')({
@@ -58,153 +56,147 @@ function AboutPage() {
     checkStatus()
   }, [])
 
-  const StatusIcon = ({ status }: { status: 'connected' | 'disconnected' | 'checking' }) => {
-    if (status === 'checking') {
-      return <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-    }
-    if (status === 'connected') {
-      return <CheckCircle2 className="w-4 h-4 text-green-500" />
-    }
-    return <XCircle className="w-4 h-4 text-red-500" />
+  const StatusDot = ({ status }: { status: 'connected' | 'disconnected' | 'checking' }) => {
+    if (status === 'checking') return <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+    if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+    return <XCircle className="w-4 h-4 text-red-400" />
   }
 
-  const StatusText = ({ status }: { status: 'connected' | 'disconnected' | 'checking' }) => {
+  const statusLabel = (status: 'connected' | 'disconnected' | 'checking') => {
     if (status === 'checking') return 'Checking...'
     if (status === 'connected') return 'Connected'
     return 'Disconnected'
   }
 
+  const statusColor = (status: 'connected' | 'disconnected' | 'checking') => {
+    if (status === 'connected') return 'text-emerald-400'
+    if (status === 'disconnected') return 'text-red-400'
+    return 'text-zinc-500'
+  }
+
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="p-6 max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg text-primary">
-              <Info className="w-5 h-5" />
-            </div>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="flex-shrink-0 px-6 py-4 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-zinc-800 rounded-lg text-zinc-300">
+            <Info className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-zinc-100">About</h2>
+            <p className="text-sm text-zinc-500">System status and version information</p>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Scrollable Content ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {/* System Status */}
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800">
+          <div className="px-5 pt-5 pb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">About</h2>
-              <p className="text-sm text-muted-foreground">System status and version information</p>
+              <h3 className="text-base font-bold text-zinc-200">System Status</h3>
+              <p className="text-sm text-zinc-500">Current health of system services</p>
+            </div>
+            <button
+              onClick={checkStatus}
+              disabled={checking}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                'bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700',
+                'disabled:opacity-40 disabled:cursor-not-allowed'
+              )}
+            >
+              <RefreshCw className={cn('w-3.5 h-3.5', checking && 'animate-spin')} />
+              Refresh
+            </button>
+          </div>
+          <div className="px-5 pb-5 space-y-3">
+            <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Server className="w-5 h-5 text-zinc-500" />
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">API Server</p>
+                  <p className="text-xs text-zinc-500">Backend REST API</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusDot status={apiStatus} />
+                <span className={cn('text-sm', statusColor(apiStatus))}>
+                  {statusLabel(apiStatus)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Database className="w-5 h-5 text-zinc-500" />
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">Database</p>
+                  <p className="text-xs text-zinc-500">PostgreSQL connection</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusDot status={dbStatus} />
+                <span className={cn('text-sm', statusColor(dbStatus))}>
+                  {statusLabel(dbStatus)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* System Status */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">System Status</CardTitle>
-                <CardDescription>Current health of system services</CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={checkStatus}
-                disabled={checking}
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Server className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">API Server</p>
-                  <p className="text-xs text-muted-foreground">Backend REST API</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusIcon status={apiStatus} />
-                <span className={`text-sm ${
-                  apiStatus === 'connected' ? 'text-green-600' :
-                  apiStatus === 'disconnected' ? 'text-red-600' : 'text-muted-foreground'
-                }`}>
-                  <StatusText status={apiStatus} />
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Database className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Database</p>
-                  <p className="text-xs text-muted-foreground">PostgreSQL connection</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusIcon status={dbStatus} />
-                <span className={`text-sm ${
-                  dbStatus === 'connected' ? 'text-green-600' :
-                  dbStatus === 'disconnected' ? 'text-red-600' : 'text-muted-foreground'
-                }`}>
-                  <StatusText status={dbStatus} />
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Current Configuration */}
-        <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Current Configuration</CardTitle>
-            <CardDescription>Active system settings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Currency</p>
-                <p className="font-medium">{settings.currency} ({settings.currencySymbol})</p>
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800">
+          <div className="px-5 pt-5 pb-3">
+            <h3 className="text-base font-bold text-zinc-200">Current Configuration</h3>
+            <p className="text-sm text-zinc-500">Active system settings</p>
+          </div>
+          <div className="px-5 pb-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-zinc-800/50 rounded-lg">
+                <p className="text-xs text-zinc-500 mb-1">Currency</p>
+                <p className="text-sm font-medium text-zinc-200">{settings.currency} ({settings.currencySymbol})</p>
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Language</p>
-                <p className="font-medium capitalize">{settings.language || 'English'}</p>
+              <div className="p-3 bg-zinc-800/50 rounded-lg">
+                <p className="text-xs text-zinc-500 mb-1">Language</p>
+                <p className="text-sm font-medium text-zinc-200 capitalize">{settings.language || 'English'}</p>
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Theme</p>
-                <p className="font-medium capitalize">{settings.theme || 'System'}</p>
+              <div className="p-3 bg-zinc-800/50 rounded-lg">
+                <p className="text-xs text-zinc-500 mb-1">Theme</p>
+                <p className="text-sm font-medium text-zinc-200 capitalize">{settings.theme || 'System'}</p>
               </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Tax Rate</p>
-                <p className="font-medium">{settings.taxRate}%</p>
+              <div className="p-3 bg-zinc-800/50 rounded-lg">
+                <p className="text-xs text-zinc-500 mb-1">Tax Rate</p>
+                <p className="text-sm font-medium text-zinc-200">{settings.taxRate}%</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Version Info */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Version Information</CardTitle>
-            <CardDescription>Application version and build info</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Application Version</span>
-                <Badge variant="secondary">v1.0.0</Badge>
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800">
+          <div className="px-5 pt-5 pb-3">
+            <h3 className="text-base font-bold text-zinc-200">Version Information</h3>
+            <p className="text-sm text-zinc-500">Application version and build info</p>
+          </div>
+          <div className="px-5 pb-5 space-y-3">
+            {[
+              { label: 'Application Version', value: 'v1.0.0', accent: 'bg-emerald-500/15 text-emerald-400' },
+              { label: 'Environment', value: 'Development', accent: 'bg-amber-500/15 text-amber-400' },
+              { label: 'Frontend', value: 'React + Vite', accent: 'bg-sky-500/15 text-sky-400' },
+              { label: 'Backend', value: 'Go + Gin', accent: 'bg-orange-500/15 text-orange-400' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between">
+                <span className="text-sm text-zinc-400">{item.label}</span>
+                <span className={cn('text-xs font-bold px-2.5 py-1 rounded-md', item.accent)}>
+                  {item.value}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Environment</span>
-                <Badge variant="outline">Development</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Frontend</span>
-                <Badge variant="outline">React + Vite</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Backend</span>
-                <Badge variant="outline">Go + Gin</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

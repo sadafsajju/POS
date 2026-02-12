@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,29 @@ func (h *OptionHandler) GetOptionGroupsByProduct(c *gin.Context) {
 			Success: false,
 			Message: "Invalid product ID",
 			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   stringPtr("product_not_found"),
 		})
 		return
 	}
@@ -82,9 +106,20 @@ func (h *OptionHandler) CreateOptionGroup(c *gin.Context) {
 		return
 	}
 
-	// Verify product exists
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product exists and belongs to org
 	var exists bool
-	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1)", productID).Scan(&exists)
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
 	if err != nil || !exists {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -210,6 +245,29 @@ func (h *OptionHandler) UpdateOptionGroup(c *gin.Context) {
 		return
 	}
 
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   stringPtr("product_not_found"),
+		})
+		return
+	}
+
 	// Build dynamic update query
 	query := "UPDATE product_option_groups SET updated_at = CURRENT_TIMESTAMP"
 	args := []interface{}{}
@@ -319,6 +377,29 @@ func (h *OptionHandler) DeleteOptionGroup(c *gin.Context) {
 			Success: false,
 			Message: "Invalid group ID",
 			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   stringPtr("product_not_found"),
 		})
 		return
 	}

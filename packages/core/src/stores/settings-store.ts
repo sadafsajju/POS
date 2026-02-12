@@ -16,6 +16,8 @@ interface SettingsStore {
 
 const defaultSettings: StoreSettings = {
   restaurantName: 'My Restaurant',
+  storeAddress: '',
+  storePhone: '',
   currency: 'USD',
   currencySymbol: '$',
   taxRate: 10,
@@ -37,6 +39,19 @@ const defaultSettings: StoreSettings = {
     showPreparationTime: false,
     showCategory: true,
     showAvailability: true,
+  },
+  cartSettings: {
+    defaultOrderType: 'dine_in',
+    showDineIn: true,
+    showTakeout: true,
+    showDelivery: true,
+    showSpecialInstructions: true,
+    showOrderNotes: true,
+    confirmBeforeClear: true,
+    autoClearAfterOrder: true,
+    dineInButtons: { showSave: true, showKot: true, showPay: true },
+    takeoutButtons: { showSave: false, showKot: false, showPay: true },
+    deliveryButtons: { showSave: false, showKot: false, showPay: true },
   },
 };
 
@@ -75,10 +90,23 @@ const parseProductDisplay = (jsonStr: string | undefined): StoreSettings['produc
   }
 };
 
+// Parse cart settings from JSON string
+const parseCartSettings = (jsonStr: string | undefined): StoreSettings['cartSettings'] => {
+  if (!jsonStr) return defaultSettings.cartSettings;
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return { ...defaultSettings.cartSettings, ...parsed };
+  } catch {
+    return defaultSettings.cartSettings;
+  }
+};
+
 // Convert API response to StoreSettings
 const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
   return {
     restaurantName: apiData.restaurant_name || defaultSettings.restaurantName,
+    storeAddress: apiData.store_address || '',
+    storePhone: apiData.store_phone || '',
     currency: apiData.currency || defaultSettings.currency,
     currencySymbol: apiData.currency_symbol || defaultSettings.currencySymbol,
     taxRate: parseFloat(apiData.tax_rate) || defaultSettings.taxRate,
@@ -91,6 +119,7 @@ const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
     notificationEmail: apiData.notification_email || '',
     industryMode: (apiData.industry_mode as StoreSettings['industryMode']) || defaultSettings.industryMode,
     productDisplay: parseProductDisplay(apiData.product_display),
+    cartSettings: parseCartSettings(apiData.cart_settings),
   };
 };
 
@@ -99,6 +128,8 @@ const storeToApiSettings = (settings: Partial<StoreSettings>): Record<string, st
   const result: Record<string, string> = {};
 
   if (settings.restaurantName !== undefined) result.restaurant_name = settings.restaurantName;
+  if (settings.storeAddress !== undefined) result.store_address = settings.storeAddress;
+  if (settings.storePhone !== undefined) result.store_phone = settings.storePhone;
   if (settings.currency !== undefined) result.currency = settings.currency;
   if (settings.currencySymbol !== undefined) result.currency_symbol = settings.currencySymbol;
   if (settings.taxRate !== undefined) result.tax_rate = settings.taxRate.toString();
@@ -111,6 +142,7 @@ const storeToApiSettings = (settings: Partial<StoreSettings>): Record<string, st
   if (settings.notificationEmail !== undefined) result.notification_email = settings.notificationEmail;
   if (settings.industryMode !== undefined) result.industry_mode = settings.industryMode;
   if (settings.productDisplay !== undefined) result.product_display = JSON.stringify(settings.productDisplay);
+  if (settings.cartSettings !== undefined) result.cart_settings = JSON.stringify(settings.cartSettings);
 
   return result;
 };

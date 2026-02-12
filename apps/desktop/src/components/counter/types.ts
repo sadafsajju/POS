@@ -65,7 +65,7 @@ export interface PaymentAmounts {
 export type PaymentMethodType = 'cash' | 'card' | 'digital'
 
 // Active tab in the counter interface (deprecated - use WizardStep)
-export type ActiveTab = 'tables' | 'create' | 'payment'
+export type ActiveTab = 'order-type' | 'tables' | 'create' | 'payment'
 
 // Wizard step for the counter flow
 export type WizardStep = 'order-setup' | 'products' | 'complete'

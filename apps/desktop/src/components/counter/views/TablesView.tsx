@@ -159,8 +159,6 @@ interface TablesViewProps {
   customerName: string
   onCustomerNameChange: (name: string) => void
   onProceedToProducts: () => void
-  /** If true, only dine-in orders are allowed (for server role) */
-  serverOnly?: boolean
   /** Function to check if a table has items in its cart */
   hasCartItems?: (tableId: string) => boolean
   /** If true, details panel is expanded (show fewer columns) */
@@ -181,9 +179,8 @@ export function TablesView({
   customerName,
   onCustomerNameChange,
   onProceedToProducts,
-  serverOnly = false,
   hasCartItems,
-  detailsExpanded = false
+  detailsExpanded = false,
 }: TablesViewProps) {
   const safeTables = Array.isArray(tables) ? tables : []
 
@@ -210,57 +207,6 @@ export function TablesView({
 
   return (
     <div className="space-y-4 p-6">
-      {/* Order Type Selection - Only show Takeout/Delivery for non-server roles */}
-      {!serverOnly && (
-        <div className="flex gap-3 mb-4">
-          <Button
-            variant={orderType === 'dine_in' ? 'default' : 'outline'}
-            onClick={() => onOrderTypeChange('dine_in')}
-            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'dine_in' ? 'border-b-4 border-blue-700' : ''}`}
-            style={{
-              backgroundImage: 'url(/images/dine-in.png)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'top',
-            }}
-          >
-            <span className="absolute inset-0 bg-black/50" />
-            <span className="relative z-10 flex items-center text-white">
-               Dine-In
-            </span>
-          </Button>
-          <Button
-            variant={orderType === 'takeout' ? 'default' : 'outline'}
-            onClick={() => onOrderTypeChange('takeout')}
-            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'takeout' ? 'border-b-4 border-orange-700' : ''}`}
-            style={{
-              backgroundImage: 'url(/images/takeout.png)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'top',
-            }}
-          >
-            <span className="absolute inset-0 bg-black/50" />
-            <span className="relative z-10 flex items-center text-white">
-              Takeout
-            </span>
-          </Button>
-          <Button
-            variant={orderType === 'delivery' ? 'default' : 'outline'}
-            onClick={() => onOrderTypeChange('delivery')}
-            className={`min-w-[10rem] px-6 py-8 rounded-none text-2xl font-semibold flex-shrink-0 relative overflow-hidden ${orderType === 'delivery' ? 'border-b-4 border-green-700' : ''}`}
-            style={{
-              backgroundImage: 'url(/images/delivery.png)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'top',
-            }}
-          >
-            <span className="absolute inset-0 bg-black/50" />
-            <span className="relative z-10 flex items-center text-white">
-              Delivery
-            </span>
-          </Button>
-        </div>
-      )}
-
       {/* Show centered customer name input with keyboard for takeout/delivery */}
       {orderType !== 'dine_in' ? (
         <TakeoutCustomerInput
@@ -271,9 +217,8 @@ export function TablesView({
         />
       ) : (
         <>
-          {/* Header with legend */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Select a Table</h3>
+          {/* Legend */}
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
               <span className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded bg-blue-700 border border-blue-700"></span> Available

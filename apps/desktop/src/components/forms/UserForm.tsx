@@ -1,20 +1,21 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Form } from '@/components/ui/form'
+import { Form, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
-import { 
-  TextInputField, 
-  SelectField, 
+import { PinInput } from '@/components/ui/pin-input'
+import {
+  TextInputField,
+  SelectField,
   FormSubmitButton,
-  roleOptions 
+  roleOptions
 } from '@/components/forms/FormComponents'
 import { createUserSchema, updateUserSchema, type CreateUserData, type UpdateUserData } from '@/lib/form-schemas'
 import { toastHelpers } from '@/lib/toast-helpers'
 import apiClient from '@/api/client'
-import type { User } from '@/types'
-import { X } from 'lucide-react'
+import type { User, Location } from '@/types'
+import { X, Shield } from 'lucide-react'
 
 interface UserFormProps {
   user?: User // If provided, we're editing; otherwise creating
@@ -27,9 +28,20 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
   const queryClient = useQueryClient()
   const isEditing = mode === 'edit' && user
 
+  // Fetch locations for the dropdown
+  const { data: locationsData } = useQuery({
+    queryKey: ['locations'],
+    queryFn: () => apiClient.getLocations(),
+  })
+  const locations: Location[] = Array.isArray(locationsData)
+    ? locationsData
+    : Array.isArray((locationsData as any)?.data)
+      ? (locationsData as any).data
+      : []
+
   // Choose the appropriate schema and default values
   const schema = isEditing ? updateUserSchema : createUserSchema
-  const defaultValues = isEditing 
+  const defaultValues = isEditing
     ? {
         id: user.id,
         username: user.username,
@@ -38,6 +50,8 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
         last_name: user.last_name,
         role: user.role as any,
         password: '', // Don't pre-fill password for editing
+        pin: '', // Don't pre-fill PIN for editing
+        location_id: user.location_id || '',
       }
     : {
         username: '',
@@ -46,6 +60,8 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
         first_name: '',
         last_name: '',
         role: 'server' as const,
+        pin: '',
+        location_id: '',
       }
 
   const form = useForm<CreateUserData | UpdateUserData>({
@@ -56,7 +72,7 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
   // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: CreateUserData) => apiClient.createUser(data),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toastHelpers.userCreated(`${form.getValues('first_name')} ${form.getValues('last_name')}`)
       form.reset()
@@ -70,7 +86,7 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
   // Update mutation  
   const updateMutation = useMutation({
     mutationFn: (data: UpdateUserData) => apiClient.updateUser(data.id.toString(), data),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       toastHelpers.apiSuccess('Update', `User ${form.getValues('first_name')} ${form.getValues('last_name')}`)
       onSuccess?.()
@@ -82,14 +98,22 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
 
   const onSubmit = (data: CreateUserData | UpdateUserData) => {
     if (isEditing) {
-      // Filter out empty password for updates
+      // Filter out empty password/pin for updates
       const updateData = { ...data } as UpdateUserData
       if (!updateData.password || updateData.password.trim() === '') {
         delete updateData.password
       }
+      if (!updateData.pin || updateData.pin.trim() === '') {
+        delete updateData.pin
+      }
       updateMutation.mutate(updateData)
     } else {
-      createMutation.mutate(data as CreateUserData)
+      // Filter out empty pin for creates
+      const createData = { ...data } as CreateUserData
+      if (!createData.pin || createData.pin.trim() === '') {
+        delete createData.pin
+      }
+      createMutation.mutate(createData)
     }
   }
 
@@ -173,6 +197,47 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
               placeholder="Select user role"
               options={roleOptions}
               description="Determines what features the user can access"
+            />
+
+            {/* Location Assignment */}
+            {locations.length > 0 && (
+              <SelectField
+                control={form.control}
+                name="location_id"
+                label="Location"
+                placeholder="Select assigned location"
+                options={[
+                  { value: '', label: 'No specific location (org-level)' },
+                  ...locations
+                    .filter((l) => l.is_active)
+                    .map((l) => ({ value: l.id, label: `${l.name} (${l.code})` })),
+                ]}
+                description="Branch this staff member is assigned to"
+              />
+            )}
+
+            {/* PIN */}
+            <FormField
+              control={form.control}
+              name="pin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    {isEditing ? 'New PIN (leave blank to keep current)' : '4-Digit PIN'}
+                  </FormLabel>
+                  <PinInput
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    autoFocus={false}
+                    error={!!form.formState.errors.pin}
+                  />
+                  <FormDescription>
+                    {isEditing ? 'Leave blank to keep the current PIN' : 'Used for quick login and confirming actions'}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             {/* Action Buttons */}

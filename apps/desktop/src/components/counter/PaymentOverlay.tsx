@@ -22,7 +22,7 @@ type SelectedMethod = 'cash' | 'card' | 'digital'
 
 interface PaymentOverlayProps {
   activeBill: BillSummary
-  selectedTable: DiningTable
+  selectedTable?: DiningTable | null
   isAdmin: boolean
   formatCurrency: (amount: number) => string
   onClose: () => void
@@ -162,11 +162,13 @@ export function PaymentOverlay({
             className="mb-4 -ml-2 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Table
+            Back
           </Button>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold">Table {selectedTable.table_number}</h2>
-            {selectedTable.floor && (
+            <h2 className="text-2xl font-bold">
+              {selectedTable ? `Table ${selectedTable.table_number}` : activeBill.bill?.order_type === 'takeout' ? 'Takeout Order' : activeBill.bill?.order_type === 'delivery' ? 'Delivery Order' : 'Order'}
+            </h2>
+            {selectedTable?.floor && (
               <Badge variant="outline" className="text-sm">
                 {selectedTable.floor}
               </Badge>

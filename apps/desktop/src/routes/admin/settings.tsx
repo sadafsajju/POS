@@ -7,12 +7,10 @@ export const Route = createFileRoute('/admin/settings')({
 
 function SettingsLayout() {
   return (
-    <div className="flex h-full">
+    <div className="dark flex h-full bg-zinc-950 text-zinc-100 overflow-hidden">
       <SettingsSidebar />
-      <div className="flex-1 min-w-0 overflow-hidden flex justify-center">
-        <div className="w-full max-w-5xl">
-          <Outlet />
-        </div>
+      <div className="flex-1 min-w-0 h-full overflow-hidden">
+        <Outlet />
       </div>
     </div>
   )

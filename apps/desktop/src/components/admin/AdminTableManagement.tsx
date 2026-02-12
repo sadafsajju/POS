@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ import { PaginationControlsComponent } from '@/components/ui/pagination-controls
 import { usePagination } from '@/hooks/usePagination'
 import { TableGridSkeleton, SearchingSkeleton, FilteringSkeleton, StatsCardSkeleton } from '@/components/ui/skeletons'
 import { InlineLoading } from '@/components/ui/loading-spinner'
+import { useRequirePin } from '@pos/core'
 import type { DiningTable } from '@/types'
 
 type ViewMode = 'list' | 'table-form'
@@ -123,8 +124,10 @@ export function AdminTableManagement() {
     setEditingTable(null)
   }
 
+  const requirePin = useRequirePin()
+
   // Delete handler
-  const handleDeleteTable = (table: DiningTable) => {
+  const handleDeleteTable = useCallback(async (table: DiningTable) => {
     // Note: DiningTable type may need to be updated to include status field
     const tableStatus = (table as any).status
     if (tableStatus === 'occupied') {
@@ -135,13 +138,14 @@ export function AdminTableManagement() {
       return
     }
 
-    if (confirm(`Are you sure you want to delete Table ${table.table_number}? This action cannot be undone.`)) {
-      deleteTableMutation.mutate({ 
-        id: table.id.toString(), 
-        tableNumber: table.table_number 
+    const verified = await requirePin('Delete Table', `Enter PIN to delete Table ${table.table_number}`)
+    if (verified) {
+      deleteTableMutation.mutate({
+        id: table.id.toString(),
+        tableNumber: table.table_number
       })
     }
-  }
+  }, [requirePin, deleteTableMutation])
 
   // Data is already filtered on the server side
   const filteredTables = tables

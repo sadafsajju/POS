@@ -21,10 +21,11 @@ import type { AggregatorOrder, OrderSource } from '@pos/types'
 // Check if user is admin/manager
 function isAdminRole(): boolean {
   try {
-    const token = localStorage.getItem('pos_token')
-    if (!token) return false
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.role === 'admin' || payload.role === 'manager'
+    const stored = localStorage.getItem('pos-auth')
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    const role = parsed.state?.user?.role
+    return role === 'admin' || role === 'manager'
   } catch {
     return false
   }

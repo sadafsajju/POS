@@ -3,7 +3,9 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,17 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 	occupiedOnly := c.Query("occupied_only") == "true"
 	availableOnly := c.Query("available_only") == "true"
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Query tables with optional LEFT JOIN to get the parent bill (not KOTs)
 	// Using DISTINCT ON to ensure one row per table, prioritizing tables with active orders
 	queryBuilder := `
@@ -36,15 +49,15 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 		LEFT JOIN orders o ON t.id = o.table_id
 		    AND o.status NOT IN ('completed', 'cancelled')
 		    AND (o.is_kot = false OR o.is_kot IS NULL)
-		WHERE 1=1
+		WHERE t.org_id = $1 AND t.location_id = $2
 	`
 
-	var args []interface{}
-	argIndex := 0
+	args := []interface{}{orgID, locationID}
+	argIndex := 2
 
 	if location != "" {
 		argIndex++
-		queryBuilder += ` AND t.location ILIKE $` + string(rune(argIndex+'0'))
+		queryBuilder += ` AND t.location ILIKE $` + strconv.Itoa(argIndex)
 		args = append(args, "%"+location+"%")
 	}
 
@@ -138,15 +151,26 @@ func (h *TableHandler) GetTable(c *gin.Context) {
 		return
 	}
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	var table models.DiningTable
 
 	query := `
 		SELECT id, table_number, seating_capacity, location, floor, is_occupied, created_at, updated_at
 		FROM dining_tables
-		WHERE id = $1
+		WHERE id = $1 AND org_id = $2 AND location_id = $3
 	`
 
-	err = h.db.QueryRow(query, tableID).Scan(
+	err = h.db.QueryRow(query, tableID, orgID, locationID).Scan(
 		&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor,
 		&table.IsOccupied, &table.CreatedAt, &table.UpdatedAt,
 	)
@@ -215,6 +239,17 @@ func (h *TableHandler) GetTable(c *gin.Context) {
 
 // GetTablesByLocation retrieves tables grouped by location
 func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Use DISTINCT ON to avoid duplicate tables when multiple orders exist
 	query := `
 		SELECT DISTINCT ON (t.id)
@@ -225,10 +260,11 @@ func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
 		LEFT JOIN orders o ON t.id = o.table_id
 		    AND o.status NOT IN ('completed', 'cancelled')
 		    AND (o.is_kot = false OR o.is_kot IS NULL)
+		WHERE t.org_id = $1 AND t.location_id = $2
 		ORDER BY t.id, o.created_at DESC NULLS LAST
 	`
 
-	rows, err := h.db.Query(query)
+	rows, err := h.db.Query(query, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -296,18 +332,30 @@ func (h *TableHandler) GetTablesByLocation(c *gin.Context) {
 
 // GetTableStatus retrieves the status overview of all tables
 func (h *TableHandler) GetTableStatus(c *gin.Context) {
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	query := `
-		SELECT 
+		SELECT
 		    COUNT(*) as total_tables,
 		    COUNT(CASE WHEN is_occupied = true THEN 1 END) as occupied_tables,
 		    COUNT(CASE WHEN is_occupied = false THEN 1 END) as available_tables,
 		    COALESCE(location, 'General') as location
 		FROM dining_tables
+		WHERE org_id = $1 AND location_id = $2
 		GROUP BY COALESCE(location, 'General')
 		ORDER BY location
 	`
 
-	rows, err := h.db.Query(query)
+	rows, err := h.db.Query(query, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -375,6 +423,30 @@ func (h *TableHandler) ClearTable(c *gin.Context) {
 		return
 	}
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify the table belongs to this org/location
+	var exists bool
+	err = h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM dining_tables WHERE id = $1 AND org_id = $2 AND location_id = $3)`,
+		tableID, orgID, locationID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Table not found",
+			Error:   stringPtr("table_not_found"),
+		})
+		return
+	}
+
 	tx, err := h.db.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
@@ -392,10 +464,11 @@ func (h *TableHandler) ClearTable(c *gin.Context) {
 		SET status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
 		    cleared_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 		WHERE table_id = $1
+		  AND org_id = $2 AND location_id = $3
 		  AND is_kot = false
 		  AND parent_order_id IS NULL
 		  AND status NOT IN ('completed', 'cancelled')
-	`, tableID)
+	`, tableID, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -411,9 +484,10 @@ func (h *TableHandler) ClearTable(c *gin.Context) {
 		SET status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
 		    cleared_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 		WHERE table_id = $1
+		  AND org_id = $2 AND location_id = $3
 		  AND is_kot = true
 		  AND status NOT IN ('completed', 'cancelled')
-	`, tableID)
+	`, tableID, orgID, locationID)
 	if err != nil {
 		// Log but don't fail
 	}
@@ -422,8 +496,8 @@ func (h *TableHandler) ClearTable(c *gin.Context) {
 	_, err = tx.Exec(`
 		UPDATE dining_tables
 		SET is_occupied = false, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`, tableID)
+		WHERE id = $1 AND org_id = $2 AND location_id = $3
+	`, tableID, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,

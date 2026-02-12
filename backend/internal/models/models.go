@@ -8,16 +8,54 @@ import (
 
 // User represents a system user/staff member
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // Don't expose password hash in JSON
-	FirstName    string    `json:"first_name"`
-	LastName     string    `json:"last_name"`
-	Role         string    `json:"role"` // admin, manager, server, counter, kitchen
-	IsActive     bool      `json:"is_active"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           uuid.UUID  `json:"id"`
+	Username     string     `json:"username"`
+	Email        string     `json:"email"`
+	PasswordHash string     `json:"-"` // Don't expose password hash in JSON
+	PinHash      *string    `json:"-"` // Don't expose pin hash in JSON
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	Role         string     `json:"role"` // admin, manager, server, counter, kitchen
+	IsActive     bool       `json:"is_active"`
+	OrgID        uuid.UUID  `json:"org_id"`
+	LocationID   *uuid.UUID `json:"location_id"` // nullable for org-level admins
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+// Organization represents a brand/company
+type Organization struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	LogoURL   *string   `json:"logo_url"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Location represents a branch/outlet within an organization
+type Location struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	Name      string    `json:"name"`
+	Code      string    `json:"code"`
+	Address   *string   `json:"address"`
+	Phone     *string   `json:"phone"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// LocationProduct represents a per-location product override
+type LocationProduct struct {
+	ID            uuid.UUID `json:"id"`
+	LocationID    uuid.UUID `json:"location_id"`
+	ProductID     uuid.UUID `json:"product_id"`
+	PriceOverride *float64  `json:"price_override"`
+	IsAvailable   bool      `json:"is_available"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Category represents a product category
@@ -293,12 +331,38 @@ type ProcessPaymentRequest struct {
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Pin      string `json:"pin"`
 }
 
 // LoginResponse represents the login response
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token        string        `json:"token"`
+	User         User          `json:"user"`
+	Organization *Organization `json:"organization,omitempty"`
+	Location     *Location     `json:"location,omitempty"`
+}
+
+// CreateLocationRequest represents the request to create/update a location
+type CreateLocationRequest struct {
+	Name    string  `json:"name" binding:"required"`
+	Code    string  `json:"code" binding:"required"`
+	Address *string `json:"address"`
+	Phone   *string `json:"phone"`
+}
+
+// UpdateLocationRequest represents the request to update a location
+type UpdateLocationRequest struct {
+	Name     *string `json:"name"`
+	Code     *string `json:"code"`
+	Address  *string `json:"address"`
+	Phone    *string `json:"phone"`
+	IsActive *bool   `json:"is_active"`
+}
+
+// LocationProductOverrideRequest represents the request to set a product override
+type LocationProductOverrideRequest struct {
+	PriceOverride *float64 `json:"price_override"`
+	IsAvailable   *bool    `json:"is_available"`
 }
 
 // APIResponse represents a generic API response

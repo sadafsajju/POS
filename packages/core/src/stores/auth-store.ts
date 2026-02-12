@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, AuthState } from '@pos/types';
+import type { User, AuthState, Organization, Location } from '@pos/types';
 
 interface AuthStore extends AuthState {
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
-  login: (user: User, token: string) => void;
+  login: (user: User, token: string, organization?: Organization | null, location?: Location | null) => void;
   logout: () => void;
   setLoading: (isLoading: boolean) => void;
   updateUser: (user: Partial<User>) => void;
@@ -16,6 +16,8 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       token: null,
+      organization: null,
+      location: null,
       isAuthenticated: false,
       isLoading: true, // Start as true until hydration completes
       _hasHydrated: false,
@@ -24,10 +26,12 @@ export const useAuthStore = create<AuthStore>()(
         set({ _hasHydrated: state, isLoading: false });
       },
 
-      login: (user, token) => {
+      login: (user, token, organization, location) => {
         set({
           user,
           token,
+          organization: organization ?? null,
+          location: location ?? null,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -37,6 +41,8 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           token: null,
+          organization: null,
+          location: null,
           isAuthenticated: false,
           isLoading: false,
         });
@@ -57,6 +63,8 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        organization: state.organization,
+        location: state.location,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

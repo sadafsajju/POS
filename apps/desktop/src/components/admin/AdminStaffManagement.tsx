@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ import { PaginationControlsComponent } from '@/components/ui/pagination-controls
 import { usePagination } from '@/hooks/usePagination'
 import { UserListSkeleton, SearchingSkeleton } from '@/components/ui/skeletons'
 import { PageLoading, InlineLoading } from '@/components/ui/loading-spinner'
+import { useRequirePin } from '@pos/core'
 import type { User } from '@/types'
 
 type DisplayMode = 'table' | 'cards'
@@ -93,15 +94,18 @@ export function AdminStaffManagement() {
     setEditingUser(null)
   }
 
-  const handleDeleteUser = (user: User) => {
+  const requirePin = useRequirePin()
+
+  const handleDeleteUser = useCallback(async (user: User) => {
     const displayName = `${user.first_name} ${user.last_name}`
-    if (confirm(`Are you sure you want to delete ${displayName}?`)) {
-      deleteUserMutation.mutate({ 
-        id: user.id.toString(), 
+    const verified = await requirePin('Delete User', `Enter PIN to delete ${displayName}`)
+    if (verified) {
+      deleteUserMutation.mutate({
+        id: user.id.toString(),
         username: displayName
       })
     }
-  }
+  }, [requirePin, deleteUserMutation])
 
   // Data is already filtered on the server side
   const filteredUsers = users
@@ -120,7 +124,7 @@ export function AdminStaffManagement() {
   // Show form if creating or editing
   if (showCreateForm || editingUser) {
     return (
-      <div className="p-6">
+      <div className="h-full overflow-y-auto p-6">
         <UserForm
           user={editingUser || undefined}
           mode={editingUser ? 'edit' : 'create'}
@@ -133,7 +137,7 @@ export function AdminStaffManagement() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="h-full overflow-y-auto p-6 space-y-6">
         {/* Header Skeleton */}
         <div className="flex items-center justify-between">
           <div className="space-y-2">
@@ -142,12 +146,12 @@ export function AdminStaffManagement() {
           </div>
           <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
         </div>
-        
+
         {/* Search and Controls Skeleton */}
         <div className="flex items-center justify-between gap-4">
           <div className="h-10 w-full max-w-sm bg-muted animate-pulse rounded-md" />
         </div>
-        
+
         {/* User List Skeleton */}
         <UserListSkeleton count={pagination.pageSize} />
       </div>
@@ -155,11 +159,10 @@ export function AdminStaffManagement() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0">
-      {/* Header - Fixed */}
-      <div className="flex-shrink-0 p-6 pb-4">
-        <div className="flex items-center justify-between">
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-5xl mx-auto w-full p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Staff Management</h2>
           <p className="text-muted-foreground">
@@ -193,11 +196,7 @@ export function AdminStaffManagement() {
             Add New Staff
           </Button>
         </div>
-        </div>
       </div>
-
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-auto px-6 pb-6 space-y-6">
       {/* Search */}
       <Card>
         <CardContent className="pt-6">
@@ -320,7 +319,7 @@ export function AdminStaffManagement() {
 
       {/* Pagination with loading state */}
       {filteredUsers.length > 0 && (
-        <div className="mt-6 space-y-4">
+        <div className="space-y-4">
           {isFetching && !isLoading && (
             <div className="flex justify-center">
               <InlineLoading text="Updating results..." />
@@ -332,7 +331,6 @@ export function AdminStaffManagement() {
           />
         </div>
       )}
-      </div>
       </div>
     </div>
   )

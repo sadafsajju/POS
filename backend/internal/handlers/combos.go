@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 )
 
@@ -29,6 +30,29 @@ func (h *ComboHandler) GetComboSlotsByProduct(c *gin.Context) {
 			Success: false,
 			Message: "Invalid product ID",
 			Error:   strPtr("invalid_product_id"),
+		})
+		return
+	}
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   strPtr("product_not_found"),
 		})
 		return
 	}
@@ -70,6 +94,43 @@ func (h *ComboHandler) CreateComboSlot(c *gin.Context) {
 			Error:   strPtr(err.Error()),
 		})
 		return
+	}
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   strPtr("product_not_found"),
+		})
+		return
+	}
+
+	// Validate choice products belong to the same org
+	for _, choice := range req.Choices {
+		var choiceExists bool
+		err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", choice.ProductID, orgID).Scan(&choiceExists)
+		if err != nil || !choiceExists {
+			c.JSON(http.StatusBadRequest, models.APIResponse{
+				Success: false,
+				Message: fmt.Sprintf("Choice product %s not found in organization", choice.ProductID),
+				Error:   strPtr("choice_product_not_found"),
+			})
+			return
+		}
 	}
 
 	tx, err := h.db.Begin()
@@ -133,7 +194,7 @@ func (h *ComboHandler) CreateComboSlot(c *gin.Context) {
 
 // UpdateComboSlot updates a combo slot's metadata
 func (h *ComboHandler) UpdateComboSlot(c *gin.Context) {
-	_, err := uuid.Parse(c.Param("id"))
+	productID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
 			Success: false,
@@ -159,6 +220,29 @@ func (h *ComboHandler) UpdateComboSlot(c *gin.Context) {
 			Success: false,
 			Message: "Invalid request body",
 			Error:   strPtr(err.Error()),
+		})
+		return
+	}
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   strPtr("product_not_found"),
 		})
 		return
 	}
@@ -205,6 +289,16 @@ func (h *ComboHandler) UpdateComboSlot(c *gin.Context) {
 
 // DeleteComboSlot deletes a combo slot and its choices (cascade)
 func (h *ComboHandler) DeleteComboSlot(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid product ID",
+			Error:   strPtr("invalid_product_id"),
+		})
+		return
+	}
+
 	slotID, err := uuid.Parse(c.Param("slot_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
@@ -215,7 +309,30 @@ func (h *ComboHandler) DeleteComboSlot(c *gin.Context) {
 		return
 	}
 
-	_, err = h.db.Exec("DELETE FROM combo_slots WHERE id = $1", slotID)
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify product belongs to org
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM products WHERE id = $1 AND org_id = $2)", productID, orgID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Product not found",
+			Error:   strPtr("product_not_found"),
+		})
+		return
+	}
+
+	_, err = h.db.Exec("DELETE FROM combo_slots WHERE id = $1 AND product_id = $2", slotID, productID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -253,9 +370,20 @@ func (h *ComboHandler) CreateComboSlotChoice(c *gin.Context) {
 		return
 	}
 
-	// Validate that the product is not a combo (no nesting combos)
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Validate that the product exists in org and is not a combo (no nesting combos)
 	var productType string
-	err = h.db.QueryRow("SELECT product_type FROM products WHERE id = $1", req.ProductID).Scan(&productType)
+	err = h.db.QueryRow("SELECT product_type FROM products WHERE id = $1 AND org_id = $2", req.ProductID, orgID).Scan(&productType)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
 			Success: false,

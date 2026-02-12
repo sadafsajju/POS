@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import apiClient from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +15,8 @@ import {
   X,
   ArrowLeft,
   Package,
-  Car
+  Car,
+  UtensilsCrossed
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useSettingsStore, useSyncStore, useOfflineOrder } from '@pos/core'
@@ -51,6 +53,8 @@ import { PaymentOverlay } from './PaymentOverlay'
 // Aggregator orders
 import { AggregatorOrders } from './AggregatorOrders'
 
+const posRoute = getRouteApi('/admin/pos')
+
 export function CounterInterface() {
   // Custom hooks
   const cart = useCart()
@@ -61,9 +65,48 @@ export function CounterInterface() {
   const { isOnline } = useSyncStore()
   const queryClient = useQueryClient()
 
-  // Tab and navigation state
-  const [activeTab, setActiveTab] = useState<ActiveTab>('tables')
-  const [orderType, setOrderType] = useState<OrderType>('dine_in')
+  // URL-based navigation state
+  const search = posRoute.useSearch()
+  const navigate = useNavigate()
+
+  const isServer = getCurrentUserRole() === 'server'
+  const defaultOrderType = (settings.cartSettings?.defaultOrderType as OrderType) || 'dine_in'
+
+  const activeTab: ActiveTab = search.view || (isServer ? 'tables' : 'order-type')
+  const orderType: OrderType = search.type || defaultOrderType
+
+  // Determine which order types are enabled
+  const enabledOrderTypes = useMemo(() => {
+    const types: { type: OrderType; view: ActiveTab }[] = []
+    if (settings.cartSettings?.showDineIn !== false) types.push({ type: 'dine_in', view: 'tables' })
+    if (settings.cartSettings?.showTakeout !== false) types.push({ type: 'takeout', view: 'create' })
+    if (settings.cartSettings?.showDelivery !== false) types.push({ type: 'delivery', view: 'tables' })
+    return types
+  }, [settings.cartSettings?.showDineIn, settings.cartSettings?.showTakeout, settings.cartSettings?.showDelivery])
+
+  // Navigate by updating URL search params
+  const navigateTo = useCallback((view: ActiveTab, type?: OrderType) => {
+    navigate({
+      to: '/admin/pos',
+      search: {
+        view: view === 'order-type' ? undefined : view,
+        type: type ?? (view === 'order-type' ? undefined : orderType),
+      },
+      replace: true,
+    })
+  }, [navigate, orderType])
+
+  // Auto-skip order type selection when only one option is enabled
+  useEffect(() => {
+    if (activeTab === 'order-type' && enabledOrderTypes.length === 1) {
+      const only = enabledOrderTypes[0]
+      if (only.type === 'takeout') {
+        setSelectedTable(null)
+      }
+      navigateTo(only.view, only.type)
+    }
+  }, [activeTab, enabledOrderTypes, navigateTo])
+
   const [selectedTable, setSelectedTable] = useState<DiningTable | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [orderNotes, setOrderNotes] = useState('')
@@ -78,6 +121,8 @@ export function CounterInterface() {
 
   // Payment overlay state
   const [showPaymentOverlay, setShowPaymentOverlay] = useState(false)
+  const pendingPayment = useRef(false)
+  const [takeawayBill, setTakeawayBill] = useState<BillSummary | null>(null)
 
   // Product options dialog state (for configurable products)
   const [configProduct, setConfigProduct] = useState<Product | null>(null)
@@ -167,9 +212,11 @@ export function CounterInterface() {
       } else {
         setSuccessMessage('Order created successfully!')
       }
-      cart.clearCart()
-      setCustomerName('')
-      setOrderNotes('')
+      if (settings.cartSettings?.autoClearAfterOrder !== false) {
+        cart.clearCart()
+        setCustomerName('')
+        setOrderNotes('')
+      }
       invalidateQueries()
       setTimeout(() => setSuccessMessage(null), 3000)
     },
@@ -199,6 +246,31 @@ export function CounterInterface() {
     },
     onSuccess: (response, variables) => {
       const createdOrder = response.data
+
+      // Takeout/Delivery pending payment: construct BillSummary and open payment overlay
+      if (pendingPayment.current && createdOrder && variables.order_type !== 'dine_in') {
+        pendingPayment.current = false
+        const bill: BillSummary = {
+          bill: createdOrder,
+          kots: [],
+          total_items: createdOrder.items?.length || 0,
+          aggregated_subtotal: createdOrder.total_amount || 0,
+          aggregated_tax: 0,
+          aggregated_discount: 0,
+          aggregated_total: createdOrder.total_amount || 0,
+          is_bill_closed: false,
+        }
+        setTakeawayBill(bill)
+        cart.clearCart()
+        setCustomerName('')
+        setOrderNotes('')
+        setPendingPrintCart([])
+        setErrorMessage(null)
+        invalidateQueries()
+        setShowPaymentOverlay(true)
+        return
+      }
+
       if (variables.shouldPrint && createdOrder) {
         const kotItems: KOTItem[] = pendingPrintCart.map(item => ({
           name: item.product.name,
@@ -218,10 +290,12 @@ export function CounterInterface() {
       } else {
         setSuccessMessage('Order created successfully!')
       }
-      cart.clearCart()
+      if (settings.cartSettings?.autoClearAfterOrder !== false) {
+        cart.clearCart()
+        setCustomerName('')
+        setOrderNotes('')
+      }
       setPendingPrintCart([])
-      setCustomerName('')
-      setOrderNotes('')
       setErrorMessage(null)
       invalidateQueries()
       setTimeout(() => setSuccessMessage(null), 3000)
@@ -268,9 +342,11 @@ export function CounterInterface() {
       } else {
         setSuccessMessage('Items added to order successfully!')
       }
-      cart.clearCart()
+      if (settings.cartSettings?.autoClearAfterOrder !== false) {
+        cart.clearCart()
+        setOrderNotes('')
+      }
       setPendingPrintCart([])
-      setOrderNotes('')
       setErrorMessage(null)
       invalidateQueries()
       setTimeout(() => setSuccessMessage(null), 3000)
@@ -459,16 +535,49 @@ export function CounterInterface() {
 
   // Payment overlay handlers
   const handleOpenPayment = () => {
-    if (activeBill && selectedTable && canProcessPayment) {
-      setShowPaymentOverlay(true)
+    if (!canProcessPayment) return
+
+    // Dine-in: requires a selected table
+    if (orderType === 'dine_in') {
+      if (!selectedTable) return
+
+      // If there's an active bill ready for payment, open directly
+      if (activeBill && activeBill.bill?.status !== 'paid') {
+        setShowPaymentOverlay(true)
+        return
+      }
+
+      // If there are items in cart but no active bill, create order first then open payment
+      if (cart.cart.length > 0) {
+        pendingPayment.current = true
+        handleCreateOrder(false)
+      }
+      return
+    }
+
+    // Takeout/Delivery: create order then open payment
+    if (cart.cart.length > 0) {
+      pendingPayment.current = true
+      handleCreateOrder(false)
     }
   }
 
+  // Open payment overlay after dine-in order creation completes (activeBill updates)
+  useEffect(() => {
+    if (pendingPayment.current && orderType === 'dine_in' && activeBill && activeBill.bill?.status !== 'paid') {
+      pendingPayment.current = false
+      setShowPaymentOverlay(true)
+    }
+  }, [activeBill])
+
   const handlePaymentComplete = () => {
     setShowPaymentOverlay(false)
+    setTakeawayBill(null)
     invalidateQueries()
-    setSelectedTable(null)
-    setActiveTab('tables')
+    if (orderType === 'dine_in') {
+      setSelectedTable(null)
+    }
+    navigateTo('order-type')
     setSuccessMessage('Payment processed successfully!')
     setTimeout(() => setSuccessMessage(null), 3000)
   }
@@ -483,7 +592,7 @@ export function CounterInterface() {
       }
       invalidateQueries()
       setSelectedTable(null)
-      setActiveTab('tables')
+      navigateTo('order-type')
       setSuccessMessage('Table cleared successfully!')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error: any) {
@@ -547,18 +656,69 @@ export function CounterInterface() {
     <div className="flex h-full bg-background">
       {/* Left Panel - Main Content */}
       <div className={`${showRightPanel ? 'w-2/3' : 'w-full'} border-r border-border overflow-hidden flex flex-col transition-all duration-300 relative`}>
-        {/* Header - only show when on create tab (product selection) */}
+        {/* Header - tables view */}
+        {activeTab === 'tables' && (
+          <div className="p-4 bg-card">
+            <div className="flex items-center gap-3">
+              {enabledOrderTypes.length > 1 && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => navigateTo('order-type')}
+                  className="h-12 w-12 p-0"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </Button>
+              )}
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                {orderType === 'dine_in' ? (
+                  <>
+                    <TableIcon className="w-6 h-6" />
+                    Select a Table
+                  </>
+                ) : orderType === 'takeout' ? (
+                  <>
+                    <Package className="w-6 h-6" />
+                    Takeout Order
+                  </>
+                ) : (
+                  <>
+                    <Car className="w-6 h-6" />
+                    Delivery Order
+                  </>
+                )}
+              </h1>
+              <Badge className={`${
+                orderType === 'dine_in' ? 'bg-blue-700 hover:bg-blue-700' :
+                orderType === 'takeout' ? 'bg-orange-500' : 'bg-green-500'
+              } text-white px-3 py-1 text-sm`}>
+                {orderType === 'dine_in' ? 'Dine-In' :
+                 orderType === 'takeout' ? 'Takeout' : 'Delivery'}
+              </Badge>
+            </div>
+          </div>
+        )}
+        {/* Header - product selection */}
         {activeTab === 'create' && (
           <div className="p-4 bg-card">
             <div className="flex items-center gap-3 flex-1">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setActiveTab('tables')}
-                className="h-12 w-12 p-0"
-              >
-                <ArrowLeft className="w-6 h-6" />
-              </Button>
+              {(orderType === 'dine_in' || enabledOrderTypes.length > 1) && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => {
+                    if (orderType === 'dine_in') {
+                      navigateTo('tables')
+                    } else {
+                      navigateTo('order-type')
+                      setSelectedTable(null)
+                    }
+                  }}
+                  className="h-12 w-12 p-0"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </Button>
+              )}
               <div className="flex items-center gap-3 flex-1">
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -631,6 +791,64 @@ export function CounterInterface() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto pb-4">
+          {/* Order Type Selection - first step */}
+          {activeTab === 'order-type' && (
+            <div className="flex flex-col h-full">
+              <div className="px-4 pt-4">
+                <AggregatorOrders />
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center p-6">
+                <h1 className="text-3xl font-bold text-foreground mb-8">Are you dining in or taking away?</h1>
+                <div className="flex gap-6 w-full max-w-4xl">
+                  {(settings.cartSettings?.showDineIn !== false) && (
+                    <button
+                      onClick={() => navigateTo('tables', 'dine_in')}
+                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-blue-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
+                    >
+                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/dine-in.png)' }} />
+                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
+                        <UtensilsCrossed className="w-10 h-10" />
+                        <span className="text-3xl font-bold">Dine-In</span>
+                      </span>
+                    </button>
+                  )}
+                  {(settings.cartSettings?.showTakeout !== false) && (
+                    <button
+                      onClick={() => {
+                        setSelectedTable(null)
+                        navigateTo('create', 'takeout')
+                      }}
+                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-orange-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
+                    >
+                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/takeout.png)' }} />
+                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
+                        <Package className="w-10 h-10" />
+                        <span className="text-3xl font-bold">Takeout</span>
+                      </span>
+                    </button>
+                  )}
+                  {(settings.cartSettings?.showDelivery !== false) && (
+                    <button
+                      onClick={() => {
+                        setSelectedTable(null)
+                        navigateTo('tables', 'delivery')
+                      }}
+                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-green-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
+                    >
+                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/delivery.png)' }} />
+                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
+                        <Car className="w-10 h-10" />
+                        <span className="text-3xl font-bold">Delivery</span>
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Aggregator Orders - show on tables view */}
           {activeTab === 'tables' && (
             <div className="px-4 pt-4">
@@ -644,22 +862,23 @@ export function CounterInterface() {
               selectedTable={selectedTable}
               onTableSelect={(table) => {
                 setSelectedTable(table)
-                // Always go directly to product selection
-                setActiveTab('create')
+                navigateTo('create')
               }}
               formatCurrency={format}
               orderType={orderType}
               onOrderTypeChange={(type) => {
-                setOrderType(type)
-                // Clear table selection when switching away from dine-in
                 if (type !== 'dine_in') {
                   setSelectedTable(null)
+                }
+                if (type === 'takeout') {
+                  navigateTo('create', type)
+                } else {
+                  navigateTo('tables', type)
                 }
               }}
               customerName={customerName}
               onCustomerNameChange={setCustomerName}
-              onProceedToProducts={() => setActiveTab('create')}
-              serverOnly={userRole === 'server'}
+              onProceedToProducts={() => navigateTo('create')}
               hasCartItems={(tableId) => cart.hasItemsInCart(tableId, 'dine_in')}
             />
           )}
@@ -733,7 +952,7 @@ export function CounterInterface() {
             selectedTable={selectedTable}
             tableOrders={selectedTable ? getTableOrders(safeAllOrders, selectedTable.id) : []}
             onClose={() => setSelectedTable(null)}
-            onCreateOrder={() => { setOrderType('dine_in'); setActiveTab('create') }}
+            onCreateOrder={() => navigateTo('create', 'dine_in')}
             onEditOrder={setOrderToEdit}
             formatCurrency={format}
             canProcessPayment={canProcessPayment}
@@ -749,6 +968,7 @@ export function CounterInterface() {
             isOnline={isOnline}
             isCreating={isCreating}
             activeBill={activeBill}
+            cartSettings={settings.cartSettings}
             canProcessPayment={canProcessPayment}
             onOpenPayment={handleOpenPayment}
             onClearTable={handleClearTable}
@@ -850,13 +1070,13 @@ export function CounterInterface() {
       )}
 
       {/* Payment Overlay */}
-      {showPaymentOverlay && activeBill && selectedTable && (
+      {showPaymentOverlay && (activeBill || takeawayBill) && (
         <PaymentOverlay
-          activeBill={activeBill}
-          selectedTable={selectedTable}
+          activeBill={(activeBill || takeawayBill)!}
+          selectedTable={orderType === 'dine_in' ? selectedTable : null}
           isAdmin={isAdmin}
           formatCurrency={format}
-          onClose={() => setShowPaymentOverlay(false)}
+          onClose={() => { setShowPaymentOverlay(false); setTakeawayBill(null) }}
           onPaymentComplete={handlePaymentComplete}
         />
       )}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -44,9 +45,27 @@ type SettingsResponse struct {
 
 // GetSettings retrieves all system settings
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
-	query := `SELECT key, value FROM settings`
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Organization context required",
+			"error":   "org_context_required",
+		})
+		return
+	}
 
-	rows, err := h.db.Query(query)
+	// Fetch org-level defaults and location-specific overrides.
+	// ORDER BY location_id NULLS LAST so location-specific values come first
+	// and override org-level defaults when iterating.
+	query := `
+		SELECT key, value FROM settings
+		WHERE org_id = $1 AND (location_id = $2 OR location_id IS NULL)
+		ORDER BY key, location_id NULLS LAST
+	`
+
+	rows, err := h.db.Query(query, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -68,7 +87,11 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 			})
 			return
 		}
-		settings[key] = value
+		// Location-specific settings come first due to ORDER BY,
+		// so only set if not already present (location overrides org default)
+		if _, exists := settings[key]; !exists {
+			settings[key] = value
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -86,6 +109,17 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 			"success": false,
 			"message": "Invalid request body",
 			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Organization context required",
+			"error":   "org_context_required",
 		})
 		return
 	}
@@ -108,13 +142,13 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	// Update each setting
+	// Update each setting scoped to org_id and location_id
 	for key, value := range req {
 		_, err := tx.Exec(`
-			INSERT INTO settings (key, value)
-			VALUES ($1, $2)
-			ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
-		`, key, value)
+			INSERT INTO settings (org_id, location_id, key, value)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (org_id, location_id, key) DO UPDATE SET value = $4, updated_at = CURRENT_TIMESTAMP
+		`, orgID, locationID, key, value)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -143,9 +177,26 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 func (h *SettingsHandler) GetSetting(c *gin.Context) {
 	key := c.Param("key")
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Organization context required",
+			"error":   "org_context_required",
+		})
+		return
+	}
+
+	// Try location-specific first, then fall back to org-level (location_id IS NULL)
 	var value string
 	var description sql.NullString
-	err := h.db.QueryRow(`SELECT value, description FROM settings WHERE key = $1`, key).Scan(&value, &description)
+	err := h.db.QueryRow(`
+		SELECT value, description FROM settings
+		WHERE org_id = $1 AND (location_id = $2 OR location_id IS NULL) AND key = $3
+		ORDER BY location_id NULLS LAST
+		LIMIT 1
+	`, orgID, locationID, key).Scan(&value, &description)
 
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -186,12 +237,24 @@ func (h *SettingsHandler) GetSetting(c *gin.Context) {
 
 // GetPlatformConfigs retrieves all platform configurations
 func (h *SettingsHandler) GetPlatformConfigs(c *gin.Context) {
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
 	rows, err := h.db.Query(`
 		SELECT id, platform, is_enabled, api_key, api_secret, webhook_secret,
 		       restaurant_id, config_data, created_at, updated_at
 		FROM platform_configs
+		WHERE org_id = $1 AND location_id = $2
 		ORDER BY platform
-	`)
+	`, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -245,13 +308,24 @@ func (h *SettingsHandler) GetPlatformConfigs(c *gin.Context) {
 func (h *SettingsHandler) GetPlatformConfig(c *gin.Context) {
 	platform := c.Param("platform")
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
 	var config models.PlatformConfig
 	err := h.db.QueryRow(`
 		SELECT id, platform, is_enabled, api_key, api_secret, webhook_secret,
 		       restaurant_id, config_data, created_at, updated_at
 		FROM platform_configs
-		WHERE platform = $1
-	`, platform).Scan(
+		WHERE platform = $1 AND org_id = $2 AND location_id = $3
+	`, platform, orgID, locationID).Scan(
 		&config.ID, &config.Platform, &config.IsEnabled,
 		&config.APIKey, &config.APISecret, &config.WebhookSecret,
 		&config.RestaurantID, &config.ConfigData,
@@ -318,17 +392,29 @@ func (h *SettingsHandler) UpsertPlatformConfig(c *gin.Context) {
 		return
 	}
 
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Build upsert query dynamically to only update provided fields
 	var configID uuid.UUID
-	err := h.db.QueryRow("SELECT id FROM platform_configs WHERE platform = $1", req.Platform).Scan(&configID)
+	err := h.db.QueryRow("SELECT id FROM platform_configs WHERE platform = $1 AND org_id = $2 AND location_id = $3",
+		req.Platform, orgID, locationID).Scan(&configID)
 
 	if err == sql.ErrNoRows {
-		// INSERT new config
+		// INSERT new config with org_id and location_id
 		err = h.db.QueryRow(`
-			INSERT INTO platform_configs (platform, is_enabled, api_key, api_secret, webhook_secret, restaurant_id, config_data)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO platform_configs (org_id, location_id, platform, is_enabled, api_key, api_secret, webhook_secret, restaurant_id, config_data)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING id
-		`, req.Platform, req.IsEnabled, req.APIKey, req.APISecret, req.WebhookSecret, req.RestaurantID, req.ConfigData).Scan(&configID)
+		`, orgID, locationID, req.Platform, req.IsEnabled, req.APIKey, req.APISecret, req.WebhookSecret, req.RestaurantID, req.ConfigData).Scan(&configID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -414,7 +500,19 @@ func (h *SettingsHandler) UpsertPlatformConfig(c *gin.Context) {
 func (h *SettingsHandler) DeletePlatformConfig(c *gin.Context) {
 	platform := c.Param("platform")
 
-	result, err := h.db.Exec("DELETE FROM platform_configs WHERE platform = $1", platform)
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   strPtr("org_context_required"),
+		})
+		return
+	}
+
+	result, err := h.db.Exec("DELETE FROM platform_configs WHERE platform = $1 AND org_id = $2 AND location_id = $3",
+		platform, orgID, locationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -446,11 +544,6 @@ func maskString(s string) string {
 		return "****"
 	}
 	return s[:4] + "****" + s[len(s)-4:]
-}
-
-// strPtr returns a pointer to a string
-func strPtr(s string) *string {
-	return &s
 }
 
 // getCurrencySymbol returns the symbol for a given currency code

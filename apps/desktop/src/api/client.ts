@@ -736,6 +736,27 @@ class APIClient {
     });
   }
 
+  // Location management (Admin only)
+  async getLocations(): Promise<APIResponse<any[]>> {
+    return this.request({ method: 'GET', url: '/admin/locations' });
+  }
+
+  async createLocation(data: { name: string; code: string; address?: string; phone?: string }): Promise<APIResponse<{ id: string }>> {
+    return this.request({ method: 'POST', url: '/admin/locations', data });
+  }
+
+  async updateLocation(id: string, data: { name?: string; code?: string; address?: string; phone?: string; is_active?: boolean }): Promise<APIResponse<void>> {
+    return this.request({ method: 'PUT', url: `/admin/locations/${id}`, data });
+  }
+
+  async deleteLocation(id: string): Promise<APIResponse<void>> {
+    return this.request({ method: 'DELETE', url: `/admin/locations/${id}` });
+  }
+
+  async reassignUserLocation(userId: string, locationId: string): Promise<APIResponse<void>> {
+    return this.request({ method: 'PUT', url: `/admin/users/${userId}/location`, data: { location_id: locationId } });
+  }
+
   // Settings management
   async getSettings(): Promise<APIResponse<Record<string, string>>> {
     return this.request({ method: 'GET', url: '/admin/settings' });

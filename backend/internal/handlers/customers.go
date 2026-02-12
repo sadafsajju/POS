@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -41,12 +42,30 @@ func (h *CustomerHandler) GetCustomers(c *gin.Context) {
 
 	offset := (page - 1) * perPage
 
+	// Get org context
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Build query
 	queryBuilder := `SELECT id, phone, name, email, address, notes, total_orders, total_spent, last_order_at, created_at, updated_at FROM customers WHERE 1=1`
 	countQuery := `SELECT COUNT(*) FROM customers WHERE 1=1`
 
 	var args []interface{}
 	argIndex := 0
+
+	// Scope to org
+	argIndex++
+	orgCondition := fmt.Sprintf(" AND org_id = $%d", argIndex)
+	queryBuilder += orgCondition
+	countQuery += orgCondition
+	args = append(args, orgID)
 
 	if search != "" {
 		argIndex++
@@ -133,7 +152,26 @@ func (h *CustomerHandler) GetCustomerByID(c *gin.Context) {
 		return
 	}
 
-	customer, err := h.getCustomerByID(customerID)
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	var customer models.Customer
+	query := `
+		SELECT id, phone, name, email, address, notes, total_orders, total_spent, last_order_at, created_at, updated_at
+		FROM customers WHERE id = $1 AND org_id = $2
+	`
+	err = h.db.QueryRow(query, customerID, orgID).Scan(
+		&customer.ID, &customer.Phone, &customer.Name, &customer.Email,
+		&customer.Address, &customer.Notes, &customer.TotalOrders,
+		&customer.TotalSpent, &customer.LastOrderAt, &customer.CreatedAt, &customer.UpdatedAt,
+	)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -173,13 +211,23 @@ func (h *CustomerHandler) GetCustomerByPhone(c *gin.Context) {
 	// Normalize phone number (remove spaces, dashes)
 	phone = normalizePhone(phone)
 
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	var customer models.Customer
 	query := `
 		SELECT id, phone, name, email, address, notes, total_orders, total_spent, last_order_at, created_at, updated_at
-		FROM customers WHERE phone = $1
+		FROM customers WHERE phone = $1 AND org_id = $2
 	`
 
-	err := h.db.QueryRow(query, phone).Scan(
+	err := h.db.QueryRow(query, phone, orgID).Scan(
 		&customer.ID, &customer.Phone, &customer.Name, &customer.Email,
 		&customer.Address, &customer.Notes, &customer.TotalOrders,
 		&customer.TotalSpent, &customer.LastOrderAt, &customer.CreatedAt, &customer.UpdatedAt,
@@ -232,9 +280,19 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 		return
 	}
 
-	// Check if customer with this phone already exists
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Check if customer with this phone already exists in this org
 	var existingID uuid.UUID
-	err := h.db.QueryRow("SELECT id FROM customers WHERE phone = $1", phone).Scan(&existingID)
+	err := h.db.QueryRow("SELECT id FROM customers WHERE phone = $1 AND org_id = $2", phone, orgID).Scan(&existingID)
 	if err == nil {
 		// Customer exists, return existing customer
 		customer, _ := h.getCustomerByID(existingID)
@@ -257,11 +315,11 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	// Create new customer
 	customerID := uuid.New()
 	query := `
-		INSERT INTO customers (id, phone, name, email, address, notes)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO customers (id, org_id, phone, name, email, address, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	_, err = h.db.Exec(query, customerID, phone, req.Name, req.Email, req.Address, req.Notes)
+	_, err = h.db.Exec(query, customerID, orgID, phone, req.Name, req.Email, req.Address, req.Notes)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -302,9 +360,19 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 		return
 	}
 
-	// Check if customer exists
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Check if customer exists in this org
 	var exists bool
-	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM customers WHERE id = $1)", customerID).Scan(&exists)
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM customers WHERE id = $1 AND org_id = $2)", customerID, orgID).Scan(&exists)
 	if err != nil || !exists {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -356,9 +424,13 @@ func (h *CustomerHandler) UpdateCustomer(c *gin.Context) {
 
 	argIndex++
 	args = append(args, customerID)
+	customerArgIndex := argIndex
 
-	query := fmt.Sprintf("UPDATE customers SET %s, updated_at = NOW() WHERE id = $%d",
-		strings.Join(updates, ", "), argIndex)
+	argIndex++
+	args = append(args, orgID)
+
+	query := fmt.Sprintf("UPDATE customers SET %s, updated_at = NOW() WHERE id = $%d AND org_id = $%d",
+		strings.Join(updates, ", "), customerArgIndex, argIndex)
 
 	_, err = h.db.Exec(query, args...)
 	if err != nil {
@@ -391,6 +463,16 @@ func (h *CustomerHandler) SearchCustomers(c *gin.Context) {
 		return
 	}
 
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	limit := 10
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 50 {
@@ -401,12 +483,12 @@ func (h *CustomerHandler) SearchCustomers(c *gin.Context) {
 	searchQuery := `
 		SELECT id, phone, name, email, address, notes, total_orders, total_spent, last_order_at, created_at, updated_at
 		FROM customers
-		WHERE phone ILIKE $1 OR name ILIKE $1
+		WHERE (phone ILIKE $1 OR name ILIKE $1) AND org_id = $2
 		ORDER BY total_orders DESC, name ASC
-		LIMIT $2
+		LIMIT $3
 	`
 
-	rows, err := h.db.Query(searchQuery, "%"+query+"%", limit)
+	rows, err := h.db.Query(searchQuery, "%"+query+"%", orgID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,

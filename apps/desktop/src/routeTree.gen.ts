@@ -29,8 +29,11 @@ import { Route as AdminSettingsReceiptsRouteImport } from './routes/admin/settin
 import { Route as AdminSettingsProductsRouteImport } from './routes/admin/settings/products'
 import { Route as AdminSettingsPlatformsRouteImport } from './routes/admin/settings/platforms'
 import { Route as AdminSettingsMenuRouteImport } from './routes/admin/settings/menu'
+import { Route as AdminSettingsLocationsRouteImport } from './routes/admin/settings/locations'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin/settings/general'
 import { Route as AdminSettingsFinancialRouteImport } from './routes/admin/settings/financial'
+import { Route as AdminSettingsCartRouteImport } from './routes/admin/settings/cart'
+import { Route as AdminSettingsAccountRouteImport } from './routes/admin/settings/account'
 import { Route as AdminSettingsAboutRouteImport } from './routes/admin/settings/about'
 import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/settings/menu/index'
 import { Route as AdminSettingsMenuNewRouteImport } from './routes/admin/settings/menu/new'
@@ -136,6 +139,11 @@ const AdminSettingsMenuRoute = AdminSettingsMenuRouteImport.update({
   path: '/menu',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsLocationsRoute = AdminSettingsLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -144,6 +152,16 @@ const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
 const AdminSettingsFinancialRoute = AdminSettingsFinancialRouteImport.update({
   id: '/financial',
   path: '/financial',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsCartRoute = AdminSettingsCartRouteImport.update({
+  id: '/cart',
+  path: '/cart',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsAccountRoute = AdminSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
 const AdminSettingsAboutRoute = AdminSettingsAboutRouteImport.update({
@@ -182,8 +200,11 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/admin/settings/about': typeof AdminSettingsAboutRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
@@ -208,8 +229,11 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin': typeof AdminIndexRoute
   '/admin/settings/about': typeof AdminSettingsAboutRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
@@ -236,8 +260,11 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
   '/admin/settings/about': typeof AdminSettingsAboutRoute
+  '/admin/settings/account': typeof AdminSettingsAccountRoute
+  '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
@@ -266,8 +293,11 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/'
     | '/admin/settings/about'
+    | '/admin/settings/account'
+    | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/locations'
     | '/admin/settings/menu'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
@@ -292,8 +322,11 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin'
     | '/admin/settings/about'
+    | '/admin/settings/account'
+    | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/locations'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
     | '/admin/settings/receipts'
@@ -319,8 +352,11 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/'
     | '/admin/settings/about'
+    | '/admin/settings/account'
+    | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/locations'
     | '/admin/settings/menu'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
@@ -484,6 +520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsMenuRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/locations': {
+      id: '/admin/settings/locations'
+      path: '/locations'
+      fullPath: '/admin/settings/locations'
+      preLoaderRoute: typeof AdminSettingsLocationsRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/general': {
       id: '/admin/settings/general'
       path: '/general'
@@ -496,6 +539,20 @@ declare module '@tanstack/react-router' {
       path: '/financial'
       fullPath: '/admin/settings/financial'
       preLoaderRoute: typeof AdminSettingsFinancialRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/cart': {
+      id: '/admin/settings/cart'
+      path: '/cart'
+      fullPath: '/admin/settings/cart'
+      preLoaderRoute: typeof AdminSettingsCartRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/account': {
+      id: '/admin/settings/account'
+      path: '/account'
+      fullPath: '/admin/settings/account'
+      preLoaderRoute: typeof AdminSettingsAccountRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
     '/admin/settings/about': {
@@ -546,8 +603,11 @@ const AdminSettingsMenuRouteWithChildren =
 
 interface AdminSettingsRouteChildren {
   AdminSettingsAboutRoute: typeof AdminSettingsAboutRoute
+  AdminSettingsAccountRoute: typeof AdminSettingsAccountRoute
+  AdminSettingsCartRoute: typeof AdminSettingsCartRoute
   AdminSettingsFinancialRoute: typeof AdminSettingsFinancialRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsLocationsRoute: typeof AdminSettingsLocationsRoute
   AdminSettingsMenuRoute: typeof AdminSettingsMenuRouteWithChildren
   AdminSettingsPlatformsRoute: typeof AdminSettingsPlatformsRoute
   AdminSettingsProductsRoute: typeof AdminSettingsProductsRoute
@@ -560,8 +620,11 @@ interface AdminSettingsRouteChildren {
 
 const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsAboutRoute: AdminSettingsAboutRoute,
+  AdminSettingsAccountRoute: AdminSettingsAccountRoute,
+  AdminSettingsCartRoute: AdminSettingsCartRoute,
   AdminSettingsFinancialRoute: AdminSettingsFinancialRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsLocationsRoute: AdminSettingsLocationsRoute,
   AdminSettingsMenuRoute: AdminSettingsMenuRouteWithChildren,
   AdminSettingsPlatformsRoute: AdminSettingsPlatformsRoute,
   AdminSettingsProductsRoute: AdminSettingsProductsRoute,

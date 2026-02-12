@@ -34,6 +34,74 @@ export interface PaginationParams {
 }
 
 // ============================================
+// Organizations & Locations (Multi-Location)
+// ============================================
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Location {
+  id: string;
+  org_id: string;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Enrichment fields (returned by admin endpoints)
+  staff_count?: number;
+  active_orders?: number;
+}
+
+export interface LocationProduct {
+  id: string;
+  location_id: string;
+  product_id: string;
+  price_override?: number;
+  is_available: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateLocationRequest {
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+}
+
+export interface UpdateLocationRequest {
+  name?: string;
+  code?: string;
+  address?: string;
+  phone?: string;
+  is_active?: boolean;
+}
+
+export interface LocationProductOverride {
+  product_id: string;
+  product_name: string;
+  base_price: number;
+  base_available: boolean;
+  has_override: boolean;
+  price_override?: number;
+  is_available?: boolean;
+}
+
+export interface SetLocationProductOverrideRequest {
+  price_override?: number;
+  is_available?: boolean;
+}
+
+// ============================================
 // User & Authentication
 // ============================================
 export interface User {
@@ -44,6 +112,8 @@ export interface User {
   last_name: string;
   role: UserRole;
   is_active: boolean;
+  org_id: string;
+  location_id?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -53,18 +123,23 @@ export type UserRole = 'admin' | 'manager' | 'server' | 'counter' | 'kitchen';
 export interface AuthState {
   user: User | null;
   token: string | null;
+  organization: Organization | null;
+  location: Location | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
 
 export interface LoginRequest {
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
+  pin?: string;
 }
 
 export interface LoginResponse {
   token: string;
   user: User;
+  organization?: Organization;
+  location?: Location;
 }
 
 // ============================================
@@ -588,6 +663,28 @@ export interface ProductDisplaySettings {
   showAvailability: boolean;
 }
 
+// Per-order-type action button visibility
+export interface OrderTypeButtons {
+  showSave: boolean;
+  showKot: boolean;
+  showPay: boolean;
+}
+
+// Cart settings - control cart behavior and limits
+export interface CartSettings {
+  defaultOrderType: 'dine_in' | 'takeout' | 'delivery';
+  showDineIn: boolean;
+  showTakeout: boolean;
+  showDelivery: boolean;
+  showSpecialInstructions: boolean;
+  showOrderNotes: boolean;
+  confirmBeforeClear: boolean;
+  autoClearAfterOrder: boolean;
+  dineInButtons: OrderTypeButtons;
+  takeoutButtons: OrderTypeButtons;
+  deliveryButtons: OrderTypeButtons;
+}
+
 // Internal store settings (camelCase for TypeScript)
 export interface StoreSettings {
   // Restaurant info
@@ -617,6 +714,9 @@ export interface StoreSettings {
 
   // Product display
   productDisplay: ProductDisplaySettings;
+
+  // Cart behavior
+  cartSettings: CartSettings;
 }
 
 // API settings format (snake_case to match backend)

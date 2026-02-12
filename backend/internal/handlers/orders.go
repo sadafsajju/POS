@@ -63,6 +63,23 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 	var args []interface{}
 	argIndex := 0
 
+	// Scope to org/location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+	argIndex++
+	queryBuilder += fmt.Sprintf(" AND o.org_id = $%d", argIndex)
+	args = append(args, orgID)
+	argIndex++
+	queryBuilder += fmt.Sprintf(" AND o.location_id = $%d", argIndex)
+	args = append(args, locationID)
+
 	if status != "" {
 		argIndex++
 		queryBuilder += fmt.Sprintf(" AND o.status = $%d", argIndex)
@@ -188,6 +205,27 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 		return
 	}
 
+	// Verify order belongs to org/location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+	var exists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3)", orderID, orgID, locationID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Order not found",
+			Error:   stringPtr("order_not_found"),
+		})
+		return
+	}
+
 	order, err := h.getOrderByID(orderID)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
@@ -243,9 +281,20 @@ func (h *OrderHandler) GetOrdersByCustomer(c *gin.Context) {
 
 	offset := (page - 1) * perPage
 
+	// Scope to org/location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Count total orders for this customer
 	var total int
-	err = h.db.QueryRow("SELECT COUNT(*) FROM orders WHERE customer_id = $1", customerID).Scan(&total)
+	err = h.db.QueryRow("SELECT COUNT(*) FROM orders WHERE customer_id = $1 AND org_id = $2 AND location_id = $3", customerID, orgID, locationID).Scan(&total)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -266,12 +315,12 @@ func (h *OrderHandler) GetOrdersByCustomer(c *gin.Context) {
 		FROM orders o
 		LEFT JOIN dining_tables t ON o.table_id = t.id
 		LEFT JOIN users u ON o.user_id = u.id
-		WHERE o.customer_id = $1
+		WHERE o.customer_id = $1 AND o.org_id = $2 AND o.location_id = $3
 		ORDER BY o.created_at DESC
-		LIMIT $2 OFFSET $3
+		LIMIT $4 OFFSET $5
 	`
 
-	rows, err := h.db.Query(query, customerID, perPage, offset)
+	rows, err := h.db.Query(query, customerID, orgID, locationID, perPage, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -396,6 +445,17 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Start transaction
 	tx, err := h.db.Begin()
 	if err != nil {
@@ -500,11 +560,12 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 			billQuery := `
 				INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
-				                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, 0, 0, 0, $8, false, NULL)
+				                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id,
+				                   org_id, location_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, 0, 0, 0, $8, false, NULL, $9, $10)
 			`
 			_, err = tx.Exec(billQuery, billID, billNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-				req.OrderType, req.Notes)
+				req.OrderType, req.Notes, orgID, locationID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, models.APIResponse{
 					Success: false,
@@ -531,11 +592,12 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		orderID = uuid.New()
 		kotQuery := `
 			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
-			                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id, kot_number)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', $8, $9, 0, $10, $11, true, $12, $13)
+			                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id, kot_number,
+			                   org_id, location_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', $8, $9, 0, $10, $11, true, $12, $13, $14, $15)
 		`
 		_, err = tx.Exec(kotQuery, orderID, kotNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-			req.OrderType, subtotal, taxAmount, totalAmount, req.Notes, parentOrderID, kotNumber)
+			req.OrderType, subtotal, taxAmount, totalAmount, req.Notes, parentOrderID, kotNumber, orgID, locationID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -587,11 +649,12 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 		orderQuery := `
 			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
-			                   subtotal, tax_amount, discount_amount, total_amount, notes, completed_at, is_kot, parent_order_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, false, NULL)
+			                   subtotal, tax_amount, discount_amount, total_amount, notes, completed_at, is_kot, parent_order_id,
+			                   org_id, location_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, false, NULL, $14, $15)
 		`
 		_, err = tx.Exec(orderQuery, orderID, orderNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-			req.OrderType, initialStatus, subtotal, taxAmount, totalAmount, req.Notes, completedAt)
+			req.OrderType, initialStatus, subtotal, taxAmount, totalAmount, req.Notes, completedAt, orgID, locationID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -759,6 +822,17 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	var req models.UpdateOrderStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
@@ -802,7 +876,7 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 
 	// Get current order status
 	var currentStatus string
-	err = tx.QueryRow("SELECT status FROM orders WHERE id = $1", orderID).Scan(&currentStatus)
+	err = tx.QueryRow("SELECT status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&currentStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -1275,12 +1349,23 @@ func (h *OrderHandler) AcceptAggregatorOrder(c *gin.Context) {
 		return
 	}
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Get the order and verify it's an aggregator order in pending status
 	var orderSource, currentStatus string
 	var acceptDeadline *time.Time
 	err = h.db.QueryRow(
-		"SELECT order_source, status, accept_deadline FROM orders WHERE id = $1",
-		orderID,
+		"SELECT order_source, status, accept_deadline FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3",
+		orderID, orgID, locationID,
 	).Scan(&orderSource, &currentStatus, &acceptDeadline)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
@@ -1375,6 +1460,17 @@ func (h *OrderHandler) RejectAggregatorOrder(c *gin.Context) {
 		return
 	}
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	var req models.RejectAggregatorOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
@@ -1388,8 +1484,8 @@ func (h *OrderHandler) RejectAggregatorOrder(c *gin.Context) {
 	// Get the order and verify it's an aggregator order
 	var orderSource, currentStatus string
 	err = h.db.QueryRow(
-		"SELECT order_source, status FROM orders WHERE id = $1",
-		orderID,
+		"SELECT order_source, status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3",
+		orderID, orgID, locationID,
 	).Scan(&orderSource, &currentStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
@@ -1459,6 +1555,17 @@ func (h *OrderHandler) GetAggregatorOrders(c *gin.Context) {
 	status := c.Query("status")
 	platform := c.Query("platform")
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	query := `
 		SELECT o.id, o.order_number, o.order_type, o.status, o.customer_name,
 		       o.subtotal, o.tax_amount, o.discount_amount, o.total_amount,
@@ -1468,9 +1575,11 @@ func (h *OrderHandler) GetAggregatorOrders(c *gin.Context) {
 		       o.accept_deadline, o.aggregator_confirmed_at
 		FROM orders o
 		WHERE o.order_source != 'pos'
+		  AND o.org_id = $1 AND o.location_id = $2
 	`
 	var args []interface{}
-	argIdx := 0
+	args = append(args, orgID, locationID)
+	argIdx := 2
 
 	if status != "" {
 		argIdx++
@@ -1636,6 +1745,17 @@ func (h *OrderHandler) AddItemsToOrder(c *gin.Context) {
 	}
 	_ = userID // User is authenticated
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Parse request body
 	var req struct {
 		Items []models.CreateOrderItem `json:"items"`
@@ -1658,9 +1778,9 @@ func (h *OrderHandler) AddItemsToOrder(c *gin.Context) {
 		return
 	}
 
-	// Check if order exists and is not completed/cancelled
+	// Check if order exists and is not completed/cancelled (scoped to org/location)
 	var orderStatus string
-	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1", orderID).Scan(&orderStatus)
+	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&orderStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -1898,6 +2018,17 @@ func (h *OrderHandler) UpdateOrderItem(c *gin.Context) {
 		return
 	}
 
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Parse request body
 	var req struct {
 		Quantity            *int    `json:"quantity"`
@@ -1912,9 +2043,9 @@ func (h *OrderHandler) UpdateOrderItem(c *gin.Context) {
 		return
 	}
 
-	// Check if order exists and is editable
+	// Check if order exists and is editable (scoped to org/location)
 	var orderStatus string
-	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1", orderID).Scan(&orderStatus)
+	err = h.db.QueryRow("SELECT status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&orderStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -2078,15 +2209,26 @@ func (h *OrderHandler) RemoveOrderItem(c *gin.Context) {
 		return
 	}
 
-	// Check if order exists and is editable, also get KOT info for cleanup
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Check if order exists and is editable, also get KOT info for cleanup (scoped to org/location)
 	var orderStatus string
 	var isKOT bool
 	var parentOrderID sql.NullString
 	var tableID sql.NullString
 	err = h.db.QueryRow(`
 		SELECT status, is_kot, parent_order_id, table_id
-		FROM orders WHERE id = $1
-	`, orderID).Scan(&orderStatus, &isKOT, &parentOrderID, &tableID)
+		FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3
+	`, orderID, orgID, locationID).Scan(&orderStatus, &isKOT, &parentOrderID, &tableID)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -2353,6 +2495,27 @@ func (h *OrderHandler) GetBillSummary(c *gin.Context) {
 		return
 	}
 
+	// Verify bill belongs to org/location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+	var billExists bool
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3)", billID, orgID, locationID).Scan(&billExists)
+	if err != nil || !billExists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Bill not found",
+			Error:   stringPtr("bill_not_found"),
+		})
+		return
+	}
+
 	// Get the bill
 	bill, err := h.getOrderByID(billID)
 	if err == sql.ErrNoRows {
@@ -2437,7 +2600,18 @@ func (h *OrderHandler) GetActiveBillForTable(c *gin.Context) {
 		return
 	}
 
-	// Find active bill (parent order) for this table
+	// Get org/location context
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Find active bill (parent order) for this table (scoped to org/location)
 	var billID uuid.UUID
 	query := `
 		SELECT id FROM orders
@@ -2445,10 +2619,11 @@ func (h *OrderHandler) GetActiveBillForTable(c *gin.Context) {
 		  AND is_kot = false
 		  AND parent_order_id IS NULL
 		  AND status NOT IN ('completed', 'cancelled')
+		  AND org_id = $2 AND location_id = $3
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
-	err = h.db.QueryRow(query, tableID).Scan(&billID)
+	err = h.db.QueryRow(query, tableID, orgID, locationID).Scan(&billID)
 	if err == sql.ErrNoRows {
 		// No active bill found - return null (not an error)
 		c.JSON(http.StatusOK, models.APIResponse{

@@ -8,20 +8,22 @@ export const Route = createFileRoute('/admin/settings/platforms')({
 
 function PlatformsSettingsPage() {
   return (
-    <div className="flex-1 overflow-auto">
-      <div className="p-6 mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-primary/10 rounded-lg text-primary">
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="flex-shrink-0 px-6 py-4 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-zinc-800 rounded-lg text-zinc-300">
             <Plug className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Platform Integrations</h2>
-            <p className="text-sm text-muted-foreground">Configure Swiggy and Zomato order integrations</p>
+            <h2 className="text-xl font-bold tracking-tight text-zinc-100">Platform Integrations</h2>
+            <p className="text-sm text-zinc-500">Configure Swiggy and Zomato order integrations</p>
           </div>
         </div>
+      </header>
 
-        {/* Content - PlatformSettings manages its own save state */}
+      {/* ── Scrollable Content ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6">
         <PlatformSettings />
       </div>
     </div>

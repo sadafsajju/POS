@@ -27,6 +27,11 @@ import type {
   PlatformConfig,
   CreatePlatformConfigRequest,
   AggregatorOrder,
+  Location,
+  CreateLocationRequest,
+  UpdateLocationRequest,
+  LocationProductOverride,
+  SetLocationProductOverrideRequest,
 } from '@pos/types';
 
 // ============================================
@@ -45,7 +50,10 @@ export interface CreateAdminRequest {
   password: string;
   first_name: string;
   last_name: string;
+  pin?: string;
   store_name?: string;
+  location_name?: string;
+  location_code?: string;
   currency?: string;
   currency_symbol?: string;
   tax_rate?: string;
@@ -62,6 +70,13 @@ export const setupApi = {
 // ============================================
 // Authentication Endpoints
 // ============================================
+export interface StaffMember {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+}
+
 export const authApi = {
   login: (credentials: LoginRequest) =>
     getApiClient().post<LoginResponse>('/auth/login', credentials),
@@ -71,6 +86,16 @@ export const authApi = {
 
   me: () =>
     getApiClient().get<User>('/auth/me'),
+
+  /** List active staff who have a PIN set (public, no auth needed) */
+  getStaffForPin: () =>
+    getApiClient().get<StaffMember[]>('/auth/staff'),
+
+  verifyPin: (pin: string) =>
+    getApiClient().post<void>('/auth/verify-pin', { pin }),
+
+  updatePin: (newPin: string) =>
+    getApiClient().put<void>('/auth/pin', { new_pin: newPin }),
 };
 
 // ============================================
@@ -300,6 +325,31 @@ export const adminApi = {
 
   deletePlatformConfig: (platform: string) =>
     getApiClient().delete(`/admin/platform-configs/${platform}`),
+
+  // Location Management
+  getLocations: () =>
+    getApiClient().get<Location[]>('/admin/locations'),
+
+  createLocation: (data: CreateLocationRequest) =>
+    getApiClient().post<{ id: string }>('/admin/locations', data),
+
+  updateLocation: (id: string, data: UpdateLocationRequest) =>
+    getApiClient().put('/admin/locations/' + id, data),
+
+  deleteLocation: (id: string) =>
+    getApiClient().delete('/admin/locations/' + id),
+
+  getLocationProducts: (locationId: string) =>
+    getApiClient().get<LocationProductOverride[]>(`/admin/locations/${locationId}/products`),
+
+  setLocationProductOverride: (locationId: string, productId: string, data: SetLocationProductOverrideRequest) =>
+    getApiClient().put(`/admin/locations/${locationId}/products/${productId}`, data),
+
+  removeLocationProductOverride: (locationId: string, productId: string) =>
+    getApiClient().delete(`/admin/locations/${locationId}/products/${productId}`),
+
+  reassignUserLocation: (userId: string, locationId: string) =>
+    getApiClient().put(`/admin/users/${userId}/location`, { location_id: locationId }),
 };
 
 // ============================================

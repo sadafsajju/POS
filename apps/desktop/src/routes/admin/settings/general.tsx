@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Store, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
@@ -70,8 +66,8 @@ function GeneralSettingsPage() {
 
   if (isLoading && !settings.restaurantName) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
       </div>
     )
   }
@@ -87,57 +83,61 @@ function GeneralSettingsPage() {
       onSave={handleSave}
       onReset={handleReset}
     >
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="restaurantName">Restaurant Name</Label>
-            <Input
-              id="restaurantName"
-              value={localSettings.restaurantName || ''}
-              onChange={(e) => setLocalSettings({ ...localSettings, restaurantName: e.target.value })}
-              placeholder="Enter restaurant name"
-            />
-          </div>
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-5">
+        <FieldGroup label="Restaurant Name">
+          <input
+            id="restaurantName"
+            value={localSettings.restaurantName || ''}
+            onChange={(e) => setLocalSettings({ ...localSettings, restaurantName: e.target.value })}
+            placeholder="Enter restaurant name"
+            className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors"
+          />
+        </FieldGroup>
 
-          <div className="space-y-2">
-            <Label htmlFor="storeAddress">Store Address</Label>
-            <Input
-              id="storeAddress"
-              value={localSettings.storeAddress || ''}
-              onChange={(e) => setLocalSettings({ ...localSettings, storeAddress: e.target.value })}
-              placeholder="Enter store address"
-            />
-          </div>
+        <FieldGroup label="Store Address">
+          <input
+            id="storeAddress"
+            value={localSettings.storeAddress || ''}
+            onChange={(e) => setLocalSettings({ ...localSettings, storeAddress: e.target.value })}
+            placeholder="Enter store address"
+            className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors"
+          />
+        </FieldGroup>
 
-          <div className="space-y-2">
-            <Label htmlFor="storePhone">Phone Number</Label>
-            <Input
-              id="storePhone"
-              value={localSettings.storePhone || ''}
-              onChange={(e) => setLocalSettings({ ...localSettings, storePhone: e.target.value })}
-              placeholder="Enter phone number"
-            />
-          </div>
+        <FieldGroup label="Phone Number">
+          <input
+            id="storePhone"
+            value={localSettings.storePhone || ''}
+            onChange={(e) => setLocalSettings({ ...localSettings, storePhone: e.target.value })}
+            placeholder="Enter phone number"
+            className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors"
+          />
+        </FieldGroup>
 
-          <div className="space-y-2">
-            <Label htmlFor="language">Language</Label>
-            <Select
-              value={localSettings.language || 'en'}
-              onValueChange={(value) => setLocalSettings({ ...localSettings, language: value })}
-            >
-              <SelectTrigger id="language">
-                <SelectValue placeholder="Select language" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="es">Spanish</SelectItem>
-                <SelectItem value="fr">French</SelectItem>
-                <SelectItem value="hi">Hindi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+        <FieldGroup label="Language">
+          <select
+            id="language"
+            value={localSettings.language || 'en'}
+            onChange={(e) => setLocalSettings({ ...localSettings, language: e.target.value })}
+            className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors appearance-none cursor-pointer"
+          >
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="hi">Hindi</option>
+          </select>
+        </FieldGroup>
+      </div>
     </SettingsPageLayout>
+  )
+}
+
+function FieldGroup({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-zinc-300">{label}</label>
+      {children}
+      {hint && <p className="text-xs text-zinc-500">{hint}</p>}
+    </div>
   )
 }

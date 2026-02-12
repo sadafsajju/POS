@@ -40,11 +40,26 @@ func (h *WebhookHandler) ReceiveOrder(c *gin.Context) {
 		req.Platform = platform
 	}
 
-	// Check for duplicate external order ID
-	var existingID string
+	// Look up org_id and location_id from platform_configs
+	var orgID, locationID uuid.UUID
 	err := h.db.QueryRow(
-		"SELECT id FROM orders WHERE external_order_id = $1 AND order_source = $2",
-		req.ExternalOrderID, platform,
+		"SELECT org_id, location_id FROM platform_configs WHERE platform = $1",
+		platform,
+	).Scan(&orgID, &locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to resolve org/location for platform",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Check for duplicate external order ID within this org/location
+	var existingID string
+	err = h.db.QueryRow(
+		"SELECT id FROM orders WHERE external_order_id = $1 AND order_source = $2 AND org_id = $3 AND location_id = $4",
+		req.ExternalOrderID, platform, orgID, locationID,
 	).Scan(&existingID)
 	if err == nil {
 		// Order already exists
@@ -105,19 +120,19 @@ func (h *WebhookHandler) ReceiveOrder(c *gin.Context) {
 	// Create the order
 	orderQuery := `
 		INSERT INTO orders (
-			id, order_number, order_type, status,
+			id, org_id, location_id, order_number, order_type, status,
 			customer_name, subtotal, tax_amount, discount_amount, total_amount,
 			notes, is_kot, order_source, external_order_id, external_data,
 			delivery_partner_name, delivery_partner_phone, accept_deadline
 		) VALUES (
-			$1, $2, 'delivery', 'pending',
-			$3, $4, $5, $6, $7,
-			$8, false, $9, $10, $11,
-			$12, $13, $14
+			$1, $2, $3, $4, 'delivery', 'pending',
+			$5, $6, $7, $8, $9,
+			$10, false, $11, $12, $13,
+			$14, $15, $16
 		)
 	`
 	_, err = tx.Exec(orderQuery,
-		orderID, orderNumber,
+		orderID, orgID, locationID, orderNumber,
 		req.CustomerName, req.Subtotal, req.TaxAmount, req.DiscountAmount, req.TotalAmount,
 		req.Notes, platform, req.ExternalOrderID, externalDataJSON,
 		req.DeliveryPartnerName, req.DeliveryPartnerPhone, acceptDeadline,
@@ -216,11 +231,26 @@ func (h *WebhookHandler) ReceiveStatusUpdate(c *gin.Context) {
 		return
 	}
 
-	// Find the order by external ID
-	var orderID uuid.UUID
+	// Look up org_id and location_id from platform_configs
+	var orgID, locationID uuid.UUID
 	err := h.db.QueryRow(
-		"SELECT id FROM orders WHERE external_order_id = $1 AND order_source = $2",
-		req.ExternalOrderID, platform,
+		"SELECT org_id, location_id FROM platform_configs WHERE platform = $1",
+		platform,
+	).Scan(&orgID, &locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to resolve org/location for platform",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Find the order by external ID within this org/location
+	var orderID uuid.UUID
+	err = h.db.QueryRow(
+		"SELECT id FROM orders WHERE external_order_id = $1 AND order_source = $2 AND org_id = $3 AND location_id = $4",
+		req.ExternalOrderID, platform, orgID, locationID,
 	).Scan(&orderID)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
@@ -280,12 +310,27 @@ func (h *WebhookHandler) ReceiveCancellation(c *gin.Context) {
 		return
 	}
 
-	// Find and cancel the order
+	// Look up org_id and location_id from platform_configs
+	var orgID, locationID uuid.UUID
+	err := h.db.QueryRow(
+		"SELECT org_id, location_id FROM platform_configs WHERE platform = $1",
+		platform,
+	).Scan(&orgID, &locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to resolve org/location for platform",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Find and cancel the order within this org/location
 	var orderID uuid.UUID
 	var currentStatus string
-	err := h.db.QueryRow(
-		"SELECT id, status FROM orders WHERE external_order_id = $1 AND order_source = $2",
-		req.ExternalOrderID, platform,
+	err = h.db.QueryRow(
+		"SELECT id, status FROM orders WHERE external_order_id = $1 AND order_source = $2 AND org_id = $3 AND location_id = $4",
+		req.ExternalOrderID, platform, orgID, locationID,
 	).Scan(&orderID, &currentStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
@@ -354,9 +399,4 @@ func platformPrefix(platform string) string {
 	default:
 		return "AGG"
 	}
-}
-
-// stringPtr returns a pointer to a string
-func stringPtr(s string) *string {
-	return &s
 }

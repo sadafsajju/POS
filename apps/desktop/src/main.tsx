@@ -28,7 +28,7 @@ initApiClient({
     console.log('🔒 Unauthorized - clearing auth state')
     useAuthStore.getState().logout()
     // Only redirect if not already on login page to prevent loop
-    if (window.location.pathname !== '/login') {
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/setup') {
       window.location.href = '/login'
     }
   },

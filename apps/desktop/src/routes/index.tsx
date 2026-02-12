@@ -28,31 +28,10 @@ function HomePage() {
     )
   }
 
-  // Not authenticated - redirect to login using window.location
+  // Not authenticated - redirect to login
   if (!isAuthenticated || !user) {
-    console.log('HomePage: Not authenticated, checking localStorage...')
-
-    // Double-check localStorage directly as fallback
-    const storedAuth = localStorage.getItem('pos-auth')
-    if (storedAuth) {
-      try {
-        const parsed = JSON.parse(storedAuth)
-        if (parsed.state?.isAuthenticated && parsed.state?.user) {
-          console.log('HomePage: Found valid auth in localStorage, waiting for hydration...')
-          return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )
-        }
-      } catch (e) {
-        console.error('Failed to parse stored auth:', e)
-      }
-    }
-
-    // Check current URL to prevent redirect loop
+    console.log('HomePage: Not authenticated, redirecting to login...')
     if (window.location.pathname !== '/login') {
-      console.log('HomePage: Redirecting to login...')
       window.location.href = '/login'
     }
     return (

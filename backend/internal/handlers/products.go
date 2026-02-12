@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"pos-backend/internal/middleware"
 	"pos-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -57,6 +59,20 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 
 	var args []interface{}
 	argIndex := 0
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+	argIndex++
+	queryBuilder += fmt.Sprintf(" AND p.org_id = $%d", argIndex)
+	args = append(args, orgID)
 
 	if categoryID != "" {
 		if _, err := uuid.Parse(categoryID); err == nil {
@@ -175,6 +191,17 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	var product models.Product
 	var categoryName, categoryColor sql.NullString
 
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	query := `
 		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
@@ -184,10 +211,10 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		       c.name as category_name, c.color as category_color
 		FROM products p
 		LEFT JOIN categories c ON p.category_id = c.id
-		WHERE p.id = $1
+		WHERE p.id = $1 AND p.org_id = $2
 	`
 
-	err = h.db.QueryRow(query, productID).Scan(
+	err = h.db.QueryRow(query, productID, orgID).Scan(
 		&product.ID, &product.CategoryID, &product.Name, &product.Description,
 		&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 		&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
@@ -233,19 +260,33 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 // GetCategories retrieves all categories
 func (h *ProductHandler) GetCategories(c *gin.Context) {
 	activeOnly := c.Query("active_only") == "true"
-	
+
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	query := `
 		SELECT id, name, description, color, sort_order, is_active, created_at, updated_at
-		FROM categories
+		FROM categories c
+		WHERE c.org_id = $1
 	`
-	
+
+	args := []interface{}{orgID}
+
 	if activeOnly {
-		query += ` WHERE is_active = true`
+		query += ` AND is_active = true`
 	}
-	
+
 	query += ` ORDER BY sort_order ASC, name ASC`
 
-	rows, err := h.db.Query(query)
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -297,6 +338,17 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 
 	availableOnly := c.Query("available_only") == "true"
 
+	// Scope to org
+	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	query := `
 		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
@@ -306,7 +358,7 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 		       c.name as category_name, c.color as category_color
 		FROM products p
 		JOIN categories c ON p.category_id = c.id
-		WHERE p.category_id = $1
+		WHERE p.category_id = $1 AND p.org_id = $2
 	`
 
 	if availableOnly {
@@ -315,7 +367,7 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 
 	query += ` ORDER BY p.sort_order ASC, p.name ASC`
 
-	rows, err := h.db.Query(query, categoryID)
+	rows, err := h.db.Query(query, categoryID, orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,

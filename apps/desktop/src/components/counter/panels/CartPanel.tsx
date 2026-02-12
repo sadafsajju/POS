@@ -18,6 +18,7 @@ import {
   DoorOpen
 } from 'lucide-react'
 import type { DiningTable, Order, CartItem, OrderType, BillSummary } from '../types'
+import type { CartSettings } from '@pos/types'
 import { consolidateItems, getTableOrders } from '../utils/orderUtils'
 
 // Minimal product interface that works with both Product and CartItem.product
@@ -39,6 +40,7 @@ interface CartPanelProps {
   isOnline: boolean
   isCreating: boolean
   activeBill: BillSummary | null
+  cartSettings?: CartSettings
   canProcessPayment?: boolean
   onOpenPayment?: () => void
   onClearTable?: () => void
@@ -67,6 +69,7 @@ export function CartPanel({
   isOnline,
   isCreating,
   activeBill,
+  cartSettings,
   canProcessPayment = true,
   onOpenPayment,
   onClearTable,
@@ -362,7 +365,13 @@ export function CartPanel({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowClearConfirm(true)}
+              onClick={() => {
+                if (cartSettings?.confirmBeforeClear === false) {
+                  handleClearCart()
+                } else {
+                  setShowClearConfirm(true)
+                }
+              }}
               className="h-8 px-2 text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4 mr-1" />
@@ -458,6 +467,7 @@ export function CartPanel({
                         {formatCurrency(unitPrice)} × {item.quantity} = <span className="font-semibold text-foreground">{formatCurrency(unitPrice * item.quantity)}</span>
                       </div>
                     </div>
+                    {cartSettings?.showSpecialInstructions !== false && (
                     <Button
                       variant="ghost"
                       size="lg"
@@ -470,6 +480,7 @@ export function CartPanel({
                     >
                       <MessageSquare className="h-5 w-5" />
                     </Button>
+                    )}
                     <div className="flex items-center">
                       <Button
                         variant="outline"
@@ -490,7 +501,7 @@ export function CartPanel({
                       </Button>
                     </div>
                   </div>
-                  {item.special_instructions && (
+                  {cartSettings?.showSpecialInstructions !== false && item.special_instructions && (
                     <div
                       className="px-4 pb-3 pt-0 text-sm text-muted-foreground cursor-pointer hover:text-foreground"
                       onClick={() => {
@@ -506,6 +517,7 @@ export function CartPanel({
               })}
             </div>
             {/* Order Notes */}
+            {cartSettings?.showOrderNotes !== false && (
             <div className="mt-4">
               <label className="text-sm font-medium">Order Notes</label>
               <div
@@ -519,6 +531,7 @@ export function CartPanel({
                 )}
               </div>
             </div>
+            )}
           </div>
         )}
 
@@ -558,67 +571,102 @@ export function CartPanel({
             </div>
           </div>
 
-          {/* Dynamic Action Buttons */}
-          <div className="flex">
-            {/* New items in cart → Save + KOT buttons */}
-            {hasNewItems && (
-              <>
-                <Button
-                  className="flex-1 h-14 text-base rounded-none border-0 border-r border-border"
-                  size="lg"
-                  variant="outline"
-                  onClick={() => onCreateOrder(false)}
-                  disabled={isDisabled}
-                >
-                  {isCreating ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
-                      Saving...
-                    </>
-                  ) : !isOnline ? (
-                    <>
-                      <CloudOff className="w-5 h-5 mr-2" />
-                      Save Offline
-                    </>
-                  ) : (
-                    <>
-                      <ChefHat className="w-5 h-5 mr-2" />
-                      Save
-                    </>
-                  )}
-                </Button>
-                <Button
-                  className="flex-1 h-14 text-base rounded-none"
-                  size="lg"
-                  onClick={() => onCreateOrder(true)}
-                  disabled={isDisabled}
-                >
-                  {isCreating ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Printing...
-                    </>
-                  ) : (
-                    <>
-                      <Printer className="w-5 h-5 mr-2" />
-                      KOT
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
+          {/* Dynamic Action Buttons — layout adapts to count */}
+          {(() => {
+            const buttons = orderType === 'dine_in' ? cartSettings?.dineInButtons
+              : orderType === 'takeout' ? cartSettings?.takeoutButtons
+              : cartSettings?.deliveryButtons
+            const showSave = (buttons?.showSave !== false) && hasNewItems
+            const showKot = (buttons?.showKot !== false) && hasNewItems
+            const showPay = (buttons?.showPay !== false) && (hasNewItems || hasActiveOrders) && activeBill?.bill?.status !== 'paid'
+            const visibleCount = [showSave, showKot, showPay].filter(Boolean).length
 
-            {/* No new items + active orders + can pay → Pay button (hidden if already paid) */}
-            {!hasNewItems && hasActiveOrders && isDineIn && canProcessPayment && onOpenPayment && activeBill?.bill?.status !== 'paid' && (
-              <Button
-                className="flex-1 w-full h-14 text-base rounded-none bg-blue-600 hover:bg-blue-700 text-white"
-                size="lg"
-                onClick={onOpenPayment}
-              >
-                <CreditCard className="w-5 h-5 mr-2" />
-                Pay
-              </Button>
-            )}
+            // 1 button = full-width blue primary
+            // 2 buttons = side by side, last one blue primary
+            // 3 buttons = Save+KOT top row (outline), Pay bottom row (blue)
+            const primaryClass = 'flex-1 h-14 text-base rounded-none bg-blue-600 hover:bg-blue-700 text-white'
+            const secondaryClass = 'flex-1 h-14 text-base rounded-none border-0 border-r border-border'
+
+            const getSaveClass = () => {
+              if (visibleCount === 1) return primaryClass
+              if (visibleCount === 2 && !showKot && !showPay) return primaryClass
+              return secondaryClass
+            }
+            const getKotClass = () => {
+              if (visibleCount === 1) return primaryClass
+              if (visibleCount === 2) return primaryClass
+              return secondaryClass
+            }
+
+            return (
+              <div>
+                {/* Top row: Save + KOT (or single button) */}
+                {(showSave || showKot) && (
+                  <div className="flex">
+                    {showSave && (
+                      <Button
+                        className={getSaveClass()}
+                        size="lg"
+                        variant={getSaveClass() === primaryClass ? 'default' : 'outline'}
+                        onClick={() => onCreateOrder(false)}
+                        disabled={isDisabled}
+                      >
+                        {isCreating ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                            Saving...
+                          </>
+                        ) : !isOnline ? (
+                          <>
+                            <CloudOff className="w-5 h-5 mr-2" />
+                            Save Offline
+                          </>
+                        ) : (
+                          <>
+                            <ChefHat className="w-5 h-5 mr-2" />
+                            Save
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {showKot && (
+                      <Button
+                        className={getKotClass()}
+                        size="lg"
+                        variant={getKotClass() === primaryClass ? 'default' : 'outline'}
+                        onClick={() => onCreateOrder(true)}
+                        disabled={isDisabled}
+                      >
+                        {isCreating ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                            Printing...
+                          </>
+                        ) : (
+                          <>
+                            <Printer className="w-5 h-5 mr-2" />
+                            KOT
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Bottom row: Pay (or in top row if Save/KOT hidden) */}
+                {showPay && (
+                  <Button
+                    className={`w-full h-14 text-base rounded-none bg-blue-600 hover:bg-blue-700 text-white${(showSave || showKot) ? ' border-t border-border' : ''}`}
+                    size="lg"
+                    onClick={onOpenPayment}
+                  >
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Pay
+                  </Button>
+                )}
+              </div>
+            )
+          })()}
 
             {/* Bill is paid — show status + Clear Table button */}
             {!hasNewItems && hasActiveOrders && isDineIn && activeBill?.bill?.status === 'paid' && (() => {
@@ -626,7 +674,7 @@ export function CartPanel({
                 (kot: Order) => ['served', 'completed', 'cancelled'].includes(kot.status)
               )
               return (
-                <>
+                <div className="flex">
                   <div className="flex-1 h-14 flex items-center justify-center gap-2 text-white bg-green-600 rounded-none">
                     <CheckCircle2 className="w-5 h-5" />
                     <span className="text-base font-medium">Paid{!allKOTsServed ? ' — Awaiting Service' : ''}</span>
@@ -643,10 +691,9 @@ export function CartPanel({
                       Clear Table
                     </Button>
                   )}
-                </>
+                </div>
               )
             })()}
-          </div>
         </div>
       )}
     </div>

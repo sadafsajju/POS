@@ -17,9 +17,11 @@ var jwtSecret = []byte("your-secret-key-change-this-in-production")
 
 // Claims represents the JWT claims
 type Claims struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Username string    `json:"username"`
-	Role     string    `json:"role"`
+	UserID     uuid.UUID  `json:"user_id"`
+	Username   string     `json:"username"`
+	Role       string     `json:"role"`
+	OrgID      uuid.UUID  `json:"org_id"`
+	LocationID *uuid.UUID `json:"location_id,omitempty"` // nil for org-level admins
 	jwt.RegisteredClaims
 }
 
@@ -30,9 +32,11 @@ func GenerateToken(user *models.User) (string, error) {
 
 	// Create claims
 	claims := &Claims{
-		UserID:   user.ID,
-		Username: user.Username,
-		Role:     user.Role,
+		UserID:     user.ID,
+		Username:   user.Username,
+		Role:       user.Role,
+		OrgID:      user.OrgID,
+		LocationID: user.LocationID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -116,6 +120,12 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
+		c.Set("org_id", claims.OrgID)
+		if claims.LocationID != nil {
+			c.Set("location_id", *claims.LocationID)
+		} else {
+			c.Set("location_id", uuid.Nil)
+		}
 
 		c.Next()
 	}
@@ -217,6 +227,25 @@ func GetUserFromContext(c *gin.Context) (uuid.UUID, string, string, bool) {
 	}
 
 	return id, name, userRole, true
+}
+
+// GetOrgLocationFromContext extracts org_id and location_id from gin context
+func GetOrgLocationFromContext(c *gin.Context) (uuid.UUID, uuid.UUID, bool) {
+	orgIDVal, orgExists := c.Get("org_id")
+	locIDVal, locExists := c.Get("location_id")
+
+	if !orgExists || !locExists {
+		return uuid.Nil, uuid.Nil, false
+	}
+
+	orgID, orgOk := orgIDVal.(uuid.UUID)
+	locID, locOk := locIDVal.(uuid.UUID)
+
+	if !orgOk || !locOk {
+		return uuid.Nil, uuid.Nil, false
+	}
+
+	return orgID, locID, true
 }
 
 // Helper function to create string pointer

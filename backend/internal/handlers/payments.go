@@ -42,6 +42,16 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	var req models.ProcessPaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, models.APIResponse{
@@ -95,7 +105,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	// Check if order exists and get total amount
 	var orderTotalAmount float64
 	var orderStatus string
-	err = tx.QueryRow("SELECT total_amount, status FROM orders WHERE id = $1", orderID).Scan(&orderTotalAmount, &orderStatus)
+	err = tx.QueryRow("SELECT total_amount, status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&orderTotalAmount, &orderStatus)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -211,12 +221,27 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	// Check if order is now fully paid
 	newTotalPaid := totalPaid + req.Amount
 	if newTotalPaid >= orderTotalAmount {
-		// Mark bill as paid (table is NOT freed — staff will clear it manually when customer leaves)
+		// Determine the order type to decide post-payment status
+		var orderTypeStr string
+		err = tx.QueryRow("SELECT COALESCE(order_type, 'dine_in') FROM orders WHERE id = $1", orderID).Scan(&orderTypeStr)
+		if err != nil {
+			orderTypeStr = "dine_in"
+		}
+
+		// For takeout/delivery: set status to 'confirmed' so kitchen can still see and prepare the order
+		// For dine-in: set status to 'paid' (KOTs have their own kitchen statuses)
+		newStatus := "paid"
+		statusNote := "Order marked as paid after payment"
+		if orderTypeStr == "takeout" || orderTypeStr == "delivery" {
+			newStatus = "confirmed"
+			statusNote = "Payment received, order sent to kitchen for preparation"
+		}
+
 		_, err = tx.Exec(`
 			UPDATE orders
-			SET status = 'paid', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+			SET status = $2, paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $1
-		`, orderID)
+		`, orderID, newStatus)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -229,8 +254,8 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		// Log status change
 		_, err = tx.Exec(`
 			INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by, notes)
-			VALUES ($1, $2, 'paid', $3, 'Order marked as paid after payment')
-		`, orderID, orderStatus, userID)
+			VALUES ($1, $2, $3, $4, $5)
+		`, orderID, orderStatus, newStatus, userID, statusNote)
 		if err != nil {
 			// Log error but don't fail the transaction
 		}
@@ -276,9 +301,19 @@ func (h *PaymentHandler) GetPayments(c *gin.Context) {
 		return
 	}
 
-	// Check if order exists
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Check if order exists in this org/location
 	var exists bool
-	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1)", orderID).Scan(&exists)
+	err = h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3)", orderID, orgID, locationID).Scan(&exists)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -371,23 +406,33 @@ func (h *PaymentHandler) GetPaymentSummary(c *gin.Context) {
 		return
 	}
 
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
 	// Get order total and payment summary
 	query := `
-		SELECT 
+		SELECT
 		    o.total_amount,
 		    COALESCE(SUM(CASE WHEN p.status = 'completed' THEN p.amount ELSE 0 END), 0) as total_paid,
 		    COALESCE(SUM(CASE WHEN p.status = 'pending' THEN p.amount ELSE 0 END), 0) as pending_amount,
 		    COUNT(p.id) as payment_count
 		FROM orders o
 		LEFT JOIN payments p ON o.id = p.order_id
-		WHERE o.id = $1
+		WHERE o.id = $1 AND o.org_id = $2 AND o.location_id = $3
 		GROUP BY o.id, o.total_amount
 	`
 
 	var totalAmount, totalPaid, pendingAmount float64
 	var paymentCount int
 
-	err = h.db.QueryRow(query, orderID).Scan(&totalAmount, &totalPaid, &pendingAmount, &paymentCount)
+	err = h.db.QueryRow(query, orderID, orgID, locationID).Scan(&totalAmount, &totalPaid, &pendingAmount, &paymentCount)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,

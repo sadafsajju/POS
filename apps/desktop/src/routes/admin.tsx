@@ -29,32 +29,8 @@ function AdminLayout() {
   }
 
   // Check authentication - redirect to login if not authenticated
-  // But prevent redirect loop if we're already coming from login
   if (!isAuthenticated || !user) {
-    console.log('AdminLayout: Not authenticated, checking localStorage directly...')
-
-    // Double-check localStorage directly as fallback
-    const storedAuth = localStorage.getItem('pos-auth')
-    console.log('AdminLayout: localStorage pos-auth:', storedAuth)
-
-    if (storedAuth) {
-      try {
-        const parsed = JSON.parse(storedAuth)
-        if (parsed.state?.isAuthenticated && parsed.state?.user) {
-          console.log('AdminLayout: Found valid auth in localStorage, waiting for hydration...')
-          // Data exists in localStorage but store hasn't hydrated yet, wait
-          return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )
-        }
-      } catch (e) {
-        console.error('Failed to parse stored auth:', e)
-      }
-    }
-
-    console.log('AdminLayout: Redirecting to login...')
+    console.log('AdminLayout: Not authenticated, redirecting to login...')
     window.location.href = '/login'
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">

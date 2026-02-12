@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { Save, RotateCcw, Loader2, AlertCircle } from 'lucide-react'
 
 interface SettingsPageLayoutProps {
@@ -12,19 +12,6 @@ interface SettingsPageLayoutProps {
   error: string | null
   onSave: () => void
   onReset: () => void
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full'
-}
-
-const maxWidthClasses = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-xl',
-  '2xl': 'max-w-2xl',
-  '3xl': 'max-w-3xl',
-  '4xl': 'max-w-4xl',
-  '5xl': 'max-w-5xl',
-  full: 'max-w-full',
 }
 
 export function SettingsPageLayout({
@@ -37,65 +24,73 @@ export function SettingsPageLayout({
   error,
   onSave,
   onReset,
-  maxWidth = '2xl',
 }: SettingsPageLayoutProps) {
   return (
-    <div className="flex-1 overflow-auto">
-      <div className={`p-6 mx-auto ${maxWidthClasses[maxWidth]}`}>
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg text-primary">
-              {icon}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-              <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
+    <div className="h-full flex flex-col overflow-hidden">
+
+      {/* ── Fixed Header Strip ─────────────────────────────────────────── */}
+      <header className="flex-shrink-0 px-6 py-4 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-zinc-800 rounded-lg text-zinc-300">
+            {icon}
+          </div>
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-zinc-100">{title}</h2>
+            <p className="text-sm text-zinc-500">{description}</p>
           </div>
         </div>
 
-        {/* Error message */}
+        {/* Inline alerts */}
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center gap-2 mb-6">
-            <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-            <span className="text-destructive text-sm">{error}</span>
+          <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span className="text-red-400 text-sm">{error}</span>
           </div>
         )}
-
-        {/* Unsaved changes warning */}
-        {hasChanges && (
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 flex items-center gap-2 mb-6">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-            <span className="text-yellow-600 text-sm">You have unsaved changes</span>
+        {hasChanges && !error && (
+          <div className="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2.5 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <span className="text-amber-400 text-sm">You have unsaved changes</span>
           </div>
         )}
+      </header>
 
-        {/* Content */}
-        <div className="space-y-6">
-          {children}
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-3 mt-8 pt-6 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={onReset}
-            disabled={!hasChanges || saving}
-          >
-            <RotateCcw className="w-4 h-4 mr-2" />
-            Discard
-          </Button>
-          <Button onClick={onSave} disabled={!hasChanges || saving}>
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
+      {/* ── Scrollable Content ─────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        {children}
       </div>
+
+      {/* ── Fixed Footer ───────────────────────────────────────────────── */}
+      <footer className="flex-shrink-0 flex items-center gap-3 px-6 py-3.5 bg-zinc-900 border-t border-zinc-800">
+        <button
+          onClick={onReset}
+          disabled={!hasChanges || saving}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            'bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700',
+            'disabled:opacity-30 disabled:cursor-not-allowed'
+          )}
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Discard
+        </button>
+        <button
+          onClick={onSave}
+          disabled={!hasChanges || saving}
+          className={cn(
+            'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold tracking-wide transition-colors',
+            'bg-emerald-500 text-white hover:bg-emerald-400 active:bg-emerald-600',
+            'disabled:opacity-30 disabled:cursor-not-allowed'
+          )}
+        >
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </footer>
     </div>
   )
 }

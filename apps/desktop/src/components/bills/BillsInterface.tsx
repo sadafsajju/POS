@@ -4,7 +4,7 @@ import { AlertCircle } from 'lucide-react'
 import apiClient from '@/api/client'
 import { BillsList } from './BillsList'
 import { BillDetailPanel } from './BillDetailPanel'
-import { useSettingsStore } from '@pos/core'
+import { useSettingsStore, useRequirePin } from '@pos/core'
 import type { Order, BillsFilters } from './types'
 
 /**
@@ -151,12 +151,15 @@ export function BillsInterface() {
     setSelectedOrderId(orderId)
   }, [])
 
-  const handleCancelOrder = useCallback(() => {
+  const requirePin = useRequirePin()
+
+  const handleCancelOrder = useCallback(async () => {
     if (!selectedOrder) return
-    if (confirm('Are you sure you want to cancel this order?')) {
+    const verified = await requirePin('Cancel Order', 'Enter PIN to cancel this order')
+    if (verified) {
       cancelOrderMutation.mutate(selectedOrder.id)
     }
-  }, [selectedOrder, cancelOrderMutation])
+  }, [selectedOrder, cancelOrderMutation, requirePin])
 
   const handleFilterChange = useCallback((key: keyof BillsFilters, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }))

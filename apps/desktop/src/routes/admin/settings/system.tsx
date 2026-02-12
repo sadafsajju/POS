@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Settings, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
@@ -13,6 +9,9 @@ import type { StoreSettings } from '@pos/types'
 export const Route = createFileRoute('/admin/settings/system')({
   component: SystemSettingsPage,
 })
+
+const selectClass = 'w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors appearance-none cursor-pointer'
+const inputClass = 'w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50 transition-colors'
 
 function SystemSettingsPage() {
   const { settings, isLoading, saveSettings } = useSettingsStore()
@@ -66,8 +65,8 @@ function SystemSettingsPage() {
 
   if (isLoading && !settings.theme) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
       </div>
     )
   }
@@ -83,77 +82,61 @@ function SystemSettingsPage() {
       onSave={handleSave}
       onReset={handleReset}
     >
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="theme">Theme</Label>
-            <Select
-              value={localSettings.theme || 'system'}
-              onValueChange={(value) =>
-                setLocalSettings({ ...localSettings, theme: value as StoreSettings['theme'] })
-              }
-            >
-              <SelectTrigger id="theme">
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Choose how the application appears
-            </p>
-          </div>
+      {/* Appearance & Backup */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-5">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-zinc-300">Theme</label>
+          <select
+            value={localSettings.theme || 'system'}
+            onChange={(e) =>
+              setLocalSettings({ ...localSettings, theme: e.target.value as StoreSettings['theme'] })
+            }
+            className={selectClass}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System</option>
+          </select>
+          <p className="text-xs text-zinc-500">Choose how the application appears</p>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="backupFrequency">Backup Frequency</Label>
-            <Select
-              value={localSettings.backupFrequency || 'daily'}
-              onValueChange={(value) =>
-                setLocalSettings({
-                  ...localSettings,
-                  backupFrequency: value as StoreSettings['backupFrequency'],
-                })
-              }
-            >
-              <SelectTrigger id="backupFrequency">
-                <SelectValue placeholder="Select frequency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="hourly">Hourly</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="manual">Manual Only</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              How often to automatically backup data
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-zinc-300">Backup Frequency</label>
+          <select
+            value={localSettings.backupFrequency || 'daily'}
+            onChange={(e) =>
+              setLocalSettings({
+                ...localSettings,
+                backupFrequency: e.target.value as StoreSettings['backupFrequency'],
+              })
+            }
+            className={selectClass}
+          >
+            <option value="hourly">Hourly</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="manual">Manual Only</option>
+          </select>
+          <p className="text-xs text-zinc-500">How often to automatically backup data</p>
+        </div>
+      </div>
 
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="notificationEmail">Notification Email</Label>
-            <Input
-              id="notificationEmail"
-              type="email"
-              value={localSettings.notificationEmail || ''}
-              onChange={(e) =>
-                setLocalSettings({ ...localSettings, notificationEmail: e.target.value })
-              }
-              placeholder="admin@restaurant.com"
-            />
-            <p className="text-xs text-muted-foreground">
-              Email address for system alerts and notifications
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Notifications */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-zinc-300">Notification Email</label>
+          <input
+            type="email"
+            value={localSettings.notificationEmail || ''}
+            onChange={(e) =>
+              setLocalSettings({ ...localSettings, notificationEmail: e.target.value })
+            }
+            placeholder="admin@restaurant.com"
+            className={inputClass}
+          />
+          <p className="text-xs text-zinc-500">Email address for system alerts and notifications</p>
+        </div>
+      </div>
     </SettingsPageLayout>
   )
 }

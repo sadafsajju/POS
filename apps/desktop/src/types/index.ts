@@ -20,6 +20,29 @@ export interface MetaData {
   total_pages: number;
 }
 
+// Organization & Location Types
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Location {
+  id: string;
+  org_id: string;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // User Types
 export interface User {
   id: string;
@@ -28,6 +51,8 @@ export interface User {
   first_name: string;
   last_name: string;
   role: 'admin' | 'manager' | 'cashier' | 'kitchen';
+  org_id: string;
+  location_id?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -41,6 +66,8 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string;
   user: User;
+  organization?: Organization;
+  location?: Location;
 }
 
 // Category Types
