@@ -8,6 +8,7 @@ import {
   X,
   User,
 } from 'lucide-react'
+import { useCustomerDisplayBroadcast } from '@pos/core'
 import type { DiningTable, Order, BillSummary } from './types'
 import type { PaidPaymentDetails } from './types'
 import { consolidateItems } from './utils/orderUtils'
@@ -44,6 +45,7 @@ export function PaymentOverlay({
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null)
   const [linkedCustomerName, setLinkedCustomerName] = useState<string | null>(null)
+  const { broadcastPaymentStart, broadcastPaymentComplete } = useCustomerDisplayBroadcast()
 
   const total = activeBill.aggregated_total
 
@@ -82,6 +84,8 @@ export function PaymentOverlay({
       } else {
         await apiClient.processCounterPayment(activeBill.bill.id, paymentData)
       }
+      const change = selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined
+      broadcastPaymentComplete(total, change)
       setStep('complete')
     } catch (error: any) {
       setPaymentError(error.message || 'Payment failed. Please try again.')
@@ -94,6 +98,7 @@ export function PaymentOverlay({
   const handleMethodSelect = (method: SelectedMethod) => {
     setSelectedMethod(method)
     setPaymentError(null)
+    broadcastPaymentStart(total, method)
 
     if (method === 'cash') {
       setStep('cash-amount')

@@ -9,12 +9,15 @@ import {
   ChefHat,
   Settings,
   LogOut,
-  User
+  Lock,
+  User,
+  LayoutDashboard,
+  Monitor,
 } from 'lucide-react'
 
 // Use shared packages
 import type { User as UserType } from '@pos/types'
-import { useAuthStore, useSyncStore } from '@pos/core'
+import { useAuthStore, useSyncStore, useCustomerDisplayStore } from '@pos/core'
 
 interface RoleBasedLayoutProps {
   user: UserType
@@ -22,8 +25,9 @@ interface RoleBasedLayoutProps {
 
 export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
   const [currentView, setCurrentView] = useState<string>(getDefaultView(user.role))
-  const { logout } = useAuthStore()
+  const { logout, lock } = useAuthStore()
   const { isOnline } = useSyncStore()
+  const { isOpen: isDisplayOpen, openWindow: openDisplay, closeWindow: closeDisplay } = useCustomerDisplayStore()
 
   function getDefaultView(role: string): string {
     switch (role) {
@@ -44,6 +48,11 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
   const handleLogout = () => {
     logout()
     window.location.href = '/login'
+  }
+
+  const handleLock = () => {
+    lock()
+    window.location.href = '/lock'
   }
 
   const getRoleConfig = (role: string) => {
@@ -193,8 +202,25 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
           </div>
 
           {/* Right Side - Actions */}
-          <div className="flex items-center gap-4">
-            {/* Logout Button */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={isDisplayOpen ? closeDisplay : openDisplay}
+              className={`flex items-center gap-2 ${isDisplayOpen ? 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10' : ''}`}
+            >
+              <Monitor className="w-4 h-4" />
+              Display
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLock}
+              className="flex items-center gap-2"
+            >
+              <Lock className="w-4 h-4" />
+              Lock
+            </Button>
             <Button
               variant="outline"
               size="sm"

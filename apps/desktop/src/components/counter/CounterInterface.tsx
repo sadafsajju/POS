@@ -19,7 +19,8 @@ import {
   UtensilsCrossed
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { useSettingsStore, useSyncStore, useOfflineOrder } from '@pos/core'
+import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast } from '@pos/core'
+import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
 
 // Types
@@ -64,6 +65,7 @@ export function CounterInterface() {
   const { settings } = useSettingsStore()
   const { isOnline } = useSyncStore()
   const queryClient = useQueryClient()
+  const { broadcastCartUpdate, broadcastIdle } = useCustomerDisplayBroadcast()
 
   // URL-based navigation state
   const search = posRoute.useSearch()
@@ -150,6 +152,32 @@ export function CounterInterface() {
     cart.setContext(selectedTable?.id || null, orderType)
   }, [selectedTable?.id, orderType, cart.setContext])
 
+  // Broadcast cart state to customer-facing display
+  useEffect(() => {
+    if (cart.cart.length === 0) {
+      broadcastIdle()
+      return
+    }
+
+    const taxRate = settings.taxRate || 0
+    const items: DisplayCartItem[] = cart.cart.map(item => {
+      const optionsAdj = (item.selectedOptions || []).reduce((s, o) => s + o.priceAdjustment, 0)
+      const comboAdj = (item.selectedComboChoices || []).reduce((s, c) => s + c.priceAdjustment, 0)
+      const unitPrice = item.product.price + optionsAdj + comboAdj
+      return {
+        name: item.product.name,
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal: unitPrice * item.quantity,
+      }
+    })
+    const subtotal = items.reduce((s, i) => s + i.lineTotal, 0)
+    const tax = subtotal * (taxRate / 100)
+    const total = subtotal + tax
+
+    broadcastCartUpdate(items, subtotal, tax, total)
+  }, [cart.cart, settings.taxRate, broadcastCartUpdate, broadcastIdle])
+
   // Queries
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
@@ -163,19 +191,22 @@ export function CounterInterface() {
 
   const { data: tables = [] } = useQuery({
     queryKey: ['tables'],
-    queryFn: () => apiClient.getTables().then(res => res.data)
+    queryFn: () => apiClient.getTables().then(res => res.data),
+    refetchInterval: 5 * 1000, // 5 seconds – table status must stay fresh
   })
 
   const { data: allOrders = [] } = useQuery({
     queryKey: ['allActiveOrders'],
-    queryFn: () => apiClient.getOrders().then(res => res.data)
+    queryFn: () => apiClient.getOrders().then(res => res.data),
+    refetchInterval: 5 * 1000, // 5 seconds – keep orders in sync across counter & kitchen
   })
 
   // Query for active bill on selected table (KOT support)
   const { data: activeBillData } = useQuery({
     queryKey: ['activeBill', selectedTable?.id],
     queryFn: () => selectedTable ? apiClient.getActiveBillForTable(selectedTable.id).then(res => res.data) : null,
-    enabled: !!selectedTable && orderType === 'dine_in' && isOnline
+    enabled: !!selectedTable && orderType === 'dine_in' && isOnline,
+    refetchInterval: 5000, // Keep KOT statuses fresh so cart reflects served state
   })
   const activeBill = activeBillData || null
 
@@ -184,6 +215,11 @@ export function CounterInterface() {
   const safeProducts = Array.isArray(products) ? products : []
   const safeTables = Array.isArray(tables) ? tables : []
   const safeAllOrders = Array.isArray(allOrders) ? allOrders : []
+
+  // Active tables count (tables that have non-completed, non-cancelled orders)
+  const activeTablesCount = useMemo(() => {
+    return safeTables.filter(table => getTableOrders(safeAllOrders, table.id).length > 0).length
+  }, [safeTables, safeAllOrders])
 
   // Filtered products by search
   const filteredProducts = safeProducts.filter(product =>
@@ -810,6 +846,12 @@ export function CounterInterface() {
                       <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
                         <UtensilsCrossed className="w-10 h-10" />
                         <span className="text-3xl font-bold">Dine-In</span>
+                        {activeTablesCount > 0 && (
+                          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-sm font-semibold">
+                            <TableIcon className="w-3.5 h-3.5" />
+                            {activeTablesCount} active {activeTablesCount === 1 ? 'table' : 'tables'}
+                          </span>
+                        )}
                       </span>
                     </button>
                   )}

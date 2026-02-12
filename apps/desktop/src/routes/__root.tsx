@@ -18,18 +18,24 @@ const queryClient = new QueryClient({
 
 // Gate that checks if initial setup is needed before rendering the app
 function SetupGate({ children }: { children: React.ReactNode }) {
-  const { needsSetup, isChecking, error, retry } = useSetupCheck()
   const pathname = window.location.pathname
+  const isCustomerDisplay = pathname === '/customer-display'
+  const { needsSetup, isChecking, error, retry } = useSetupCheck()
 
   useEffect(() => {
-    if (isChecking || error) return
+    if (isCustomerDisplay || isChecking || error) return
 
     if (needsSetup && pathname !== '/setup') {
       window.location.href = '/setup'
     } else if (!needsSetup && pathname === '/setup') {
       window.location.href = '/login'
     }
-  }, [needsSetup, isChecking, error, pathname])
+  }, [needsSetup, isChecking, error, pathname, isCustomerDisplay])
+
+  // Customer display is a standalone read-only window — skip all gates
+  if (isCustomerDisplay) {
+    return <>{children}</>
+  }
 
   // Loading state while checking setup status
   if (isChecking) {
@@ -79,9 +85,9 @@ function SettingsInitializer({ children }: { children: React.ReactNode }) {
   const { fetchSettings, isInitialized, settings } = useSettingsStore()
 
   useEffect(() => {
-    // Skip fetching settings on login and setup pages to avoid 401 errors
+    // Skip fetching settings on login, setup, lock, and customer-display pages
     const pathname = window.location.pathname
-    if (pathname === '/login' || pathname === '/setup') {
+    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display') {
       console.log('SettingsInitializer: On login/setup page, skipping fetch')
       return
     }
@@ -137,7 +143,7 @@ export const Route = createRootRoute({
     <QueryClientProvider client={queryClient}>
       <SetupGate>
         <SettingsInitializer>
-          <div className="min-h-screen bg-background">
+          <div className="h-screen overflow-hidden bg-background">
             <Outlet />
           </div>
         </SettingsInitializer>

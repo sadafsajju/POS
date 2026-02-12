@@ -8,9 +8,12 @@ import {
   Contact,
   Receipt,
   LogOut,
+  Lock,
+  Monitor,
 } from 'lucide-react'
 import type { User as UserType } from '@/types'
 import apiClient from '@/api/client'
+import { useAuthStore, useCustomerDisplayStore } from '@pos/core'
 
 // --- Nav items ---
 
@@ -60,9 +63,17 @@ interface AdminTopBarProps {
 }
 
 export function AdminTopBar({ user }: AdminTopBarProps) {
+  const { lock } = useAuthStore()
+  const { isOpen: isDisplayOpen, openWindow: openDisplay, closeWindow: closeDisplay } = useCustomerDisplayStore()
+
   const handleLogout = () => {
     apiClient.clearAuth()
     window.location.href = '/login'
+  }
+
+  const handleLock = () => {
+    lock()
+    window.location.href = '/lock'
   }
 
   return (
@@ -75,15 +86,35 @@ export function AdminTopBar({ user }: AdminTopBarProps) {
           {user.email}
         </p>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleLogout}
-        className="flex-shrink-0 h-10 px-3 gap-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800"
-      >
-        <LogOut className="w-4 h-4" />
-        <span className="hidden sm:inline text-sm">Logout</span>
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={isDisplayOpen ? closeDisplay : openDisplay}
+          className={`flex-shrink-0 h-10 px-3 gap-2 hover:bg-zinc-800 ${isDisplayOpen ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-400 hover:text-zinc-100'}`}
+        >
+          <Monitor className="w-4 h-4" />
+          <span className="hidden sm:inline text-sm">Display</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLock}
+          className="flex-shrink-0 h-10 px-3 gap-2 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800"
+        >
+          <Lock className="w-4 h-4" />
+          <span className="hidden sm:inline text-sm">Lock</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="flex-shrink-0 h-10 px-3 gap-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-800"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline text-sm">Logout</span>
+        </Button>
+      </div>
     </div>
   )
 }
