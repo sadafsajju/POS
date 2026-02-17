@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import apiClient from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,8 +54,6 @@ import { PaymentOverlay } from './PaymentOverlay'
 // Aggregator orders
 import { AggregatorOrders } from './AggregatorOrders'
 
-const posRoute = getRouteApi('/admin/pos')
-
 export function CounterInterface() {
   // Custom hooks
   const cart = useCart()
@@ -67,15 +65,16 @@ export function CounterInterface() {
   const queryClient = useQueryClient()
   const { broadcastCartUpdate, broadcastIdle } = useCustomerDisplayBroadcast()
 
-  // URL-based navigation state
-  const search = posRoute.useSearch()
+  // URL-based navigation state (works on both /admin/pos and / routes)
+  const routerState = useRouterState()
+  const search = (routerState.location.search as Record<string, string | undefined>) || {}
   const navigate = useNavigate()
 
   const isServer = getCurrentUserRole() === 'server'
   const defaultOrderType = (settings.cartSettings?.defaultOrderType as OrderType) || 'dine_in'
 
-  const activeTab: ActiveTab = search.view || (isServer ? 'tables' : 'order-type')
-  const orderType: OrderType = search.type || defaultOrderType
+  const activeTab: ActiveTab = (search.view as ActiveTab) || (isServer ? 'tables' : 'order-type')
+  const orderType: OrderType = (search.type as OrderType) || defaultOrderType
 
   // Determine which order types are enabled
   const enabledOrderTypes = useMemo(() => {
@@ -89,14 +88,14 @@ export function CounterInterface() {
   // Navigate by updating URL search params
   const navigateTo = useCallback((view: ActiveTab, type?: OrderType) => {
     navigate({
-      to: '/admin/pos',
+      to: routerState.location.pathname,
       search: {
         view: view === 'order-type' ? undefined : view,
         type: type ?? (view === 'order-type' ? undefined : orderType),
       },
       replace: true,
     })
-  }, [navigate, orderType])
+  }, [navigate, orderType, routerState.location.pathname])
 
   // Auto-skip order type selection when only one option is enabled
   useEffect(() => {
@@ -146,6 +145,13 @@ export function CounterInterface() {
   const isAdmin = isAdminOrManager()
   const userRole = getCurrentUserRole()
   const canProcessPayment = userRole !== 'server'
+
+  // Redirect to table selection if on create view with dine_in but no table selected (e.g. after page refresh)
+  useEffect(() => {
+    if (activeTab === 'create' && orderType === 'dine_in' && !selectedTable) {
+      navigateTo('tables', 'dine_in')
+    }
+  }, [activeTab, orderType, selectedTable, navigateTo])
 
   // Sync cart context with selected table and order type
   useEffect(() => {
@@ -653,7 +659,7 @@ export function CounterInterface() {
         setIsLoadingCombo(false)
       }
     } else {
-      // Configurable product: load option groups
+      // Configurable product: load option groups (includes variation groups from backend)
       setConfigProduct(product)
       setIsLoadingOptions(true)
       try {
@@ -1018,6 +1024,7 @@ export function CounterInterface() {
             onAddToCart={cart.addToCart}
             onRemoveFromCart={cart.removeFromCart}
             onRemoveItem={(productId, cartItemId) => cart.updateQuantity(productId, 0, cartItemId)}
+            onUpdateQuantity={cart.updateQuantity}
             onUpdateSpecialInstructions={cart.updateSpecialInstructions}
             onClearCart={cart.clearCart}
             onCreateOrder={handleCreateOrder}
