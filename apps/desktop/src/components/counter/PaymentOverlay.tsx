@@ -45,9 +45,12 @@ export function PaymentOverlay({
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null)
   const [linkedCustomerName, setLinkedCustomerName] = useState<string | null>(null)
+  const [paidTotal, setPaidTotal] = useState<number | null>(null) // Captured at payment time
   const { broadcastPaymentStart, broadcastPaymentComplete } = useCustomerDisplayBroadcast()
 
-  const total = activeBill.aggregated_total
+  const billTotal = activeBill.aggregated_total
+  const paidAmount = activeBill.paid_amount || 0
+  const total = paidTotal ?? Math.max(0, billTotal - paidAmount)
 
   // Consolidate all items from all KOTs + parent bill
   const allItems = [
@@ -67,11 +70,17 @@ export function PaymentOverlay({
       const paymentData: {
         payment_method: string
         amount: number
+        cash_received?: number
+        change_amount?: number
         customer_id?: string
         customer_name?: string
       } = {
         payment_method: method,
         amount: total,
+      }
+      if (method === 'cash' && cashReceivedNum > 0) {
+        paymentData.cash_received = cashReceivedNum
+        paymentData.change_amount = cashReceivedNum > total ? cashReceivedNum - total : 0
       }
       if (linkedCustomerId) {
         paymentData.customer_id = linkedCustomerId
@@ -85,6 +94,7 @@ export function PaymentOverlay({
         await apiClient.processCounterPayment(activeBill.bill.id, paymentData)
       }
       const change = selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined
+      setPaidTotal(total) // Lock the amount before activeBill refetches
       broadcastPaymentComplete(total, change)
       setStep('complete')
     } catch (error: any) {
@@ -121,6 +131,8 @@ export function PaymentOverlay({
       cash: selectedMethod === 'cash' ? total : 0,
       card: selectedMethod === 'card' ? total : 0,
       digital: selectedMethod === 'digital' ? total : 0,
+      cash_received: selectedMethod === 'cash' ? cashReceivedNum : undefined,
+      change_amount: selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined,
     }
 
     const orderForPrint: Order = {
@@ -206,8 +218,20 @@ export function PaymentOverlay({
               <span>{linkedCustomerName}</span>
             </div>
           )}
+          {paidAmount > 0 && (
+            <div className="space-y-1 mb-3">
+              <div className="flex justify-between text-sm text-zinc-500">
+                <span>Bill Total</span>
+                <span>{formatCurrency(billTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-emerald-400/70">
+                <span>Already Paid</span>
+                <span>−{formatCurrency(paidAmount)}</span>
+              </div>
+            </div>
+          )}
           <div className="flex justify-between items-center">
-            <span className="text-lg text-zinc-400">Total</span>
+            <span className="text-lg text-zinc-400">{paidAmount > 0 ? 'Due' : 'Total'}</span>
             <span className="text-3xl font-black text-zinc-100">{formatCurrency(total)}</span>
           </div>
         </div>

@@ -48,6 +48,7 @@ interface CartPanelProps {
   onAddToCart: (product: AddableProduct) => void
   onRemoveFromCart: (productId: string, cartItemId?: string) => void
   onRemoveItem: (productId: string, cartItemId?: string) => void
+  onUpdateQuantity: (productId: string, quantity: number, cartItemId?: string) => void
   onUpdateSpecialInstructions: (productId: string, instructions: string, cartItemId?: string) => void
   onClearCart: () => void
   onCreateOrder: (shouldPrint: boolean) => void
@@ -77,6 +78,7 @@ export function CartPanel({
   onAddToCart,
   onRemoveFromCart,
   onRemoveItem,
+  onUpdateQuantity,
   onUpdateSpecialInstructions,
   onClearCart,
   onCreateOrder,
@@ -136,8 +138,8 @@ export function CartPanel({
         <Card className="w-full max-w-md mx-4 bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-orange-500/15 flex items-center justify-center">
-                <DoorOpen className="w-6 h-6 text-orange-400" />
+              <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                <DoorOpen className="w-6 h-6 text-zinc-300" />
               </div>
               <div>
                 <CardTitle className="text-zinc-100">Clear Table</CardTitle>
@@ -161,7 +163,7 @@ export function CartPanel({
             </Button>
             <Button
               size="lg"
-              className="flex-1 h-14 bg-orange-600 hover:bg-orange-700 text-white"
+              className="flex-1 h-14 bg-emerald-500 hover:bg-emerald-400 text-zinc-800"
               onClick={() => {
                 setShowClearTableConfirm(false)
                 onClearTable?.()
@@ -223,7 +225,15 @@ export function CartPanel({
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
 
         {/* Previous KOTs - read-only (dine-in only) */}
-        {isDineIn && hasActiveBill && (
+        {isDineIn && hasActiveBill && (() => {
+          const paidAmt = activeBill?.paid_amount || 0
+          let runningTotal = 0
+          const kotPaidMap = new Map<string, boolean>()
+          for (const kot of activeKOTs) {
+            runningTotal += kot.total_amount
+            kotPaidMap.set(kot.id, runningTotal <= paidAmt + 0.01)
+          }
+          return (
           <div className="p-4 space-y-3">
             {activeKOTs.map((kot: Order) => (
               <div
@@ -244,6 +254,11 @@ export function CartPanel({
                     <Badge variant="outline" className="text-xs px-2 py-0.5 text-white border-zinc-600">
                       {kot.status}
                     </Badge>
+                    {kotPaidMap.get(kot.id) && (
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5">
+                        Paid
+                      </Badge>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
@@ -287,7 +302,8 @@ export function CartPanel({
               </div>
             ))}
           </div>
-        )}
+          )
+        })()}
 
         {/* Legacy fallback: non-KOT table orders (dine-in only) */}
         {isDineIn && !hasActiveBill && tableOrders.length > 0 && (
@@ -420,8 +436,8 @@ export function CartPanel({
                                   {idx > 0 && ', '}
                                   {i.name}
                                   {i.adj !== 0 && (
-                                    <span className={i.adj > 0 ? 'text-orange-500' : 'text-green-500'}>
-                                      {' '}({i.adj > 0 ? '+' : ''}{formatCurrency(i.adj)})
+                                    <span className={item.product.price === 0 && i.adj > 0 ? 'text-amber-400' : i.adj > 0 ? 'text-orange-500' : 'text-green-500'}>
+                                      {' '}({item.product.price === 0 && i.adj > 0 ? '' : i.adj > 0 ? '+' : ''}{formatCurrency(i.adj)})
                                     </span>
                                   )}
                                 </span>
@@ -494,7 +510,11 @@ export function CartPanel({
                       <Button
                         variant="outline"
                         size="lg"
-                        onClick={() => onAddToCart(item.product)}
+                        onClick={() =>
+                          item.cartItemId
+                            ? onUpdateQuantity(item.product.id, item.quantity + 1, item.cartItemId)
+                            : onAddToCart(item.product)
+                        }
                         className="h-12 w-12 p-0 rounded-none border-l-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                       >
                         <Plus className="h-5 w-5" />
@@ -550,12 +570,24 @@ export function CartPanel({
         <div className="border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
           {/* Summary rows */}
           <div className="border-b border-zinc-800">
-            {hasActiveBill && (
-              <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
-                <span>Session ({activeKOTs.length} KOT{activeKOTs.length !== 1 ? 's' : ''}):</span>
-                <span>{formatCurrency(activeBill?.aggregated_total || 0)}</span>
-              </div>
-            )}
+            {hasActiveBill && (() => {
+              const paidAmount = activeBill?.paid_amount || 0
+              const sessionTotal = activeBill?.aggregated_total || 0
+              return (
+                <>
+                  <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
+                    <span>Session ({activeKOTs.length} KOT{activeKOTs.length !== 1 ? 's' : ''}):</span>
+                    <span>{formatCurrency(sessionTotal)}</span>
+                  </div>
+                  {paidAmount > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-400/70 px-4 py-2 border-b border-zinc-800">
+                      <span>Paid:</span>
+                      <span>−{formatCurrency(paidAmount)}</span>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
             {hasNewItems && (
               <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
                 <span>New Items:</span>
@@ -566,7 +598,9 @@ export function CartPanel({
               <span>Total:</span>
               <span>{formatCurrency(
                 getTotalAmount() +
-                (hasActiveBill ? (activeBill?.aggregated_total || 0) : tableOrders.reduce((sum, order) => sum + order.total_amount, 0))
+                (hasActiveBill
+                  ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
+                  : tableOrders.reduce((sum, order) => sum + order.total_amount, 0))
               )}</span>
             </div>
           </div>
@@ -578,7 +612,9 @@ export function CartPanel({
               : cartSettings?.deliveryButtons
             const showSave = (buttons?.showSave !== false) && hasNewItems
             const showKot = (buttons?.showKot !== false) && hasNewItems
-            const showPay = (buttons?.showPay !== false) && (hasNewItems || hasActiveOrders) && activeBill?.bill?.status !== 'paid'
+            const billIsPaid = activeBill?.bill?.status === 'paid'
+            // Show Pay when: there are new items (even if bill was previously paid), or there are active unpaid orders
+            const showPay = (buttons?.showPay !== false) && (hasNewItems || (hasActiveOrders && !billIsPaid))
             const visibleCount = [showSave, showKot, showPay].filter(Boolean).length
 
             // 1 button = full-width blue primary
@@ -675,17 +711,27 @@ export function CartPanel({
               )
               return (
                 <div className="flex">
-                  <div className="flex-1 h-14 flex items-center justify-center gap-2 text-white bg-emerald-500 rounded-none">
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="text-base font-medium">Paid{!allKOTsServed ? ' — Awaiting Service' : ''}</span>
-                  </div>
-                  {onClearTable && (
+                  {!allKOTsServed ? (
+                    <button
+                      className="flex-1 h-14 flex items-center justify-center gap-2 text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 rounded-none cursor-pointer hover:bg-emerald-500/25 transition-colors"
+                      onClick={() => window.location.href = '/admin/kitchen'}
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="text-base font-medium">Paid — Awaiting Service</span>
+                      <ChefHat className="w-4 h-4 ml-1 opacity-60" />
+                    </button>
+                  ) : (
+                    <div className="flex-1 h-14 flex items-center justify-center gap-2 text-emerald-400 bg-zinc-800 border border-zinc-800 rounded-none">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="text-base font-medium">Paid</span>
+                    </div>
+                  )}
+                  {onClearTable && allKOTsServed && (
                     <Button
-                      className="flex-1 h-14 text-base rounded-none bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                      className="flex-1 h-14 text-base rounded-none bg-emerald-500 border-zinc-700 text-zinc-800 hover:bg-emerald-400"
                       variant="outline"
                       size="lg"
                       onClick={() => setShowClearTableConfirm(true)}
-                      disabled={!allKOTsServed}
                     >
                       <DoorOpen className="w-5 h-5 mr-2" />
                       Clear Table

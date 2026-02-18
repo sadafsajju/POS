@@ -14,6 +14,7 @@ import {
 import type { User as UserType } from '@/types'
 import apiClient from '@/api/client'
 import { useAuthStore, useCustomerDisplayStore } from '@pos/core'
+import { LocationSwitcher } from '@/components/ui/location-switcher'
 
 // --- Nav items ---
 
@@ -78,13 +79,16 @@ export function AdminTopBar({ user }: AdminTopBarProps) {
 
   return (
     <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800 px-4 py-2.5 flex items-center justify-between">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-zinc-100 truncate">
-          {user.first_name} {user.last_name}
-        </p>
-        <p className="text-xs text-zinc-400 truncate">
-          {user.email}
-        </p>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-zinc-100 truncate">
+            {user.first_name} {user.last_name}
+          </p>
+          <p className="text-xs text-zinc-400 truncate">
+            {user.email}
+          </p>
+        </div>
+        <LocationSwitcher />
       </div>
       <div className="flex items-center gap-1">
         <Button

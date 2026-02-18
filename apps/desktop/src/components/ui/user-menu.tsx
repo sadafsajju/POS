@@ -1,5 +1,5 @@
 import * as React from "react"
-import { User, Settings, Bell, LogOut } from "lucide-react"
+import { User, Settings, Bell, LogOut, Lock } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import apiClient from "@/api/client"
+import { useAuthStore } from "@pos/core"
 import type { User as UserType } from "@/types"
 
 interface UserMenuProps {
@@ -22,9 +23,16 @@ interface UserMenuProps {
 
 export function UserMenu({ user, collapsed = false, size = "md", variant = "default" }: UserMenuProps) {
   const isDark = variant === "dark"
+  const { lock } = useAuthStore()
+
   const handleLogout = () => {
     apiClient.clearAuth()
     window.location.href = '/login'
+  }
+
+  const handleLock = () => {
+    lock()
+    window.location.href = '/lock'
   }
 
   const sizeClasses = {
@@ -84,6 +92,10 @@ export function UserMenu({ user, collapsed = false, size = "md", variant = "defa
             <span>Notifications</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLock}>
+            <Lock className="mr-2 h-4 w-4" />
+            <span>Lock screen</span>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Log out</span>
@@ -140,6 +152,10 @@ export function UserMenu({ user, collapsed = false, size = "md", variant = "defa
           <span>Notifications</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLock}>
+          <Lock className="mr-2 h-4 w-4" />
+          <span>Lock screen</span>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>

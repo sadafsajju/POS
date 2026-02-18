@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { toastHelpers } from '@/lib/toast-helpers'
 import apiClient from '@/api/client'
 import type { ComboSlot, Product } from '@/types'
-import { Plus, Trash2, ChevronDown, ChevronUp, Package } from 'lucide-react'
+import { X, Search, Plus, GripVertical, Check, ChevronRight, ImageIcon } from 'lucide-react'
+import type { ProductVariationLinkResponse } from '@/types'
+
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
 
 /** Draft combo slot stored locally before product is saved */
 export interface DraftComboSlot {
@@ -20,6 +25,7 @@ export interface DraftComboSlot {
 
 export interface DraftComboSlotChoice {
   product_id: string
+  variation_item_id?: string
   product_name: string
   product_price: number
   price_override?: number | null
@@ -32,13 +38,32 @@ interface ComboSlotsEditorProps {
   onDraftSlotsChange?: (slots: DraftComboSlot[]) => void
 }
 
+interface PickerSelection {
+  product_id: string
+  variation_item_id?: string
+  product_name: string
+  product_price: number
+}
+
+/** Dialog state: which slot is picking products */
+interface PickerState {
+  slotKey: string
+  slotName: string
+  existingIds: Set<string>
+  onAdd: (selections: PickerSelection[]) => void
+}
+
 export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: ComboSlotsEditorProps) {
   const queryClient = useQueryClient()
-  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({})
+  const [picker, setPicker] = useState<PickerState | null>(null)
+  const [pickerSearch, setPickerSearch] = useState('')
+  // key = product_id or "product_id::variation_item_id"
+  const [pickerSelected, setPickerSelected] = useState<Map<string, { product_id: string; variation_item_id?: string; product_name: string; product_price: number }>>(new Map())
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set())
+  const [variationCache, setVariationCache] = useState<Record<string, ProductVariationLinkResponse[]>>({})
+  const [addingSlot, setAddingSlot] = useState(false)
   const [newSlotName, setNewSlotName] = useState('')
   const [newSlotRequired, setNewSlotRequired] = useState(true)
-  const [productSearch, setProductSearch] = useState<Record<string, string>>({})
-  const [priceOverrides, setPriceOverrides] = useState<Record<string, string>>({})
 
   const isDraftMode = !productId
 
@@ -72,6 +97,7 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
       queryClient.invalidateQueries({ queryKey: ['comboSlots', productId] })
       setNewSlotName('')
       setNewSlotRequired(true)
+      setAddingSlot(false)
       toastHelpers.success('Combo slot created')
     },
     onError: () => toastHelpers.error('Failed to create combo slot'),
@@ -87,10 +113,11 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
   })
 
   const addChoiceMutation = useMutation({
-    mutationFn: ({ slotId, choiceProductId, priceOverride }: { slotId: string; choiceProductId: string; priceOverride?: number | null }) =>
+    mutationFn: ({ slotId, choiceProductId, variationItemId }: { slotId: string; choiceProductId: string; variationItemId?: string }) =>
       apiClient.createComboSlotChoice(slotId, {
         product_id: choiceProductId,
-        price_override: priceOverride,
+        variation_item_id: variationItemId,
+        price_override: null,
         sort_order: 0,
       }),
     onSuccess: () => {
@@ -109,14 +136,9 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
     onError: () => toastHelpers.error('Failed to remove choice'),
   })
 
-  // --- Shared handlers ---
-  const toggleSlot = (key: string) => {
-    setExpandedSlots(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
+  // --- Handlers ---
   const handleAddSlot = () => {
     if (!newSlotName.trim()) return
-
     if (isDraftMode && onDraftSlotsChange && draftSlots) {
       onDraftSlotsChange([...draftSlots, {
         name: newSlotName.trim(),
@@ -126,6 +148,7 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
       }])
       setNewSlotName('')
       setNewSlotRequired(true)
+      setAddingSlot(false)
     } else {
       createSlotMutation.mutate()
     }
@@ -137,25 +160,23 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
     }
   }
 
-  const handleAddDraftChoice = (slotIndex: number, product: Product) => {
-    if (!onDraftSlotsChange || !draftSlots) return
-    const overrideStr = priceOverrides[`draft-${slotIndex}`]
-    const priceOverride = overrideStr && overrideStr.trim() !== '' ? parseFloat(overrideStr) : null
-
+  const handleAddDraftChoices = (slotIndex: number, selections: PickerSelection[]) => {
+    if (!onDraftSlotsChange || !draftSlots || selections.length === 0) return
     const updated = [...draftSlots]
+    const existing = updated[slotIndex].choices
+    const newChoices = selections.map((sel, i) => ({
+      product_id: sel.product_id,
+      variation_item_id: sel.variation_item_id,
+      product_name: sel.product_name,
+      product_price: sel.product_price,
+      price_override: null as number | null,
+      sort_order: existing.length + i,
+    }))
     updated[slotIndex] = {
       ...updated[slotIndex],
-      choices: [...updated[slotIndex].choices, {
-        product_id: product.id,
-        product_name: product.name,
-        product_price: product.price,
-        price_override: isNaN(priceOverride as number) ? null : priceOverride,
-        sort_order: updated[slotIndex].choices.length,
-      }],
+      choices: [...existing, ...newChoices],
     }
     onDraftSlotsChange(updated)
-    setProductSearch(prev => ({ ...prev, [`draft-${slotIndex}`]: '' }))
-    setPriceOverrides(prev => ({ ...prev, [`draft-${slotIndex}`]: '' }))
   }
 
   const handleDeleteDraftChoice = (slotIndex: number, choiceIndex: number) => {
@@ -168,298 +189,414 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
     onDraftSlotsChange(updated)
   }
 
-  const handleApiAddChoice = (slotId: string, choiceProductId: string) => {
-    const overrideStr = priceOverrides[slotId]
-    const priceOverride = overrideStr && overrideStr.trim() !== '' ? parseFloat(overrideStr) : null
-    addChoiceMutation.mutate({ slotId, choiceProductId, priceOverride: isNaN(priceOverride as number) ? null : priceOverride })
-    setProductSearch(prev => ({ ...prev, [slotId]: '' }))
-    setPriceOverrides(prev => ({ ...prev, [slotId]: '' }))
+  const handleApiAddChoices = (slotId: string, selections: PickerSelection[]) => {
+    for (const sel of selections) {
+      addChoiceMutation.mutate({ slotId, choiceProductId: sel.product_id, variationItemId: sel.variation_item_id })
+    }
   }
 
-  // Filter products for slot picker
-  const getAvailableProductsForApiSlot = (slot: ComboSlot) => {
-    const existingIds = new Set((slot.choices || []).map(c => c.product_id))
-    const search = (productSearch[slot.id] || '').toLowerCase()
-    return allProducts.filter(p =>
-      !existingIds.has(p.id) &&
-      (!search || p.name.toLowerCase().includes(search))
-    )
+  const toggleDraftRequired = (index: number) => {
+    if (!onDraftSlotsChange || !draftSlots) return
+    const updated = [...draftSlots]
+    updated[index] = { ...updated[index], is_required: !updated[index].is_required }
+    onDraftSlotsChange(updated)
   }
 
-  const getAvailableProductsForDraftSlot = (slot: DraftComboSlot, slotIndex: number) => {
-    const existingIds = new Set(slot.choices.map(c => c.product_id))
-    const search = (productSearch[`draft-${slotIndex}`] || '').toLowerCase()
-    return allProducts.filter(p =>
-      !existingIds.has(p.id) &&
-      (!search || p.name.toLowerCase().includes(search))
-    )
+  const openPicker = (slotKey: string, slotName: string, existingIds: Set<string>, onAdd: (selections: PickerSelection[]) => void) => {
+    setPicker({ slotKey, slotName, existingIds, onAdd })
+    setPickerSearch('')
+    setPickerSelected(new Map())
+    setExpandedProducts(new Set())
   }
 
-  const slotCount = isDraftMode ? (draftSlots?.length || 0) : apiSlots.length
+  const togglePickerItem = (key: string, info: { product_id: string; variation_item_id?: string; product_name: string; product_price: number }) => {
+    setPickerSelected(prev => {
+      const next = new Map(prev)
+      if (next.has(key)) next.delete(key)
+      else next.set(key, info)
+      return next
+    })
+  }
+
+  const toggleExpandProduct = async (product: Product) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev)
+      if (next.has(product.id)) next.delete(product.id)
+      else next.add(product.id)
+      return next
+    })
+    // Fetch variations if not cached
+    if (!variationCache[product.id]) {
+      try {
+        const resp = await apiClient.getProductVariationLinks(product.id)
+        if (Array.isArray(resp.data)) {
+          setVariationCache(prev => ({ ...prev, [product.id]: resp.data! }))
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const handleConfirmPicker = () => {
+    if (!picker) return
+    const selections: PickerSelection[] = Array.from(pickerSelected.values())
+    picker.onAdd(selections)
+    setPicker(null)
+    setPickerSelected(new Map())
+  }
+
+  const pickerProducts = picker
+    ? allProducts.filter(p =>
+        !picker.existingIds.has(p.id) &&
+        (!pickerSearch || p.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+      )
+    : []
 
   if (!isDraftMode && isLoading) {
-    return <div className="text-sm text-muted-foreground py-4">Loading combo slots...</div>
+    return <div className="text-sm text-zinc-500 py-4">Loading combo slots...</div>
   }
 
+  // Unified slot list
+  type SlotRow = {
+    key: string
+    name: string
+    isRequired: boolean
+    choices: { id?: string; name: string; price: number; priceOverride?: number | null }[]
+    existingIds: Set<string>
+    onDelete: () => void
+    onAddChoices: (selections: PickerSelection[]) => void
+    onDeleteChoice: (idx: number, choiceId?: string) => void
+    onToggleRequired: () => void
+  }
+
+  const slots: SlotRow[] = isDraftMode
+    ? (draftSlots || []).map((slot, index) => ({
+        key: `draft-${index}`,
+        name: slot.name,
+        isRequired: slot.is_required,
+        choices: slot.choices.map(c => ({ name: c.product_name, price: c.product_price, priceOverride: c.price_override })),
+        existingIds: new Set(slot.choices.map(c => c.product_id)),
+        onDelete: () => handleDeleteDraftSlot(index),
+        onAddChoices: (selections: PickerSelection[]) => handleAddDraftChoices(index, selections),
+        onDeleteChoice: (choiceIdx: number) => handleDeleteDraftChoice(index, choiceIdx),
+        onToggleRequired: () => toggleDraftRequired(index),
+      }))
+    : apiSlots.map(slot => ({
+        key: slot.id,
+        name: slot.name,
+        isRequired: slot.is_required,
+        choices: (slot.choices || []).map(c => ({ id: c.id, name: c.product?.name || 'Unknown', price: c.product?.price || 0, priceOverride: c.price_override })),
+        existingIds: new Set((slot.choices || []).map(c => c.product_id)),
+        onDelete: () => deleteSlotMutation.mutate(slot.id),
+        onAddChoices: (selections: PickerSelection[]) => handleApiAddChoices(slot.id, selections),
+        onDeleteChoice: (_idx: number, choiceId?: string) => { if (choiceId) deleteChoiceMutation.mutate(choiceId) },
+        onToggleRequired: () => {}, // API toggle not implemented yet
+      }))
+
   return (
-    <div className="space-y-4 mt-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Combo Slots</h3>
-        <Badge variant="secondary" className="text-xs">{slotCount} slots</Badge>
+    <>
+      <div className="space-y-5">
+        {/* Header */}
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-200">Build this combo</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">Add item options so your customers can customize this combo.</p>
+        </div>
+
+        {/* Table */}
+        <div>
+          {/* Column headers */}
+          <div className="flex items-center px-3 pb-2 border-b border-zinc-700">
+            <span className="flex-1 text-xs font-medium text-zinc-400">Combo choice</span>
+            <span className="w-8" />
+          </div>
+
+          {/* Slot rows */}
+          {slots.map((slot) => (
+            <div key={slot.key} className="border-b border-zinc-800 last:border-b-0">
+              {/* Slot row */}
+              <div className="flex items-center px-3 py-3 group">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <GripVertical className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                  <span className="text-sm text-zinc-200 font-medium truncate">{slot.name}</span>
+                  <span className="text-xs text-zinc-500">
+                    {slot.choices.length > 0 ? `${slot.choices.length} item${slot.choices.length > 1 ? 's' : ''}` : 'No items'}
+                  </span>
+                </div>
+                <div className="w-8 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={slot.onDelete}
+                    className="p-1 rounded text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Choices under the slot */}
+              <div className="pl-9 pr-3 pb-3 space-y-1.5">
+                {slot.choices.map((choice, idx) => (
+                  <div
+                    key={choice.id || idx}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 group/item"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GripVertical className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                      <span className="text-sm text-zinc-200 truncate">{choice.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {choice.priceOverride != null && (
+                        <span className="text-xs text-amber-400 font-medium">+${choice.priceOverride.toFixed(2)}</span>
+                      )}
+                      <span className="text-xs text-zinc-500">${choice.price.toFixed(2)}</span>
+                      <button
+                        type="button"
+                        onClick={() => slot.onDeleteChoice(idx, choice.id)}
+                        className="p-1 rounded text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover/item:opacity-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => openPicker(slot.key, slot.name, slot.existingIds, slot.onAddChoices)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {slot.choices.length > 0 ? 'Add item' : 'Add items to this choice'}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add options row */}
+          {!addingSlot ? (
+            <div className="px-3 py-3">
+              <button
+                type="button"
+                onClick={() => setAddingSlot(true)}
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add options
+              </button>
+            </div>
+          ) : (
+            <div className="px-3 py-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  placeholder="Choice name (e.g. Main, Side, Drink)"
+                  value={newSlotName}
+                  onChange={(e) => setNewSlotName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleAddSlot() }
+                    if (e.key === 'Escape') { setAddingSlot(false); setNewSlotName('') }
+                  }}
+                  className="h-8 text-sm flex-1 rounded-md bg-zinc-800 border border-zinc-700 px-3 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddSlot}
+                  disabled={!newSlotName.trim() || (!isDraftMode && createSlotMutation.isPending)}
+                  className="px-3 h-7 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAddingSlot(false); setNewSlotName('') }}
+                  className="px-3 h-7 rounded-md text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Draft mode: show draft slots */}
-      {isDraftMode && draftSlots?.map((slot, index) => {
-        const key = `draft-${index}`
-        const isExpanded = expandedSlots[key] !== false
-        const searchValue = productSearch[key] || ''
-        const available = getAvailableProductsForDraftSlot(slot, index)
+      {/* Product picker dialog */}
+      <Dialog open={!!picker} onOpenChange={(open) => { if (!open) { setPicker(null); setPickerSelected(new Map()) } }}>
+        <DialogContent className="max-w-md bg-zinc-900 border-zinc-800 flex flex-col max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Add products to "{picker?.slotName}"</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Select products to include in this combo slot.
+            </DialogDescription>
+          </DialogHeader>
 
-        return (
-          <Card key={key} className="border">
-            <CardHeader className="py-2 px-3 cursor-pointer" onClick={() => toggleSlot(key)}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">{slot.name}</CardTitle>
-                  {slot.is_required && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Required</Badge>}
-                  <span className="text-xs text-muted-foreground">{slot.choices.length} choices</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDraftSlot(index) }}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </div>
-            </CardHeader>
-
-            {isExpanded && (
-              <CardContent className="pt-0 px-3 pb-3 space-y-3">
-                {/* Current choices */}
-                {slot.choices.length > 0 && (
-                  <div className="space-y-1">
-                    {slot.choices.map((choice, choiceIdx) => (
-                      <div key={choiceIdx} className="flex items-center justify-between py-1.5 px-2 bg-muted/50 rounded text-sm">
-                        <span>{choice.product_name}</span>
-                        <div className="flex items-center gap-2">
-                          {choice.price_override != null ? (
-                            <span className="text-xs text-orange-600 font-medium">
-                              +${choice.price_override.toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-green-600">Included</span>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            onClick={() => handleDeleteDraftChoice(index, choiceIdx)}
-                          >
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add choice - product search */}
-                <div className="space-y-2 border-t pt-2">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Search products..."
-                      value={searchValue}
-                      onChange={(e) => setProductSearch(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="h-8 text-xs flex-1"
-                    />
-                    <Input
-                      placeholder="Extra $ (blank=included)"
-                      value={priceOverrides[key] || ''}
-                      onChange={(e) => setPriceOverrides(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="h-8 text-xs w-40"
-                      type="number"
-                      step="0.01"
-                    />
-                  </div>
-                  {searchValue && available.length > 0 && (
-                    <div className="max-h-32 overflow-y-auto border rounded bg-background">
-                      {available.slice(0, 10).map(product => (
-                        <button
-                          key={product.id}
-                          type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted flex items-center justify-between"
-                          onClick={() => handleAddDraftChoice(index, product)}
-                        >
-                          <span>{product.name}</span>
-                          <span className="text-muted-foreground">${product.price.toFixed(2)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {searchValue && available.length === 0 && (
-                    <p className="text-xs text-muted-foreground px-1">No matching products found</p>
-                  )}
-                </div>
-              </CardContent>
-            )}
-          </Card>
-        )
-      })}
-
-      {/* API mode: show existing slots */}
-      {!isDraftMode && apiSlots.map(slot => {
-        const isExpanded = expandedSlots[slot.id] !== false
-        const choices = slot.choices || []
-        const available = getAvailableProductsForApiSlot(slot)
-        const searchValue = productSearch[slot.id] || ''
-
-        return (
-          <Card key={slot.id} className="border">
-            <CardHeader className="py-2 px-3 cursor-pointer" onClick={() => toggleSlot(slot.id)}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">{slot.name}</CardTitle>
-                  {slot.is_required && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Required</Badge>}
-                  <span className="text-xs text-muted-foreground">{choices.length} choices</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => { e.stopPropagation(); deleteSlotMutation.mutate(slot.id) }}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </div>
-            </CardHeader>
-
-            {isExpanded && (
-              <CardContent className="pt-0 px-3 pb-3 space-y-3">
-                {/* Current choices */}
-                {choices.length > 0 && (
-                  <div className="space-y-1">
-                    {choices.map(choice => (
-                      <div key={choice.id} className="flex items-center justify-between py-1.5 px-2 bg-muted/50 rounded text-sm">
-                        <div className="flex items-center gap-2">
-                          <span>{choice.product?.name || 'Unknown product'}</span>
-                          {choice.product?.product_type === 'configurable' && (
-                            <Badge variant="outline" className="text-[10px]">Has options</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {choice.price_override != null && (
-                            <span className="text-xs text-orange-600 font-medium">
-                              +${choice.price_override.toFixed(2)}
-                            </span>
-                          )}
-                          {choice.price_override == null && (
-                            <span className="text-xs text-green-600">Included</span>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            onClick={() => deleteChoiceMutation.mutate(choice.id)}
-                          >
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add choice */}
-                <div className="space-y-2 border-t pt-2">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Search products..."
-                      value={searchValue}
-                      onChange={(e) => setProductSearch(prev => ({ ...prev, [slot.id]: e.target.value }))}
-                      className="h-8 text-xs flex-1"
-                    />
-                    <Input
-                      placeholder="Extra $ (blank=included)"
-                      value={priceOverrides[slot.id] || ''}
-                      onChange={(e) => setPriceOverrides(prev => ({ ...prev, [slot.id]: e.target.value }))}
-                      className="h-8 text-xs w-40"
-                      type="number"
-                      step="0.01"
-                    />
-                  </div>
-                  {searchValue && available.length > 0 && (
-                    <div className="max-h-32 overflow-y-auto border rounded bg-background">
-                      {available.slice(0, 10).map(product => (
-                        <button
-                          key={product.id}
-                          type="button"
-                          className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted flex items-center justify-between"
-                          onClick={() => handleApiAddChoice(slot.id, product.id)}
-                        >
-                          <span>{product.name}</span>
-                          <span className="text-muted-foreground">${product.price.toFixed(2)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {searchValue && available.length === 0 && (
-                    <p className="text-xs text-muted-foreground px-1">No matching products found</p>
-                  )}
-                </div>
-              </CardContent>
-            )}
-          </Card>
-        )
-      })}
-
-      {/* Add new slot */}
-      <Card className="border border-dashed">
-        <CardContent className="py-3 px-3">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Slot name (e.g., Main, Side, Drink)"
-              value={newSlotName}
-              onChange={(e) => setNewSlotName(e.target.value)}
-              className="h-8 text-sm flex-1"
-              onKeyDown={e => e.key === 'Enter' && handleAddSlot()}
-            />
-            <div className="flex items-center gap-1.5">
-              <Switch
-                checked={newSlotRequired}
-                onCheckedChange={setNewSlotRequired}
-                className="scale-75"
+          <div className="flex flex-col gap-3 min-h-0 flex-1">
+            {/* Search */}
+            <div className="relative shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+              <input
+                autoFocus
+                placeholder="Search products..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                className="w-full h-9 text-sm rounded-md bg-zinc-800 border border-zinc-700 pl-9 pr-3 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
               />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">Required</span>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              className="h-8"
-              disabled={!newSlotName.trim() || (!isDraftMode && createSlotMutation.isPending)}
-              onClick={handleAddSlot}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              Add Slot
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
-      {slotCount === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-2">
-          No combo slots yet. Add slots like "Main", "Side", "Drink" to build the combo.
-        </p>
-      )}
-    </div>
+            {/* Product list */}
+            <div className="overflow-y-auto min-h-0 flex-1 space-y-0.5">
+              {pickerProducts.length > 0 ? (
+                pickerProducts.map(product => {
+                  const hasVariations = product.has_option_groups
+                  const isExpanded = expandedProducts.has(product.id)
+                  const variations = variationCache[product.id] || []
+                  const variationItems = variations.flatMap(g => g.items)
+                  const isProductChecked = pickerSelected.has(product.id)
+
+                  return (
+                    <div key={product.id}>
+                      {/* Product row */}
+                      <div className={`
+                        flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+                        ${isProductChecked ? 'bg-primary/10 border border-primary/30' : 'hover:bg-zinc-800 border border-transparent'}
+                      `}>
+                        {/* Expand toggle for products with variations */}
+                        {hasVariations ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandProduct(product)}
+                            className="shrink-0 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                          >
+                            <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
+                        ) : (
+                          <span className="w-5" />
+                        )}
+
+                        {/* Checkbox (only for products WITHOUT variations) */}
+                        {!hasVariations ? (
+                          <button
+                            type="button"
+                            onClick={() => togglePickerItem(product.id, { product_id: product.id, product_name: product.name, product_price: product.price })}
+                            className="shrink-0"
+                          >
+                            <div className={`
+                              w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+                              ${isProductChecked ? 'bg-primary border-primary' : 'border-zinc-600 hover:border-zinc-400'}
+                            `}>
+                              {isProductChecked && <Check className="w-3 h-3 text-primary-foreground" />}
+                            </div>
+                          </button>
+                        ) : (
+                          <span className="w-5" />
+                        )}
+
+                        {/* Product image */}
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+                            alt={product.name}
+                            className="w-10 h-10 rounded-md object-cover shrink-0 bg-zinc-800"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center shrink-0">
+                            <ImageIcon className="w-4 h-4 text-zinc-600" />
+                          </div>
+                        )}
+
+                        {/* Product info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-zinc-200 font-medium truncate">{product.name}</p>
+                          <p className="text-xs text-zinc-500">
+                            {hasVariations
+                              ? `${variationItems.length || '...'} variation${variationItems.length !== 1 ? 's' : ''}`
+                              : `$${product.price.toFixed(2)}`
+                            }
+                          </p>
+                        </div>
+
+                        {/* Price for non-variation products */}
+                        {!hasVariations && (
+                          <span className="text-xs text-zinc-500 shrink-0">${product.price.toFixed(2)}</span>
+                        )}
+                      </div>
+
+                      {/* Variation items (expanded) */}
+                      {hasVariations && isExpanded && (
+                        <div className="ml-5 border-l border-zinc-800 pl-2 space-y-0.5 my-0.5">
+                          {variationItems.length > 0 ? variationItems.map(item => {
+                            const varKey = `${product.id}::${item.variation_item_id}`
+                            const isVarChecked = pickerSelected.has(varKey)
+                            return (
+                              <button
+                                key={varKey}
+                                type="button"
+                                onClick={() => togglePickerItem(varKey, {
+                                  product_id: product.id,
+                                  variation_item_id: item.variation_item_id,
+                                  product_name: `${product.name} - ${item.item_name}`,
+                                  product_price: item.price,
+                                })}
+                                className={`
+                                  w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors
+                                  ${isVarChecked ? 'bg-primary/10 border border-primary/30' : 'hover:bg-zinc-800 border border-transparent'}
+                                `}
+                              >
+                                <div className={`
+                                  w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors
+                                  ${isVarChecked ? 'bg-primary border-primary' : 'border-zinc-600 hover:border-zinc-400'}
+                                `}>
+                                  {isVarChecked && <Check className="w-3 h-3 text-primary-foreground" />}
+                                </div>
+                                <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center shrink-0">
+                                  <ImageIcon className="w-4 h-4 text-zinc-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-zinc-200 truncate">{item.item_name}</p>
+                                </div>
+                                <span className="text-xs text-zinc-500 shrink-0">${item.price.toFixed(2)}</span>
+                              </button>
+                            )
+                          }) : (
+                            <p className="text-xs text-zinc-500 px-3 py-2">Loading variations...</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="text-sm text-zinc-600 text-center py-6">
+                  {pickerSearch ? 'No matching products' : 'No more products available'}
+                </p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-800 shrink-0">
+              <span className="text-xs text-zinc-500">
+                {pickerSelected.size > 0 ? `${pickerSelected.size} selected` : 'None selected'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setPicker(null); setPickerSelected(new Map()) }}
+                  className="px-3 h-8 rounded-md text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPicker}
+                  disabled={pickerSelected.size === 0}
+                  className="px-4 h-8 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                >
+                  Add {pickerSelected.size > 0 ? `(${pickerSelected.size})` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

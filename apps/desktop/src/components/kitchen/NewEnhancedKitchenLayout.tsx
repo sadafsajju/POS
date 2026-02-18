@@ -235,17 +235,17 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              'flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px]',
               autoRefresh ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300',
             )}
           >
-            <span className={cn('w-1.5 h-1.5 rounded-full', autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600')} />
+            <span className={cn('w-2 h-2 rounded-full', autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600')} />
             {autoRefresh ? 'LIVE' : 'PAUSED'}
           </button>
           <button
             onClick={() => refetch()}
             disabled={isLoading}
-            className="p-2 rounded-md bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40"
+            className="p-3 rounded-lg bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 min-h-[44px] min-w-[44px]"
           >
             <svg className={cn('w-4 h-4', isLoading && 'animate-spin')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -255,7 +255,7 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
           <span className="text-xs text-zinc-500">{user.first_name}</span>
           <button
             onClick={handleLogout}
-            className="p-2 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            className="p-3 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors min-h-[44px] min-w-[44px]"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -265,7 +265,7 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
       </header>
 
       {/* ── Lanes ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
+      <div className="flex-1 flex overflow-x-auto overflow-y-hidden touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
         {totalActive === 0 && !isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -345,7 +345,7 @@ function Lane({
   );
 
   return (
-    <div className="flex-1 min-w-[340px] max-w-[480px] flex flex-col border-r border-zinc-800/60 last:border-r-0">
+    <div className="flex-1 min-w-[340px] max-w-[500px] flex flex-col border-r border-zinc-800/60 last:border-r-0">
       <div className={cn('flex-shrink-0 flex items-center justify-between px-4 py-2.5', meta.headerBg)}>
         <div className="flex items-center gap-2">
           <span className={cn('w-2.5 h-2.5 rounded-sm', meta.accent)} />
@@ -354,7 +354,7 @@ function Lane({
         <span className={cn('text-xl font-black tabular-nums', meta.headerText)}>{tickets.length}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
         {sorted.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-zinc-700 text-sm">No orders</div>
         ) : (
@@ -440,17 +440,17 @@ function Ticket({
       </div>
 
       {/* ── Items ─────────────────────────────────────────────────────────── */}
-      <div className="px-3 pb-2 space-y-1">
+      <div className="px-3 pb-3 space-y-0.5">
         {displayItems.map((item) => (
           <div key={item.id} className="flex flex-col">
             {lane === 'firing' ? (
               /* FIRING: tappable row — tap to mark ready */
               <button
                 onClick={() => onItemCheck(order.id, item)}
-                className="flex items-center gap-3 w-full text-left py-2.5 px-2 -mx-2 rounded-md transition-colors hover:bg-zinc-800 active:bg-zinc-700"
+                className="flex items-center gap-3 w-full text-left min-h-[48px] py-3 px-3 -mx-2 rounded-lg transition-colors hover:bg-zinc-800 active:bg-zinc-700 active:scale-[0.98]"
               >
-                <span className="flex-shrink-0 w-7 h-7 rounded-full border-2 border-zinc-600 flex items-center justify-center" />
-                <span className="flex-1 text-sm font-semibold text-zinc-200 leading-tight">
+                <span className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-zinc-600 flex items-center justify-center" />
+                <span className="flex-1 text-base font-semibold text-zinc-200 leading-tight">
                   <span className="text-zinc-400 font-bold mr-1">{item.quantity}x</span>
                   {item.product?.name || 'Item'}
                 </span>
@@ -459,14 +459,14 @@ function Ticket({
               /* READY: tap to serve */
               <button
                 onClick={() => onItemServe(order.id, item)}
-                className="flex items-center gap-3 w-full text-left py-2.5 px-2 -mx-2 rounded-md transition-colors hover:bg-zinc-800 active:bg-zinc-700"
+                className="flex items-center gap-3 w-full text-left min-h-[48px] py-3 px-3 -mx-2 rounded-lg transition-colors hover:bg-zinc-800 active:bg-zinc-700 active:scale-[0.98]"
               >
-                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-500 border-2 border-emerald-500 flex items-center justify-center">
+                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500 border-2 border-emerald-500 flex items-center justify-center">
                   <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 </span>
-                <span className="flex-1 text-sm font-semibold text-emerald-300 leading-tight">
+                <span className="flex-1 text-base font-semibold text-emerald-300 leading-tight">
                   <span className="text-emerald-500 font-bold mr-1">{item.quantity}x</span>
                   {item.product?.name || 'Item'}
                 </span>
@@ -483,12 +483,31 @@ function Ticket({
               </div>
             ) : (
               /* NEW: plain item list, no interaction */
-              <div className="flex items-center gap-3 py-1.5 px-2 -mx-2">
-                <span className="flex-shrink-0 w-2 h-2 rounded-full bg-zinc-600" />
-                <span className="flex-1 text-sm font-semibold text-zinc-200 leading-tight">
+              <div className="flex items-center gap-3 min-h-[44px] py-2.5 px-3 -mx-2">
+                <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-zinc-600" />
+                <span className="flex-1 text-base font-semibold text-zinc-200 leading-tight">
                   <span className="text-zinc-400 font-bold mr-1">{item.quantity}x</span>
                   {item.product?.name || 'Item'}
                 </span>
+              </div>
+            )}
+
+            {/* Combo sub-items */}
+            {Array.isArray(item.combo_choices) && item.combo_choices.length > 0 && lane !== 'done' && (
+              <div className={cn('mb-1 space-y-0.5', lane === 'firing' || lane === 'ready' ? 'ml-10' : 'ml-5')}>
+                {item.combo_choices.map((choice, idx) => (
+                  <div key={idx} className="text-xs text-zinc-400">
+                    <span className="text-zinc-500">•</span> {choice.product_name}
+                    {choice.selected_options && (() => {
+                      const opts = typeof choice.selected_options === 'string' ? (() => { try { return JSON.parse(choice.selected_options) } catch { return [] } })() : choice.selected_options
+                      return Array.isArray(opts) && opts.length > 0 ? (
+                        <span className="text-zinc-600 ml-1">
+                          ({opts.map((o: any) => o.option_name || o.name).join(', ')})
+                        </span>
+                      ) : null
+                    })()}
+                  </div>
+                ))}
               </div>
             )}
 
@@ -520,7 +539,7 @@ function Ticket({
       {lane === 'new' && (
         <button
           onClick={() => onStatusUpdate(order.id, 'preparing')}
-          className="w-full py-4 text-base font-black tracking-wider text-white bg-amber-500 hover:bg-amber-400 active:bg-amber-600 transition-colors"
+          className="w-full min-h-[56px] py-4 text-lg font-black tracking-wider text-white bg-amber-500 hover:bg-amber-400 active:bg-amber-600 active:scale-[0.98] transition-all"
         >
           START
         </button>
@@ -531,7 +550,7 @@ function Ticket({
           onClick={() => {
             displayItems.forEach((item) => onItemServe(order.id, item));
           }}
-          className="w-full py-3.5 text-sm font-black tracking-wider text-white bg-sky-500 hover:bg-sky-400 active:bg-sky-600 transition-colors"
+          className="w-full min-h-[56px] py-4 text-base font-black tracking-wider text-white bg-sky-500 hover:bg-sky-400 active:bg-sky-600 active:scale-[0.98] transition-all"
         >
           SERVE ALL ({displayItems.length})
         </button>

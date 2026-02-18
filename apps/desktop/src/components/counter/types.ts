@@ -85,6 +85,8 @@ export interface PaidPaymentDetails {
   cash: number
   card: number
   digital: number
+  cash_received?: number
+  change_amount?: number
 }
 
 // Create order request structure

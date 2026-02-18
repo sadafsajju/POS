@@ -1,11 +1,9 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
-import { 
-  TextInputField, 
+import {
+  TextInputField,
   TextareaField,
   NumberInputField,
   FormSubmitButton
@@ -29,7 +27,7 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
 
   // Choose the appropriate schema and default values
   const schema = isEditing ? updateCategorySchema : createCategorySchema
-  const defaultValues = isEditing 
+  const defaultValues = isEditing
     ? {
         id: category.id,
         name: category.name,
@@ -52,7 +50,7 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
   // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: CreateCategoryData) => apiClient.createCategory(data),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
@@ -65,10 +63,10 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
     },
   })
 
-  // Update mutation  
+  // Update mutation
   const updateMutation = useMutation({
     mutationFn: (data: UpdateCategoryData) => apiClient.updateCategory(data.id.toString(), data),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
@@ -91,25 +89,24 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
   const isLoading = createMutation.isPending || updateMutation.isPending
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>
+    <div className="w-full max-w-2xl mx-auto rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-200">
           {isEditing ? 'Edit Category' : 'Create New Category'}
-        </CardTitle>
+        </h3>
         {onCancel && (
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={onCancel}
             disabled={isLoading}
+            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-40"
           >
             <X className="h-4 w-4" />
-          </Button>
+          </button>
         )}
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="p-5">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             {/* Basic Information */}
             <div className="space-y-4">
               <TextInputField
@@ -119,7 +116,7 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
                 placeholder="Enter category name"
                 description="The name that will appear in the menu sections"
               />
-              
+
               <TextareaField
                 control={form.control}
                 name="description"
@@ -148,13 +145,13 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
                 max={999}
                 description="Lower numbers appear first in menus"
               />
-              
+
               {/* Empty column for layout balance */}
               <div />
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-3 border-t border-zinc-800">
               <FormSubmitButton
                 isLoading={isLoading}
                 loadingText={isEditing ? "Updating..." : "Creating..."}
@@ -162,22 +159,21 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
               >
                 {isEditing ? 'Update Category' : 'Create Category'}
               </FormSubmitButton>
-              
+
               {onCancel && (
-                <Button
+                <button
                   type="button"
-                  variant="outline"
                   onClick={onCancel}
                   disabled={isLoading}
-                  className="flex-1"
+                  className="flex-1 px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors disabled:opacity-40"
                 >
                   Cancel
-                </Button>
+                </button>
               )}
             </div>
           </form>
         </Form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

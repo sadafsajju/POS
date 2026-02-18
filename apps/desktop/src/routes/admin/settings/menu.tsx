@@ -5,5 +5,9 @@ export const Route = createFileRoute('/admin/settings/menu')({
 })
 
 function MenuLayout() {
-  return <Outlet />
+  return (
+    <div className="h-full overflow-hidden">
+      <Outlet />
+    </div>
+  )
 }

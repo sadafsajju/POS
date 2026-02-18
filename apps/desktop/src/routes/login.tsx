@@ -57,7 +57,7 @@ function LoginPage() {
     },
     onSuccess: (data) => {
       if (data.success && data.data) {
-        authLogin(data.data.user, data.data.token, data.data.organization, data.data.location)
+        authLogin(data.data.user, data.data.token, data.data.organization, data.data.location, data.data.locations)
         setLoggedInUser(data.data.user)
         const role = data.data.user.role
         setTimeout(() => {
@@ -93,8 +93,8 @@ function LoginPage() {
   // Show loading while auth store is hydrating
   if (!_hasHydrated || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
       </div>
     )
   }
@@ -105,8 +105,8 @@ function LoginPage() {
       window.location.href = '/'
     }
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-600" />
       </div>
     )
   }

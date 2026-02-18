@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,6 +34,9 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 	optionHandler := handlers.NewOptionHandler(db)
 	comboHandler := handlers.NewComboHandler(db)
 	webhookHandler := handlers.NewWebhookHandler(db)
+	promoHandler := handlers.NewPromoHandler(db)
+	variationHandler := handlers.NewVariationHandler(db)
+	mediaHandler := handlers.NewMediaHandler(db)
 
 	// Public routes (no authentication required)
 	public := router.Group("/")
@@ -45,6 +49,9 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		// Setup routes (first-time installation)
 		public.GET("/setup/check", checkSetupStatus(db))
 		public.POST("/setup/admin", createInitialAdmin(db))
+
+		// Public promos (for customer display, no auth)
+		public.GET("/promos", promoHandler.ListPublicPromos)
 	}
 
 	// Webhook routes (authenticated via HMAC signature, not JWT)
@@ -62,8 +69,10 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 	{
 		// Authentication routes
 		protected.GET("/auth/me", authHandler.GetCurrentUser)
+		protected.GET("/auth/pin-status", authHandler.PinStatus)
 		protected.POST("/auth/verify-pin", authHandler.VerifyPin)
 		protected.PUT("/auth/pin", authHandler.UpdatePin)
+		protected.POST("/auth/switch-location", authHandler.SwitchLocation)
 
 		// Settings - read-only for all authenticated users
 		protected.GET("/settings", settingsHandler.GetSettings)
@@ -77,6 +86,11 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		// Product option groups (read-only for all authenticated users)
 		protected.GET("/products/:id/option-groups", optionHandler.GetOptionGroupsByProduct)
 		protected.GET("/products/:id/combo-slots", comboHandler.GetComboSlotsByProduct)
+
+		// Global variations (read-only for all authenticated users)
+		protected.GET("/variations", variationHandler.ListVariationGroups)
+		protected.GET("/variations/:id", variationHandler.GetVariationGroup)
+		protected.GET("/products/:id/variation-links", variationHandler.GetProductVariationLinks)
 
 		// Table routes
 		protected.GET("/tables", tableHandler.GetTables)
@@ -182,6 +196,16 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		admin.PUT("/option-items/:item_id", optionHandler.UpdateOptionItem)
 		admin.DELETE("/option-items/:item_id", optionHandler.DeleteOptionItem)
 
+		// Global variation group management
+		admin.GET("/variations", variationHandler.ListVariationGroups)
+		admin.POST("/variations", variationHandler.CreateVariationGroup)
+		admin.GET("/variations/:id", variationHandler.GetVariationGroup)
+		admin.PUT("/variations/:id", variationHandler.UpdateVariationGroup)
+		admin.DELETE("/variations/:id", variationHandler.DeleteVariationGroup)
+		admin.POST("/variation-groups/:group_id/items", variationHandler.CreateVariationItem)
+		admin.DELETE("/variation-items/:item_id", variationHandler.DeleteVariationItem)
+		admin.PUT("/products/:id/variation-links", variationHandler.LinkVariationsToProduct)
+
 		// Combo slot management
 		admin.POST("/products/:id/combo-slots", comboHandler.CreateComboSlot)
 		admin.PUT("/products/:id/combo-slots/:slot_id", comboHandler.UpdateComboSlot)
@@ -213,6 +237,20 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		admin.GET("/aggregator-orders", orderHandler.GetAggregatorOrders)              // List aggregator orders
 		admin.POST("/orders/:id/accept-aggregator", orderHandler.AcceptAggregatorOrder) // Accept aggregator order
 		admin.POST("/orders/:id/reject-aggregator", orderHandler.RejectAggregatorOrder) // Reject aggregator order
+		// Promo management
+		admin.GET("/promos", promoHandler.ListPromos)
+		admin.POST("/promos/upload", promoHandler.UploadPromo)
+		admin.POST("/promos/from-media", promoHandler.CreatePromoFromMedia)
+		admin.DELETE("/promos/:id", promoHandler.DeletePromo)
+		admin.PUT("/promos/reorder", promoHandler.ReorderPromos)
+		admin.PUT("/promos/:id/toggle", promoHandler.TogglePromo)
+		admin.PUT("/promos/:id/duration", promoHandler.UpdatePromoDuration)
+
+		// Media library
+		admin.GET("/media", mediaHandler.ListMedia)
+		admin.POST("/media/upload", mediaHandler.UploadMedia)
+		admin.DELETE("/media/:id", mediaHandler.DeleteMedia)
+
 		// Platform configuration (Swiggy/Zomato)
 		admin.GET("/platform-configs", settingsHandler.GetPlatformConfigs)
 		admin.GET("/platform-configs/:platform", settingsHandler.GetPlatformConfig)
@@ -1248,17 +1286,20 @@ func createProduct(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var req struct {
-			CategoryID      *string `json:"category_id"`
-			Name            string  `json:"name" binding:"required"`
-			Description     *string `json:"description"`
-			Price           float64 `json:"price" binding:"required"`
-			ImageURL        *string `json:"image_url"`
-			Barcode         *string `json:"barcode"`
-			SKU             *string `json:"sku"`
-			PreparationTime int     `json:"preparation_time"`
-			SortOrder       int     `json:"sort_order"`
-			DietaryType     *string `json:"dietary_type"`  // veg, non-veg, egg, vegan
-			ProductType     *string `json:"product_type"`  // simple, configurable, combo
+			CategoryID      *string  `json:"category_id"`
+			Name            string   `json:"name" binding:"required"`
+			Description     *string  `json:"description"`
+			Price           float64  `json:"price"`
+			ImageURL        *string  `json:"image_url"`
+			Barcode         *string  `json:"barcode"`
+			SKU             *string  `json:"sku"`
+			PreparationTime int      `json:"preparation_time"`
+			SortOrder       int      `json:"sort_order"`
+			DietaryType     *string  `json:"dietary_type"`  // veg, non-veg, egg, vegan
+			CalorieCount    *int     `json:"calorie_count"`
+			FoodAllergens   *string  `json:"food_allergens"`
+			ProductType     *string  `json:"product_type"`  // simple, configurable, combo
+			LocationIDs     []string `json:"location_ids"`  // nil = all locations
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -1276,12 +1317,18 @@ func createProduct(db *sql.DB) gin.HandlerFunc {
 			productType = *req.ProductType
 		}
 
+		// Convert empty location_ids to nil (NULL = all locations)
+		var locationIDs interface{}
+		if len(req.LocationIDs) > 0 {
+			locationIDs = pq.Array(req.LocationIDs)
+		}
+
 		var productID string
 		err := db.QueryRow(`
-			INSERT INTO products (category_id, name, description, price, image_url, barcode, sku, preparation_time, sort_order, dietary_type, product_type, org_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			INSERT INTO products (category_id, name, description, price, image_url, barcode, sku, preparation_time, sort_order, dietary_type, calorie_count, food_allergens, product_type, org_id, location_ids)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 			RETURNING id
-		`, req.CategoryID, req.Name, req.Description, req.Price, req.ImageURL, req.Barcode, req.SKU, req.PreparationTime, req.SortOrder, req.DietaryType, productType, orgID).Scan(&productID)
+		`, req.CategoryID, req.Name, req.Description, req.Price, req.ImageURL, req.Barcode, req.SKU, req.PreparationTime, req.SortOrder, req.DietaryType, req.CalorieCount, req.FoodAllergens, productType, orgID, locationIDs).Scan(&productID)
 
 		if err != nil {
 			c.JSON(500, gin.H{
@@ -1310,6 +1357,14 @@ func updateProduct(db *sql.DB) gin.HandlerFunc {
 		}
 		productID := c.Param("id")
 
+		// Read raw body so we can parse location_ids separately
+		// (Gin's ShouldBindJSON doesn't handle *[]string correctly)
+		bodyBytes, readErr := io.ReadAll(c.Request.Body)
+		if readErr != nil {
+			c.JSON(400, gin.H{"success": false, "message": "Failed to read request body"})
+			return
+		}
+
 		var req struct {
 			CategoryID      *string  `json:"category_id"`
 			Name            *string  `json:"name"`
@@ -1321,17 +1376,29 @@ func updateProduct(db *sql.DB) gin.HandlerFunc {
 			IsAvailable     *bool    `json:"is_available"`
 			PreparationTime *int     `json:"preparation_time"`
 			SortOrder       *int     `json:"sort_order"`
-			DietaryType     *string  `json:"dietary_type"`  // veg, non-veg, egg, vegan
-			ProductType     *string  `json:"product_type"`  // simple, configurable, combo
+			DietaryType     *string  `json:"dietary_type"`
+			CalorieCount    *int     `json:"calorie_count"`
+			FoodAllergens   *string  `json:"food_allergens"`
+			ProductType     *string  `json:"product_type"`
 		}
 
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
 			c.JSON(400, gin.H{
 				"success": false,
 				"message": "Invalid request body",
 				"error":   err.Error(),
 			})
 			return
+		}
+
+		// Parse location_ids separately to distinguish not-sent vs empty vs populated
+		var rawFields map[string]json.RawMessage
+		json.Unmarshal(bodyBytes, &rawFields)
+		var locationIDsSent bool
+		var locationIDs []string
+		if raw, exists := rawFields["location_ids"]; exists {
+			locationIDsSent = true
+			json.Unmarshal(raw, &locationIDs) // will be nil for JSON null, empty for [], populated for [...]
 		}
 
 		// Build dynamic update query
@@ -1394,10 +1461,30 @@ func updateProduct(db *sql.DB) gin.HandlerFunc {
 			args = append(args, req.DietaryType)
 			argCount++
 		}
+		if req.CalorieCount != nil {
+			updates = append(updates, fmt.Sprintf("calorie_count = $%d", argCount))
+			args = append(args, *req.CalorieCount)
+			argCount++
+		}
+		if req.FoodAllergens != nil {
+			updates = append(updates, fmt.Sprintf("food_allergens = $%d", argCount))
+			args = append(args, *req.FoodAllergens)
+			argCount++
+		}
 		if req.ProductType != nil && (*req.ProductType == "simple" || *req.ProductType == "configurable" || *req.ProductType == "combo") {
 			updates = append(updates, fmt.Sprintf("product_type = $%d", argCount))
 			args = append(args, *req.ProductType)
 			argCount++
+		}
+		if locationIDsSent {
+			if len(locationIDs) == 0 {
+				// Empty array or null means "all locations" => store as NULL
+				updates = append(updates, "location_ids = NULL")
+			} else {
+				updates = append(updates, fmt.Sprintf("location_ids = $%d", argCount))
+				args = append(args, pq.Array(locationIDs))
+				argCount++
+			}
 		}
 
 		if len(updates) == 0 {
@@ -1513,6 +1600,8 @@ func createTable(db *sql.DB) gin.HandlerFunc {
 			SeatingCapacity int     `json:"seating_capacity"`
 			Location        *string `json:"location"`
 			Floor           *string `json:"floor"`
+			Status          *string `json:"status"`
+			LocationID      *string `json:"location_id"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -1524,14 +1613,43 @@ func createTable(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Use provided location_id if given (admin assigning to specific location), otherwise use JWT location
+		targetLocationID := locationID
+		if req.LocationID != nil && *req.LocationID != "" {
+			parsed, err := uuid.Parse(*req.LocationID)
+			if err != nil {
+				c.JSON(400, gin.H{
+					"success": false,
+					"message": "Invalid location_id format",
+					"error":   err.Error(),
+				})
+				return
+			}
+			targetLocationID = parsed
+		}
+
+		// Default status to 'available'
+		tableStatus := "available"
+		if req.Status != nil && *req.Status != "" {
+			tableStatus = *req.Status
+		}
+
 		var tableID string
 		err := db.QueryRow(`
-			INSERT INTO dining_tables (table_number, seating_capacity, location, floor, org_id, location_id)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			INSERT INTO dining_tables (table_number, seating_capacity, location, floor, status, org_id, location_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id
-		`, req.TableNumber, req.SeatingCapacity, req.Location, req.Floor, orgID, locationID).Scan(&tableID)
+		`, req.TableNumber, req.SeatingCapacity, req.Location, req.Floor, tableStatus, orgID, targetLocationID).Scan(&tableID)
 
 		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+				c.JSON(409, gin.H{
+					"success": false,
+					"message": "A table with this number already exists at the selected location",
+					"error":   "duplicate_table_number",
+				})
+				return
+			}
 			c.JSON(500, gin.H{
 				"success": false,
 				"message": "Failed to create table",
@@ -1564,7 +1682,9 @@ func updateTable(db *sql.DB) gin.HandlerFunc {
 			SeatingCapacity *int    `json:"seating_capacity"`
 			Location        *string `json:"location"`
 			Floor           *string `json:"floor"`
+			Status          *string `json:"status"`
 			IsOccupied      *bool   `json:"is_occupied"`
+			LocationID      *string `json:"location_id"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -1601,9 +1721,32 @@ func updateTable(db *sql.DB) gin.HandlerFunc {
 			args = append(args, req.Floor)
 			argCount++
 		}
-		if req.IsOccupied != nil {
+		if req.Status != nil {
+			updates = append(updates, fmt.Sprintf("status = $%d", argCount))
+			args = append(args, *req.Status)
+			argCount++
+			// Sync is_occupied from status
+			isOccupied := *req.Status == "occupied"
+			updates = append(updates, fmt.Sprintf("is_occupied = $%d", argCount))
+			args = append(args, isOccupied)
+			argCount++
+		} else if req.IsOccupied != nil {
 			updates = append(updates, fmt.Sprintf("is_occupied = $%d", argCount))
 			args = append(args, *req.IsOccupied)
+			argCount++
+		}
+		if req.LocationID != nil && *req.LocationID != "" {
+			parsed, err := uuid.Parse(*req.LocationID)
+			if err != nil {
+				c.JSON(400, gin.H{
+					"success": false,
+					"message": "Invalid location_id format",
+					"error":   err.Error(),
+				})
+				return
+			}
+			updates = append(updates, fmt.Sprintf("location_id = $%d", argCount))
+			args = append(args, parsed)
 			argCount++
 		}
 
@@ -1630,6 +1773,14 @@ func updateTable(db *sql.DB) gin.HandlerFunc {
 
 		result, err := db.Exec(query, args...)
 		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+				c.JSON(409, gin.H{
+					"success": false,
+					"message": "A table with this number already exists at the selected location",
+					"error":   "duplicate_table_number",
+				})
+				return
+			}
 			c.JSON(500, gin.H{
 				"success": false,
 				"message": "Failed to update table",
@@ -1718,14 +1869,15 @@ func createUser(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var req struct {
-			Username   string  `json:"username" binding:"required"`
-			Email      string  `json:"email" binding:"required"`
-			Password   string  `json:"password" binding:"required"`
-			FirstName  string  `json:"first_name" binding:"required"`
-			LastName   string  `json:"last_name" binding:"required"`
-			Role       string  `json:"role" binding:"required"`
-			Pin        string  `json:"pin"`
-			LocationID *string `json:"location_id"` // optional: assign to specific location
+			Username    string   `json:"username" binding:"required"`
+			Email       string   `json:"email" binding:"required"`
+			Password    string   `json:"password" binding:"required"`
+			FirstName   string   `json:"first_name" binding:"required"`
+			LastName    string   `json:"last_name" binding:"required"`
+			Role        string   `json:"role" binding:"required"`
+			Pin         string   `json:"pin"`
+			LocationID  *string  `json:"location_id"`  // backward compat: single location
+			LocationIDs []string `json:"location_ids"` // multi-location assignment
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -1772,10 +1924,21 @@ func createUser(db *sql.DB) gin.HandlerFunc {
 			pinHash = &pinHashStr
 		}
 
-		// Determine target location: use request value, or fall back to caller's location
-		targetLocationID := locationID
-		if req.LocationID != nil && *req.LocationID != "" {
-			targetLocationID, _ = uuid.Parse(*req.LocationID)
+		// Build location list: prefer location_ids, fall back to location_id, then caller's location
+		locationIDsList := req.LocationIDs
+		if len(locationIDsList) == 0 && req.LocationID != nil && *req.LocationID != "" {
+			locationIDsList = []string{*req.LocationID}
+		}
+
+		// Determine primary location for users.location_id
+		var targetLocationID interface{} = nil
+		if len(locationIDsList) > 0 {
+			parsed, parseErr := uuid.Parse(locationIDsList[0])
+			if parseErr == nil {
+				targetLocationID = parsed
+			}
+		} else if locationID != uuid.Nil {
+			targetLocationID = locationID
 		}
 
 		var userID string
@@ -1792,6 +1955,20 @@ func createUser(db *sql.DB) gin.HandlerFunc {
 				"error":   err.Error(),
 			})
 			return
+		}
+
+		// Insert user_locations junction entries
+		if len(locationIDsList) > 0 {
+			parsedUserID, _ := uuid.Parse(userID)
+			for i, locIDStr := range locationIDsList {
+				locUUID, parseErr := uuid.Parse(locIDStr)
+				if parseErr != nil {
+					continue
+				}
+				isPrimary := i == 0
+				db.Exec(`INSERT INTO user_locations (user_id, location_id, is_primary) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+					parsedUserID, locUUID, isPrimary)
+			}
 		}
 
 		c.JSON(201, gin.H{
@@ -1814,16 +1991,21 @@ func updateUser(db *sql.DB) gin.HandlerFunc {
 		}
 
 		var req struct {
-			Username   *string `json:"username"`
-			Email      *string `json:"email"`
-			Password   *string `json:"password"`
-			FirstName  *string `json:"first_name"`
-			LastName   *string `json:"last_name"`
-			Role       *string `json:"role"`
-			IsActive   *bool   `json:"is_active"`
-			Pin        *string `json:"pin"`
-			LocationID *string `json:"location_id"`
+			Username    *string  `json:"username"`
+			Email       *string  `json:"email"`
+			Password    *string  `json:"password"`
+			FirstName   *string  `json:"first_name"`
+			LastName    *string  `json:"last_name"`
+			Role        *string  `json:"role"`
+			IsActive    *bool    `json:"is_active"`
+			Pin         *string  `json:"pin"`
+			LocationID  *string  `json:"location_id"`  // backward compat
+			LocationIDs []string `json:"location_ids"` // multi-location assignment
 		}
+
+		// Use raw JSON parsing to detect if location_ids was explicitly sent
+		rawBody, _ := io.ReadAll(c.Request.Body)
+		c.Request.Body = io.NopCloser(strings.NewReader(string(rawBody)))
 
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(400, gin.H{
@@ -1832,6 +2014,13 @@ func updateUser(db *sql.DB) gin.HandlerFunc {
 				"error":   err.Error(),
 			})
 			return
+		}
+
+		// Check if location_ids was explicitly included in the request body
+		var rawJSON map[string]json.RawMessage
+		hasLocationIDs := false
+		if err := json.Unmarshal(rawBody, &rawJSON); err == nil {
+			_, hasLocationIDs = rawJSON["location_ids"]
 		}
 
 		// Build dynamic update query
@@ -1912,7 +2101,23 @@ func updateUser(db *sql.DB) gin.HandlerFunc {
 			args = append(args, *req.IsActive)
 			argCount++
 		}
-		if req.LocationID != nil {
+
+		// Handle location_ids (multi-location) or location_id (single, backward compat)
+		if hasLocationIDs {
+			// Update users.location_id to primary (first) or NULL
+			if len(req.LocationIDs) > 0 {
+				primaryLoc, parseErr := uuid.Parse(req.LocationIDs[0])
+				if parseErr == nil {
+					updates = append(updates, fmt.Sprintf("location_id = $%d", argCount))
+					args = append(args, primaryLoc)
+					argCount++
+				}
+			} else {
+				updates = append(updates, fmt.Sprintf("location_id = $%d", argCount))
+				args = append(args, nil)
+				argCount++
+			}
+		} else if req.LocationID != nil {
 			if *req.LocationID == "" {
 				updates = append(updates, fmt.Sprintf("location_id = $%d", argCount))
 				args = append(args, nil)
@@ -1929,7 +2134,7 @@ func updateUser(db *sql.DB) gin.HandlerFunc {
 			}
 		}
 
-		if len(updates) == 0 {
+		if len(updates) == 0 && !hasLocationIDs {
 			c.JSON(400, gin.H{
 				"success": false,
 				"message": "No fields to update",
@@ -1937,35 +2142,55 @@ func updateUser(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
-		args = append(args, userID)
-		idIdx := argCount
-		argCount++
-		args = append(args, orgID)
+		// Only run the user update if there are column changes
+		if len(updates) > 0 {
+			updates = append(updates, "updated_at = CURRENT_TIMESTAMP")
+			args = append(args, userID)
+			idIdx := argCount
+			argCount++
+			args = append(args, orgID)
 
-		query := fmt.Sprintf(`
-			UPDATE users
-			SET %s
-			WHERE id = $%d AND org_id = $%d
-		`, strings.Join(updates, ", "), idIdx, argCount)
+			query := fmt.Sprintf(`
+				UPDATE users
+				SET %s
+				WHERE id = $%d AND org_id = $%d
+			`, strings.Join(updates, ", "), idIdx, argCount)
 
-		result, err := db.Exec(query, args...)
-		if err != nil {
-			c.JSON(500, gin.H{
-				"success": false,
-				"message": "Failed to update user",
-				"error":   err.Error(),
-			})
-			return
+			result, err := db.Exec(query, args...)
+			if err != nil {
+				c.JSON(500, gin.H{
+					"success": false,
+					"message": "Failed to update user",
+					"error":   err.Error(),
+				})
+				return
+			}
+
+			rowsAffected, _ := result.RowsAffected()
+			if rowsAffected == 0 {
+				c.JSON(404, gin.H{
+					"success": false,
+					"message": "User not found",
+				})
+				return
+			}
 		}
 
-		rowsAffected, _ := result.RowsAffected()
-		if rowsAffected == 0 {
-			c.JSON(404, gin.H{
-				"success": false,
-				"message": "User not found",
-			})
-			return
+		// Update user_locations junction table if location_ids was sent
+		if hasLocationIDs {
+			parsedUserID, _ := uuid.Parse(userID)
+			// Delete existing entries
+			db.Exec(`DELETE FROM user_locations WHERE user_id = $1`, parsedUserID)
+			// Insert new entries
+			for i, locIDStr := range req.LocationIDs {
+				locUUID, parseErr := uuid.Parse(locIDStr)
+				if parseErr != nil {
+					continue
+				}
+				isPrimary := i == 0
+				db.Exec(`INSERT INTO user_locations (user_id, location_id, is_primary) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+					parsedUserID, locUUID, isPrimary)
+			}
 		}
 
 		c.JSON(200, gin.H{
@@ -2112,6 +2337,7 @@ func getAdminUsers(db *sql.DB) gin.HandlerFunc {
 		defer rows.Close()
 
 		var users []map[string]interface{}
+		var userIDs []string
 		for rows.Next() {
 			var user map[string]interface{} = make(map[string]interface{})
 			var id, username, email, firstName, lastName, userRole string
@@ -2144,6 +2370,35 @@ func getAdminUsers(db *sql.DB) gin.HandlerFunc {
 			user["created_at"] = createdAt
 
 			users = append(users, user)
+			userIDs = append(userIDs, id)
+		}
+
+		// Batch-fetch location_ids from user_locations junction table
+		if len(userIDs) > 0 {
+			userLocMap := make(map[string][]string)
+			ulRows, ulErr := db.Query(`
+				SELECT user_id::text, location_id::text
+				FROM user_locations
+				WHERE user_id = ANY($1::uuid[])
+				ORDER BY is_primary DESC, created_at ASC
+			`, pq.Array(userIDs))
+			if ulErr == nil {
+				defer ulRows.Close()
+				for ulRows.Next() {
+					var uid, lid string
+					if ulRows.Scan(&uid, &lid) == nil {
+						userLocMap[uid] = append(userLocMap[uid], lid)
+					}
+				}
+			}
+			for i := range users {
+				uid := users[i]["id"].(string)
+				if lids, ok := userLocMap[uid]; ok {
+					users[i]["location_ids"] = lids
+				} else {
+					users[i]["location_ids"] = []string{}
+				}
+			}
 		}
 
 		totalPages := (total + perPage - 1) / perPage
@@ -2291,6 +2546,14 @@ func getAdminTables(db *sql.DB) gin.HandlerFunc {
 		status := c.Query("status") // "occupied", "available", or empty for all
 		search := c.Query("search")
 
+		// Allow admin to filter by a specific location_id (overrides JWT location)
+		filterLocationID := locationID
+		if locIDParam := c.Query("location_id"); locIDParam != "" {
+			if parsed, err := uuid.Parse(locIDParam); err == nil {
+				filterLocationID = parsed
+			}
+		}
+
 		if pageStr := c.Query("page"); pageStr != "" {
 			if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
 				page = p
@@ -2307,16 +2570,17 @@ func getAdminTables(db *sql.DB) gin.HandlerFunc {
 
 		// Build query with filters (scoped to org/location)
 		queryBuilder := `
-			SELECT t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.is_occupied,
-			       t.created_at, t.updated_at,
+			SELECT t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.status, t.is_occupied,
+			       t.created_at, t.updated_at, t.location_id, COALESCE(l.name, '') as location_name,
 			       o.id as order_id, o.order_number, o.customer_name, o.status as order_status,
 			       o.created_at as order_created_at, o.total_amount
 			FROM dining_tables t
+			LEFT JOIN locations l ON t.location_id = l.id
 			LEFT JOIN orders o ON t.id = o.table_id AND o.status NOT IN ('completed', 'cancelled')
 			WHERE t.org_id = $1 AND t.location_id = $2
 		`
 
-		args := []interface{}{orgID, locationID}
+		args := []interface{}{orgID, filterLocationID}
 		argCount := 2
 
 		if location != "" {
@@ -2325,10 +2589,10 @@ func getAdminTables(db *sql.DB) gin.HandlerFunc {
 			args = append(args, "%"+location+"%")
 		}
 
-		if status == "occupied" {
-			queryBuilder += " AND t.is_occupied = true"
-		} else if status == "available" {
-			queryBuilder += " AND t.is_occupied = false"
+		if status != "" {
+			argCount++
+			queryBuilder += fmt.Sprintf(" AND t.status = $%d", argCount)
+			args = append(args, status)
 		}
 
 		if search != "" {
@@ -2373,13 +2637,14 @@ func getAdminTables(db *sql.DB) gin.HandlerFunc {
 		var tables []map[string]interface{}
 		for rows.Next() {
 			var table models.DiningTable
+			var tableLocationID, locationName string
 			var orderID, orderNumber, customerName, orderStatus sql.NullString
 			var orderCreatedAt sql.NullTime
 			var totalAmount sql.NullFloat64
 
 			err := rows.Scan(
-				&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor, &table.IsOccupied,
-				&table.CreatedAt, &table.UpdatedAt,
+				&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor, &table.Status, &table.IsOccupied,
+				&table.CreatedAt, &table.UpdatedAt, &tableLocationID, &locationName,
 				&orderID, &orderNumber, &customerName, &orderStatus, &orderCreatedAt, &totalAmount,
 			)
 			if err != nil {
@@ -2398,7 +2663,10 @@ func getAdminTables(db *sql.DB) gin.HandlerFunc {
 				"seating_capacity": table.SeatingCapacity,
 				"location":         table.Location,
 				"floor":            table.Floor,
+				"status":           table.Status,
 				"is_occupied":      table.IsOccupied,
+				"location_id":      tableLocationID,
+				"location_name":    locationName,
 				"created_at":       table.CreatedAt,
 				"updated_at":       table.UpdatedAt,
 				"current_order":    nil,
@@ -2461,9 +2729,11 @@ func deleteOrder(db *sql.DB) gin.HandlerFunc {
 		// Get order details first to update table status if needed (scoped to org/location)
 		var tableID sql.NullString
 		var orderStatus string
+		var isKOT bool
+		var parentOrderID sql.NullString
 		err = tx.QueryRow(`
-			SELECT table_id, status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3
-		`, orderID, orgID, locationID).Scan(&tableID, &orderStatus)
+			SELECT table_id, status, is_kot, parent_order_id FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3
+		`, orderID, orgID, locationID).Scan(&tableID, &orderStatus, &isKOT, &parentOrderID)
 
 		if err == sql.ErrNoRows {
 			c.JSON(404, gin.H{
@@ -2520,6 +2790,36 @@ func deleteOrder(db *sql.DB) gin.HandlerFunc {
 				"message": "Order not found",
 			})
 			return
+		}
+
+		// If this was a KOT, update parent bill totals and status
+		if isKOT && parentOrderID.Valid {
+			var remainingKOTs int
+			err = tx.QueryRow(`
+				SELECT COUNT(*) FROM orders WHERE parent_order_id = $1 AND is_kot = true
+			`, parentOrderID.String).Scan(&remainingKOTs)
+
+			if err == nil && remainingKOTs > 0 {
+				// Recalculate parent bill totals and check if all remaining KOTs have payments
+				_, _ = tx.Exec(`
+					UPDATE orders
+					SET subtotal = (SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE parent_order_id = $1),
+					    tax_amount = (SELECT COALESCE(SUM(tax_amount), 0) FROM orders WHERE parent_order_id = $1),
+					    total_amount = (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE parent_order_id = $1),
+					    updated_at = NOW()
+					WHERE id = $1
+				`, parentOrderID.String)
+
+				// If bill was paid but we removed a KOT, check if payment still covers the bill
+				// If the bill total matches what was paid, keep it paid; otherwise revert to confirmed
+				var billTotal float64
+				var paidTotal float64
+				err1 := tx.QueryRow(`SELECT COALESCE(total_amount, 0) FROM orders WHERE id = $1`, parentOrderID.String).Scan(&billTotal)
+				err2 := tx.QueryRow(`SELECT COALESCE(SUM(amount), 0) FROM payments WHERE order_id = $1`, parentOrderID.String).Scan(&paidTotal)
+				if err1 == nil && err2 == nil && paidTotal >= billTotal {
+					_, _ = tx.Exec(`UPDATE orders SET status = 'paid' WHERE id = $1 AND status = 'confirmed'`, parentOrderID.String)
+				}
+			}
 		}
 
 		// If order had a table, check if we need to update table status

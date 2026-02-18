@@ -30,11 +30,7 @@ export function PaginationControlsComponent({
   const {
     page,
     pageSize,
-    goToPage,
-    goToNextPage,
-    goToPreviousPage,
-    goToFirstPage,
-    goToLastPage,
+    setPage,
     setPageSize,
   } = pagination
 
@@ -43,8 +39,18 @@ export function PaginationControlsComponent({
   const hasNextPage = page < totalPages
   const hasPreviousPage = page > 1
 
+  // Navigation functions using the real total (not the hook's stale total)
+  const goToPage = (targetPage: number) => {
+    const clamped = Math.max(1, Math.min(targetPage, totalPages))
+    setPage(clamped)
+  }
+  const goToFirstPage = () => setPage(1)
+  const goToLastPage = () => setPage(totalPages)
+  const goToNextPage = () => { if (hasNextPage) setPage(page + 1) }
+  const goToPreviousPage = () => { if (hasPreviousPage) setPage(page - 1) }
+
   const paginationRange = getPaginationRange(page, totalPages)
-  
+
   const startItem = Math.min((page - 1) * pageSize + 1, total)
   const endItem = Math.min(page * pageSize, total)
 

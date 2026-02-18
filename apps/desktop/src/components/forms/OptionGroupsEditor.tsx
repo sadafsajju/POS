@@ -1,26 +1,26 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toastHelpers } from '@/lib/toast-helpers'
 import apiClient from '@/api/client'
 import type { ProductOptionGroup, CreateOptionGroupRequest, CreateOptionItemRequest } from '@/types'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Plus, X, Check } from 'lucide-react'
 
 interface OptionGroupsEditorProps {
   productId?: string
-  /** Draft groups stored in parent state (used when no productId yet) */
   draftGroups?: CreateOptionGroupRequest[]
-  /** Callback when draft groups change */
   onDraftGroupsChange?: (groups: CreateOptionGroupRequest[]) => void
 }
 
-// Default empty item for new items
 const defaultItem: CreateOptionItemRequest = {
   name: '',
   price_adjustment: 0,
@@ -28,8 +28,7 @@ const defaultItem: CreateOptionItemRequest = {
   sort_order: 0,
 }
 
-// Default empty group for new groups
-const defaultGroup: CreateOptionGroupRequest = {
+const emptyGroup: CreateOptionGroupRequest = {
   name: '',
   selection_type: 'single',
   is_required: false,
@@ -39,10 +38,19 @@ const defaultGroup: CreateOptionGroupRequest = {
   items: [{ ...defaultItem, sort_order: 1 }],
 }
 
+/** Dialog for adding a single option item to an existing API group */
+interface AddItemDialog {
+  groupId: string
+  groupName: string
+}
+
 export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange }: OptionGroupsEditorProps) {
   const queryClient = useQueryClient()
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [newGroup, setNewGroup] = useState<CreateOptionGroupRequest | null>(null)
+  const [showNewGroupDialog, setShowNewGroupDialog] = useState(false)
+  const [newGroup, setNewGroup] = useState<CreateOptionGroupRequest>({ ...emptyGroup })
+  const [addItemDialog, setAddItemDialog] = useState<AddItemDialog | null>(null)
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemPrice, setNewItemPrice] = useState('')
 
   const isDraftMode = !productId
 
@@ -60,24 +68,25 @@ export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange
     queryClient.invalidateQueries({ queryKey: ['option-groups', productId] })
   }
 
-  // Mutations (only used in API mode)
+  // Mutations
   const createGroupMutation = useMutation({
     mutationFn: (data: CreateOptionGroupRequest) => apiClient.createOptionGroup(productId!, data),
     onSuccess: () => {
       invalidateGroups()
-      setNewGroup(null)
-      toastHelpers.apiSuccess('Create', 'Variant created')
+      setShowNewGroupDialog(false)
+      resetNewGroup()
+      toastHelpers.success('Variation created')
     },
-    onError: (err) => toastHelpers.apiError('Create variant', err),
+    onError: (err) => toastHelpers.apiError('Create variation', err),
   })
 
   const deleteGroupMutation = useMutation({
     mutationFn: (groupId: string) => apiClient.deleteOptionGroup(productId!, groupId),
     onSuccess: () => {
       invalidateGroups()
-      toastHelpers.apiSuccess('Delete', 'Variant deleted')
+      toastHelpers.success('Variation deleted')
     },
-    onError: (err) => toastHelpers.apiError('Delete variant', err),
+    onError: (err) => toastHelpers.apiError('Delete variation', err),
   })
 
   const createItemMutation = useMutation({
@@ -85,49 +94,51 @@ export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange
       apiClient.createOptionItem(groupId, data),
     onSuccess: () => {
       invalidateGroups()
-      toastHelpers.apiSuccess('Create', 'Option item added')
+      toastHelpers.success('Option added')
+      setNewItemName('')
+      setNewItemPrice('')
     },
-    onError: (err) => toastHelpers.apiError('Create option item', err),
+    onError: (err) => toastHelpers.apiError('Add option', err),
   })
 
   const deleteItemMutation = useMutation({
     mutationFn: (itemId: string) => apiClient.deleteOptionItem(itemId),
-    onSuccess: () => {
-      invalidateGroups()
-    },
-    onError: (err) => toastHelpers.apiError('Delete option item', err),
+    onSuccess: () => invalidateGroups(),
+    onError: (err) => toastHelpers.apiError('Delete option', err),
   })
 
-  const updateGroupMutation = useMutation({
-    mutationFn: ({ groupId, data }: { groupId: string; data: Record<string, unknown> }) =>
-      apiClient.updateOptionGroup(productId!, groupId, data as Partial<CreateOptionGroupRequest>),
-    onSuccess: () => {
-      invalidateGroups()
-    },
-    onError: (err) => toastHelpers.apiError('Update option group', err),
-  })
+  const resetNewGroup = () => {
+    setNewGroup({ ...emptyGroup, items: [{ ...defaultItem, sort_order: 1 }] })
+  }
 
-  const updateItemMutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: string; data: Record<string, unknown> }) =>
-      apiClient.updateOptionItem(itemId, data as Partial<CreateOptionItemRequest>),
-    onSuccess: () => {
-      invalidateGroups()
-    },
-    onError: (err) => toastHelpers.apiError('Update option item', err),
-  })
+  const openNewGroupDialog = () => {
+    resetNewGroup()
+    setShowNewGroupDialog(true)
+  }
 
-  const toggleExpanded = (groupId: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(groupId)) next.delete(groupId)
-      else next.add(groupId)
-      return next
+  // --- New group form handlers ---
+  const updateNewGroupItem = (index: number, field: string, value: unknown) => {
+    const items = [...newGroup.items]
+    items[index] = { ...items[index], [field]: value }
+    setNewGroup({ ...newGroup, items })
+  }
+
+  const addNewGroupItem = () => {
+    setNewGroup({
+      ...newGroup,
+      items: [...newGroup.items, { ...defaultItem, sort_order: newGroup.items.length + 1 }],
     })
   }
 
-  // Handle saving the new group form
+  const removeNewGroupItem = (index: number) => {
+    if (newGroup.items.length <= 1) return
+    setNewGroup({
+      ...newGroup,
+      items: newGroup.items.filter((_, i) => i !== index),
+    })
+  }
+
   const handleSaveNewGroup = () => {
-    if (!newGroup) return
     if (!newGroup.name.trim()) return
     const validItems = newGroup.items.filter(i => i.name.trim())
     if (validItems.length === 0) return
@@ -138,11 +149,10 @@ export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange
     }
 
     if (isDraftMode && onDraftGroupsChange && draftGroups) {
-      // Draft mode: add to local state
       onDraftGroupsChange([...draftGroups, groupData])
-      setNewGroup(null)
+      setShowNewGroupDialog(false)
+      resetNewGroup()
     } else {
-      // API mode: create via API
       createGroupMutation.mutate(groupData)
     }
   }
@@ -153,483 +163,325 @@ export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange
     }
   }
 
+  const handleAddItem = () => {
+    if (!addItemDialog || !newItemName.trim()) return
+    const priceAdj = newItemPrice.trim() !== '' ? parseFloat(newItemPrice) : 0
+    createItemMutation.mutate({
+      groupId: addItemDialog.groupId,
+      data: {
+        name: newItemName.trim(),
+        price_adjustment: isNaN(priceAdj) ? 0 : priceAdj,
+        is_default: false,
+        sort_order: 0,
+      },
+    })
+  }
+
   const groupCount = isDraftMode ? (draftGroups?.length || 0) : apiGroups.length
 
   if (!isDraftMode && isLoading) {
-    return (
-      <div className="space-y-3 py-4">
-        <div className="h-4 w-32 rounded bg-muted animate-pulse" />
-        <div className="h-16 w-full rounded-md bg-muted animate-pulse" />
-      </div>
-    )
+    return <div className="text-sm text-zinc-500 py-4">Loading variations...</div>
   }
 
+  // Render a group card (shared between draft and API modes)
+  const renderGroupCard = (
+    key: string,
+    name: string,
+    selectionType: string,
+    isRequired: boolean,
+    items: { id?: string; name: string; priceAdjustment: number; isDefault?: boolean }[],
+    onDelete: () => void,
+    onDeleteItem?: (itemId: string) => void,
+    onOpenAddItem?: () => void,
+  ) => (
+    <div key={key} className="rounded-lg border border-zinc-800 bg-zinc-800/30">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-zinc-200">{name}</span>
+          <span className={cn(
+            "px-1.5 py-0.5 rounded text-[10px] font-medium leading-none",
+            selectionType === 'single'
+              ? "bg-zinc-700 text-zinc-300"
+              : "bg-violet-500/10 text-violet-400"
+          )}>
+            {selectionType === 'single' ? 'Pick one' : 'Pick many'}
+          </span>
+          {isRequired && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 leading-none">Required</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Items as chips */}
+      <div className="px-3 pb-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {items.map((item, idx) => (
+            <span
+              key={item.id || idx}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-zinc-700/50 text-zinc-300 border border-zinc-700"
+            >
+              {item.name}
+              {item.priceAdjustment !== 0 && (
+                <span className={cn(
+                  "font-medium",
+                  item.priceAdjustment > 0 ? 'text-emerald-400' : 'text-red-400'
+                )}>
+                  {item.priceAdjustment > 0 ? '+' : ''}{item.priceAdjustment.toFixed(2)}
+                </span>
+              )}
+              {item.isDefault && (
+                <span className="text-[9px] text-zinc-500 font-medium">default</span>
+              )}
+              {onDeleteItem && item.id ? (
+                <button
+                  type="button"
+                  onClick={() => onDeleteItem(item.id!)}
+                  className="ml-0.5 text-zinc-500 hover:text-red-400 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </span>
+          ))}
+          {onOpenAddItem && (
+            <button
+              type="button"
+              onClick={onOpenAddItem}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-zinc-500 border border-dashed border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              Add
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-muted-foreground">
-          Variants ({groupCount})
-        </h3>
-        {!newGroup && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setNewGroup({ ...defaultGroup })}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Variant
-          </Button>
+    <>
+      <div className="space-y-3">
+        {/* Draft mode groups */}
+        {isDraftMode && draftGroups?.map((group, index) => {
+          const items = group.items.filter(i => i.name.trim()).map((item, i) => ({
+            id: undefined as string | undefined,
+            name: item.name,
+            priceAdjustment: item.price_adjustment,
+            isDefault: item.is_default,
+          }))
+
+          return renderGroupCard(
+            `draft-${index}`,
+            group.name,
+            group.selection_type,
+            group.is_required,
+            items,
+            () => handleDeleteDraftGroup(index),
+          )
+        })}
+
+        {/* API mode groups */}
+        {!isDraftMode && apiGroups.map((group: ProductOptionGroup) => {
+          const items = (group.items || []).map(item => ({
+            id: item.id,
+            name: item.name,
+            priceAdjustment: item.price_adjustment,
+            isDefault: item.is_default,
+          }))
+
+          return renderGroupCard(
+            group.id,
+            group.name,
+            group.selection_type,
+            group.is_required,
+            items,
+            () => deleteGroupMutation.mutate(group.id),
+            (itemId) => deleteItemMutation.mutate(itemId),
+            () => setAddItemDialog({ groupId: group.id, groupName: group.name }),
+          )
+        })}
+
+        {/* Add variant button */}
+        <button
+          type="button"
+          onClick={openNewGroupDialog}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs text-zinc-500 border border-dashed border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Variation
+        </button>
+
+        {groupCount === 0 && (
+          <p className="text-xs text-zinc-500 text-center py-1">
+            Add variations like "Size" or "Toppings" to make this product configurable.
+          </p>
         )}
       </div>
 
-      {/* Draft mode: show pending groups */}
-      {isDraftMode && draftGroups?.map((group, index) => (
-        <DraftGroupCard
-          key={index}
-          group={group}
-          onDelete={() => handleDeleteDraftGroup(index)}
-        />
-      ))}
+      {/* New variant group dialog */}
+      <Dialog open={showNewGroupDialog} onOpenChange={(open) => { if (!open) setShowNewGroupDialog(false) }}>
+        <DialogContent className="max-w-md bg-zinc-900 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">New Variation</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Create a variation group like "Size" or "Toppings".
+            </DialogDescription>
+          </DialogHeader>
 
-      {/* API mode: show existing groups */}
-      {!isDraftMode && apiGroups.map((group) => (
-        <ExistingGroupCard
-          key={group.id}
-          group={group}
-          isExpanded={expandedGroups.has(group.id)}
-          onToggle={() => toggleExpanded(group.id)}
-          onDelete={() => deleteGroupMutation.mutate(group.id)}
-          onUpdateGroup={(data) => updateGroupMutation.mutate({ groupId: group.id, data })}
-          onAddItem={(data) => createItemMutation.mutate({ groupId: group.id, data })}
-          onDeleteItem={(itemId) => deleteItemMutation.mutate(itemId)}
-          onUpdateItem={(itemId, data) => updateItemMutation.mutate({ itemId, data })}
-          isDeleting={deleteGroupMutation.isPending}
-        />
-      ))}
+          <div className="space-y-4">
+            {/* Group name */}
+            <input
+              autoFocus
+              className="w-full h-9 text-sm rounded-md bg-zinc-800 border border-zinc-700 px-3 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+              placeholder='Variation name (e.g. Size, Crust Type)'
+              value={newGroup.name}
+              onChange={e => setNewGroup({ ...newGroup, name: e.target.value })}
+            />
 
-      {/* New group form */}
-      {newGroup && (
-        <NewGroupCard
-          group={newGroup}
-          onChange={setNewGroup}
-          onSave={handleSaveNewGroup}
-          onCancel={() => setNewGroup(null)}
-          isSaving={!isDraftMode && createGroupMutation.isPending}
-        />
-      )}
-
-      {groupCount === 0 && !newGroup && (
-        <p className="text-sm text-muted-foreground text-center py-6">
-          No variants yet. Add variants like "Size" or "Toppings" to make this product configurable.
-        </p>
-      )}
-    </div>
-  )
-}
-
-// --- Draft Group Card (read-only summary for unsaved groups) ---
-function DraftGroupCard({ group, onDelete }: { group: CreateOptionGroupRequest; onDelete: () => void }) {
-  const validItems = group.items.filter(i => i.name.trim())
-
-  return (
-    <Card className="border">
-      <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-sm font-medium">{group.name}</CardTitle>
-            <Badge variant={group.selection_type === 'single' ? 'default' : 'secondary'} className="text-xs">
-              {group.selection_type === 'single' ? 'Pick one' : 'Pick many'}
-            </Badge>
-            {group.is_required && (
-              <Badge variant="destructive" className="text-xs">Required</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{validItems.length} options</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-destructive"
-              onClick={onDelete}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 px-4 pb-3">
-        <div className="space-y-1">
-          {validItems.map((item, i) => (
-            <div key={i} className="flex items-center justify-between py-0.5">
-              <span className="text-sm">{item.name}</span>
-              <span className={`text-xs font-mono ${item.price_adjustment > 0 ? 'text-green-600' : item.price_adjustment < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                {item.price_adjustment > 0 ? '+' : ''}{item.price_adjustment.toFixed(2)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// --- Existing Group Card ---
-interface ExistingGroupCardProps {
-  group: ProductOptionGroup
-  isExpanded: boolean
-  onToggle: () => void
-  onDelete: () => void
-  onUpdateGroup: (data: Record<string, unknown>) => void
-  onAddItem: (data: CreateOptionItemRequest) => void
-  onDeleteItem: (itemId: string) => void
-  onUpdateItem: (itemId: string, data: Record<string, unknown>) => void
-  isDeleting: boolean
-}
-
-function ExistingGroupCard({
-  group,
-  isExpanded,
-  onToggle,
-  onDelete,
-  onUpdateGroup,
-  onAddItem,
-  onDeleteItem,
-  onUpdateItem,
-  isDeleting,
-}: ExistingGroupCardProps) {
-  const [addingItem, setAddingItem] = useState(false)
-  const [newItemName, setNewItemName] = useState('')
-  const [newItemPrice, setNewItemPrice] = useState(0)
-
-  const handleAddItem = () => {
-    if (!newItemName.trim()) return
-    onAddItem({
-      name: newItemName.trim(),
-      price_adjustment: newItemPrice,
-      is_default: false,
-      sort_order: (group.items?.length || 0) + 1,
-    })
-    setNewItemName('')
-    setNewItemPrice(0)
-    setAddingItem(false)
-  }
-
-  return (
-    <Card className="border">
-      {/* Group Header */}
-      <CardHeader className="py-3 px-4 cursor-pointer" onClick={onToggle}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            <CardTitle className="text-sm font-medium">{group.name}</CardTitle>
-            <Badge variant={group.selection_type === 'single' ? 'default' : 'secondary'} className="text-xs">
-              {group.selection_type === 'single' ? 'Pick one' : 'Pick many'}
-            </Badge>
-            {group.is_required && (
-              <Badge variant="destructive" className="text-xs">Required</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <span className="text-xs text-muted-foreground">{group.items?.length || 0} options</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-destructive"
-              onClick={onDelete}
-              disabled={isDeleting}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <CardContent className="pt-0 px-4 pb-4">
-          {/* Group settings */}
-          <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-muted/50 rounded-md">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Type</Label>
+            {/* Settings row */}
+            <div className="flex items-center gap-4">
               <Select
-                value={group.selection_type}
-                onValueChange={val => onUpdateGroup({ selection_type: val })}
+                value={newGroup.selection_type}
+                onValueChange={val => setNewGroup({ ...newGroup, selection_type: val as 'single' | 'multiple' })}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single">Single (radio)</SelectItem>
-                  <SelectItem value="multiple">Multiple (checkbox)</SelectItem>
+                  <SelectItem value="single">Pick one</SelectItem>
+                  <SelectItem value="multiple">Pick many</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Required</Label>
-              <div className="pt-0.5">
-                <Switch
-                  checked={group.is_required}
-                  onCheckedChange={val => onUpdateGroup({ is_required: val })}
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={newGroup.is_required}
+                  onCheckedChange={(checked) => setNewGroup({ ...newGroup, is_required: checked === true })}
                 />
-              </div>
+                <span className="text-xs text-zinc-400">Required</span>
+              </label>
+
+              {newGroup.selection_type === 'multiple' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-zinc-500">Max:</span>
+                  <input
+                    type="number"
+                    className="h-8 w-16 text-xs rounded-md bg-zinc-800 border border-zinc-700 px-2 text-zinc-200 focus:outline-none focus:border-zinc-600"
+                    value={newGroup.max_selections}
+                    onChange={e => setNewGroup({ ...newGroup, max_selections: parseInt(e.target.value) || 0 })}
+                    min={0}
+                    placeholder="0"
+                  />
+                </div>
+              )}
             </div>
-            {group.selection_type === 'multiple' && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Min</Label>
-                  <Input
-                    type="number"
-                    className="h-8 w-20 text-xs"
-                    value={group.min_selections}
-                    onChange={e => onUpdateGroup({ min_selections: parseInt(e.target.value) || 0 })}
-                    min={0}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Max</Label>
-                  <Input
-                    type="number"
-                    className="h-8 w-20 text-xs"
-                    value={group.max_selections}
-                    onChange={e => onUpdateGroup({ max_selections: parseInt(e.target.value) || 0 })}
-                    min={0}
-                  />
-                </div>
-              </>
-            )}
-          </div>
 
-          {/* Items list */}
-          <div className="space-y-1">
-            {group.items?.map((item) => (
-              <div key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 group">
-                <span className="flex-1 text-sm">{item.name}</span>
-                <span className={`text-sm font-mono ${item.price_adjustment > 0 ? 'text-green-600' : item.price_adjustment < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                  {item.price_adjustment > 0 ? '+' : ''}{item.price_adjustment.toFixed(2)}
-                </span>
-                {item.is_default && (
-                  <Badge variant="outline" className="text-xs">Default</Badge>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-destructive"
-                  onClick={() => onDeleteItem(item.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-                {!item.is_default && (
-                  <Button
+            {/* Options */}
+            <div className="space-y-2">
+              <span className="text-xs text-zinc-400">Options</span>
+              {newGroup.items.map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    className="h-8 text-sm flex-1 rounded-md bg-zinc-800 border border-zinc-700 px-3 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+                    placeholder="Option name"
+                    value={item.name}
+                    onChange={e => updateNewGroupItem(i, 'name', e.target.value)}
+                  />
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-zinc-500">$</span>
+                    <input
+                      type="number"
+                      className="h-8 w-20 text-sm rounded-md bg-zinc-800 border border-zinc-700 px-2 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+                      placeholder="0"
+                      value={item.price_adjustment || ''}
+                      onChange={e => updateNewGroupItem(i, 'price_adjustment', parseFloat(e.target.value) || 0)}
+                      step="0.01"
+                    />
+                  </div>
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1 text-xs opacity-0 group-hover:opacity-100"
-                    onClick={() => onUpdateItem(item.id, { is_default: true })}
+                    className="p-1 rounded text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-30"
+                    onClick={() => removeNewGroupItem(i)}
+                    disabled={newGroup.items.length <= 1}
                   >
-                    Set default
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                onClick={addNewGroupItem}
+              >
+                <Plus className="h-3 w-3" />
+                Add option
+              </button>
+            </div>
 
-          {/* Add item form */}
-          {addingItem ? (
-            <div className="flex items-center gap-2 mt-2">
-              <Input
-                className="h-8 text-sm flex-1"
-                placeholder="Option name"
-                value={newItemName}
-                onChange={e => setNewItemName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddItem()}
-                autoFocus
-              />
-              <Input
+            {/* Save */}
+            <button
+              type="button"
+              className="w-full h-9 rounded-md text-sm font-medium bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              onClick={handleSaveNewGroup}
+              disabled={createGroupMutation.isPending || !newGroup.name.trim() || newGroup.items.every(i => !i.name.trim())}
+            >
+              <Check className="h-4 w-4" />
+              {createGroupMutation.isPending ? 'Saving...' : 'Save Variation'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add item to existing group dialog */}
+      <Dialog open={!!addItemDialog} onOpenChange={(open) => { if (!open) { setAddItemDialog(null); setNewItemName(''); setNewItemPrice('') } }}>
+        <DialogContent className="max-w-sm bg-zinc-900 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Add option to "{addItemDialog?.groupName}"</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Add a new option to this variation group.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <input
+              autoFocus
+              className="w-full h-9 text-sm rounded-md bg-zinc-800 border border-zinc-700 px-3 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+              placeholder="Option name"
+              value={newItemName}
+              onChange={e => setNewItemName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddItem() } }}
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Price adjustment $</span>
+              <input
                 type="number"
-                className="h-8 text-sm w-24"
-                placeholder="Price +/-"
+                className="h-8 w-24 text-sm rounded-md bg-zinc-800 border border-zinc-700 px-2 text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+                placeholder="0"
                 value={newItemPrice}
-                onChange={e => setNewItemPrice(parseFloat(e.target.value) || 0)}
+                onChange={e => setNewItemPrice(e.target.value)}
                 step="0.01"
               />
-              <Button type="button" size="sm" className="h-8" onClick={handleAddItem}>
-                Add
-              </Button>
-              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setAddingItem(false)}>
-                Cancel
-              </Button>
             </div>
-          ) : (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-2 text-xs"
-              onClick={() => setAddingItem(true)}
+              className="w-full h-9 rounded-md text-sm font-medium bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              onClick={handleAddItem}
+              disabled={!newItemName.trim() || createItemMutation.isPending}
             >
-              <Plus className="h-3 w-3 mr-1" />
-              Add Option
-            </Button>
-          )}
-        </CardContent>
-      )}
-    </Card>
-  )
-}
-
-// --- New Group Card ---
-interface NewGroupCardProps {
-  group: CreateOptionGroupRequest
-  onChange: (group: CreateOptionGroupRequest) => void
-  onSave: () => void
-  onCancel: () => void
-  isSaving: boolean
-}
-
-function NewGroupCard({ group, onChange, onSave, onCancel, isSaving }: NewGroupCardProps) {
-  const updateItem = (index: number, field: string, value: unknown) => {
-    const items = [...group.items]
-    items[index] = { ...items[index], [field]: value }
-    onChange({ ...group, items })
-  }
-
-  const addItem = () => {
-    onChange({
-      ...group,
-      items: [...group.items, { ...defaultItem, sort_order: group.items.length + 1 }],
-    })
-  }
-
-  const removeItem = (index: number) => {
-    if (group.items.length <= 1) return
-    onChange({
-      ...group,
-      items: group.items.filter((_, i) => i !== index),
-    })
-  }
-
-  return (
-    <Card className="border-2 border-primary/50">
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-sm font-medium">New Variant</CardTitle>
-      </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-4">
-        {/* Group name */}
-        <div className="space-y-1.5">
-          <Label className="text-xs">Variant Name</Label>
-          <Input
-            className="h-8 text-sm"
-            placeholder='e.g., "Size", "Crust Type", "Extra Toppings"'
-            value={group.name}
-            onChange={e => onChange({ ...group, name: e.target.value })}
-            autoFocus
-          />
-        </div>
-
-        {/* Group settings row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Type</Label>
-            <Select
-              value={group.selection_type}
-              onValueChange={val => onChange({ ...group, selection_type: val as 'single' | 'multiple' })}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="single">Single (pick one)</SelectItem>
-                <SelectItem value="multiple">Multiple (pick many)</SelectItem>
-              </SelectContent>
-            </Select>
+              <Check className="h-4 w-4" />
+              {createItemMutation.isPending ? 'Adding...' : 'Add Option'}
+            </button>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Required</Label>
-            <div className="pt-0.5">
-              <Switch
-                checked={group.is_required}
-                onCheckedChange={val => onChange({ ...group, is_required: val })}
-              />
-            </div>
-          </div>
-          {group.selection_type === 'multiple' && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Max selections</Label>
-              <Input
-                type="number"
-                className="h-8 text-sm"
-                value={group.max_selections}
-                onChange={e => onChange({ ...group, max_selections: parseInt(e.target.value) || 0 })}
-                min={0}
-                placeholder="0 = unlimited"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Items */}
-        <div>
-          <Label className="text-xs mb-2 block">Options</Label>
-          <div className="space-y-2">
-            {group.items.map((item, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  className="h-8 text-sm flex-1"
-                  placeholder="Option name"
-                  value={item.name}
-                  onChange={e => updateItem(i, 'name', e.target.value)}
-                />
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground">$</span>
-                  <Input
-                    type="number"
-                    className="h-8 text-sm w-20"
-                    placeholder="+/-"
-                    value={item.price_adjustment}
-                    onChange={e => updateItem(i, 'price_adjustment', parseFloat(e.target.value) || 0)}
-                    step="0.01"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-destructive"
-                  onClick={() => removeItem(i)}
-                  disabled={group.items.length <= 1}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-          <Button type="button" variant="ghost" size="sm" className="mt-2 text-xs" onClick={addItem}>
-            <Plus className="h-3 w-3 mr-1" />
-            Add Option
-          </Button>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2 pt-2">
-          <Button
-            type="button"
-            size="sm"
-            onClick={onSave}
-            disabled={isSaving || !group.name.trim() || group.items.every(i => !i.name.trim())}
-          >
-            {isSaving ? 'Saving...' : 'Save Variant'}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={isSaving}>
-            Cancel
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

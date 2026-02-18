@@ -84,10 +84,15 @@ type Product struct {
 	PreparationTime int        `json:"preparation_time"` // in minutes
 	SortOrder       int        `json:"sort_order"`
 	DietaryType     *string    `json:"dietary_type"`     // veg, non-veg, egg, vegan
+	CalorieCount    *int       `json:"calorie_count"`
+	FoodAllergens   *string    `json:"food_allergens"`
 	ProductType     string     `json:"product_type"`     // simple, configurable, combo
-	HasOptionGroups bool       `json:"has_option_groups"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	HasOptionGroups   bool       `json:"has_option_groups"`
+	MinVariationPrice *float64  `json:"min_variation_price,omitempty"`
+	MaxVariationPrice *float64  `json:"max_variation_price,omitempty"`
+	LocationIDs       []string  `json:"location_ids,omitempty"` // nil = all locations
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 	Category        *Category  `json:"category,omitempty"`
 	OptionGroups    []ProductOptionGroup `json:"option_groups,omitempty"`
 	ComboSlots      []ComboSlot          `json:"combo_slots,omitempty"`
@@ -153,7 +158,10 @@ type DiningTable struct {
 	SeatingCapacity int       `json:"seating_capacity"`
 	Location        *string   `json:"location"`
 	Floor           *string   `json:"floor"`
+	Status          string    `json:"status"`
 	IsOccupied      bool      `json:"is_occupied"`
+	LocationID      string    `json:"location_id,omitempty"`
+	LocationName    string    `json:"location_name,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	CurrentOrder    *Order    `json:"current_order,omitempty"`
@@ -229,6 +237,8 @@ type Payment struct {
 	OrderID         uuid.UUID  `json:"order_id"`
 	PaymentMethod   string     `json:"payment_method"` // cash, credit_card, debit_card, digital_wallet
 	Amount          float64    `json:"amount"`
+	CashReceived    *float64   `json:"cash_received,omitempty"`
+	ChangeAmount    *float64   `json:"change_amount,omitempty"`
 	ReferenceNumber *string    `json:"reference_number"`
 	Status          string     `json:"status"` // pending, completed, failed, refunded
 	ProcessedBy     *uuid.UUID `json:"processed_by"`
@@ -320,11 +330,13 @@ type UpdateOrderStatusRequest struct {
 
 // ProcessPaymentRequest represents the request to process a payment
 type ProcessPaymentRequest struct {
-	PaymentMethod   string  `json:"payment_method"`
-	Amount          float64 `json:"amount"`
-	ReferenceNumber *string `json:"reference_number"`
-	CustomerID      *string `json:"customer_id"`
-	CustomerName    *string `json:"customer_name"`
+	PaymentMethod   string   `json:"payment_method"`
+	Amount          float64  `json:"amount"`
+	CashReceived    *float64 `json:"cash_received"`
+	ChangeAmount    *float64 `json:"change_amount"`
+	ReferenceNumber *string  `json:"reference_number"`
+	CustomerID      *string  `json:"customer_id"`
+	CustomerName    *string  `json:"customer_name"`
 }
 
 // LoginRequest represents the login request
@@ -340,6 +352,7 @@ type LoginResponse struct {
 	User         User          `json:"user"`
 	Organization *Organization `json:"organization,omitempty"`
 	Location     *Location     `json:"location,omitempty"`
+	Locations    []Location    `json:"locations"`
 }
 
 // CreateLocationRequest represents the request to create/update a location
@@ -369,7 +382,7 @@ type LocationProductOverrideRequest struct {
 type APIResponse struct {
 	Success bool        `json:"success"`
 	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Data    interface{} `json:"data"`
 	Error   *string     `json:"error,omitempty"`
 }
 
@@ -398,6 +411,7 @@ type BillSummaryResponse struct {
 	AggregatedTax      float64 `json:"aggregated_tax"`
 	AggregatedDiscount float64 `json:"aggregated_discount"`
 	AggregatedTotal    float64 `json:"aggregated_total"`
+	PaidAmount         float64 `json:"paid_amount"`
 	IsBillClosed       bool    `json:"is_bill_closed"`
 }
 
@@ -439,6 +453,106 @@ type UpdateOptionItemRequest struct {
 	SortOrder       *int     `json:"sort_order"`
 }
 
+// VariationGroup represents an org-scoped global variation group
+type VariationGroup struct {
+	ID            uuid.UUID       `json:"id"`
+	OrgID         uuid.UUID       `json:"org_id"`
+	Name          string          `json:"name"`
+	SelectionType string          `json:"selection_type"`
+	IsRequired    bool            `json:"is_required"`
+	MinSelections int             `json:"min_selections"`
+	MaxSelections int             `json:"max_selections"`
+	SortOrder     int             `json:"sort_order"`
+	IsActive      bool            `json:"is_active"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+	Items         []VariationItem `json:"items,omitempty"`
+	ProductCount  int             `json:"product_count,omitempty"`
+}
+
+// VariationItem represents a single item within a global variation group
+type VariationItem struct {
+	ID               uuid.UUID `json:"id"`
+	VariationGroupID uuid.UUID `json:"variation_group_id"`
+	Name             string    `json:"name"`
+	PriceAdjustment  float64   `json:"price_adjustment"`
+	IsDefault        bool      `json:"is_default"`
+	IsAvailable      bool      `json:"is_available"`
+	SortOrder        int       `json:"sort_order"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// CreateVariationGroupRequest represents the request to create a global variation group
+type CreateVariationGroupRequest struct {
+	Name          string                       `json:"name" binding:"required"`
+	SelectionType string                       `json:"selection_type" binding:"required"`
+	IsRequired    bool                         `json:"is_required"`
+	MinSelections int                          `json:"min_selections"`
+	MaxSelections int                          `json:"max_selections"`
+	SortOrder     int                          `json:"sort_order"`
+	Items         []CreateVariationItemRequest `json:"items"`
+}
+
+// CreateVariationItemRequest represents the request to create a variation item
+type CreateVariationItemRequest struct {
+	Name            string  `json:"name" binding:"required"`
+	PriceAdjustment float64 `json:"price_adjustment"`
+	IsDefault       bool    `json:"is_default"`
+	SortOrder       int     `json:"sort_order"`
+}
+
+// UpdateVariationGroupRequest represents the request to update a global variation group
+type UpdateVariationGroupRequest struct {
+	Name          *string `json:"name"`
+	SelectionType *string `json:"selection_type"`
+	IsRequired    *bool   `json:"is_required"`
+	MinSelections *int    `json:"min_selections"`
+	MaxSelections *int    `json:"max_selections"`
+	SortOrder     *int    `json:"sort_order"`
+	IsActive      *bool   `json:"is_active"`
+}
+
+// LinkVariationsRequest represents the request to set product's global variation links with per-item prices
+type LinkVariationsRequest struct {
+	VariationGroups []LinkVariationGroupWithPrices `json:"variation_groups" binding:"required"`
+}
+
+// LinkVariationGroupWithPrices represents a variation group link with per-item prices
+type LinkVariationGroupWithPrices struct {
+	VariationGroupID string                  `json:"variation_group_id" binding:"required"`
+	SortOrder        int                     `json:"sort_order"`
+	ItemPrices       []LinkVariationItemPrice `json:"item_prices" binding:"required"`
+}
+
+// LinkVariationItemPrice represents a single item's price in the link request
+type LinkVariationItemPrice struct {
+	VariationItemID string  `json:"variation_item_id" binding:"required"`
+	Price           float64 `json:"price" binding:"required"`
+}
+
+// ProductVariationLinkResponse is the response when fetching a product's linked variations with prices
+type ProductVariationLinkResponse struct {
+	VariationGroupID string                       `json:"variation_group_id"`
+	GroupName        string                       `json:"group_name"`
+	SelectionType    string                       `json:"selection_type"`
+	IsRequired       bool                         `json:"is_required"`
+	MinSelections    int                          `json:"min_selections"`
+	MaxSelections    int                          `json:"max_selections"`
+	SortOrder        int                          `json:"sort_order"`
+	Items            []ProductVariationItemPrice  `json:"items"`
+}
+
+// ProductVariationItemPrice represents a variation item with its per-product price
+type ProductVariationItemPrice struct {
+	VariationItemID string  `json:"variation_item_id"`
+	ItemName        string  `json:"item_name"`
+	Price           float64 `json:"price"`
+	IsDefault       bool    `json:"is_default"`
+	IsAvailable     bool    `json:"is_available"`
+	SortOrder       int     `json:"sort_order"`
+}
+
 // ComboSlot represents a slot in a combo product where the customer picks a product
 type ComboSlot struct {
 	ID         uuid.UUID          `json:"id"`
@@ -453,14 +567,16 @@ type ComboSlot struct {
 
 // ComboSlotChoice represents a product that can fill a combo slot
 type ComboSlotChoice struct {
-	ID            uuid.UUID  `json:"id"`
-	ComboSlotID   uuid.UUID  `json:"combo_slot_id"`
-	ProductID     uuid.UUID  `json:"product_id"`
-	PriceOverride *float64   `json:"price_override"` // nil = included, value = extra charge
-	SortOrder     int        `json:"sort_order"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	Product       *Product   `json:"product,omitempty"` // populated on read
+	ID                uuid.UUID  `json:"id"`
+	ComboSlotID       uuid.UUID  `json:"combo_slot_id"`
+	ProductID         uuid.UUID  `json:"product_id"`
+	VariationItemID   *uuid.UUID `json:"variation_item_id,omitempty"`
+	VariationItemName string     `json:"variation_item_name,omitempty"`
+	PriceOverride     *float64   `json:"price_override"` // nil = included, value = extra charge
+	SortOrder         int        `json:"sort_order"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Product           *Product   `json:"product,omitempty"` // populated on read
 }
 
 // OrderItemComboChoice represents a combo slot choice saved with an order item (denormalized)
@@ -494,9 +610,10 @@ type CreateComboSlotRequest struct {
 
 // CreateComboSlotChoiceRequest represents a choice within a combo slot creation request
 type CreateComboSlotChoiceRequest struct {
-	ProductID     uuid.UUID `json:"product_id" binding:"required"`
-	PriceOverride *float64  `json:"price_override"`
-	SortOrder     int       `json:"sort_order"`
+	ProductID       uuid.UUID  `json:"product_id" binding:"required"`
+	VariationItemID *uuid.UUID `json:"variation_item_id"`
+	PriceOverride   *float64   `json:"price_override"`
+	SortOrder       int        `json:"sort_order"`
 }
 
 // UpdateComboSlotRequest represents the request to update a combo slot

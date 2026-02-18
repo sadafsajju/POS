@@ -30,6 +30,7 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 	perPage := 20
 	status := c.Query("status")
 	orderType := c.Query("order_type")
+	dateFilter := c.Query("date") // "today" or YYYY-MM-DD
 
 	if pageStr := c.Query("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
@@ -90,6 +91,17 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 		argIndex++
 		queryBuilder += fmt.Sprintf(" AND o.order_type = $%d", argIndex)
 		args = append(args, orderType)
+	}
+
+	if dateFilter != "" {
+		if dateFilter == "today" {
+			queryBuilder += " AND o.created_at >= CURRENT_DATE"
+		} else {
+			// Expect YYYY-MM-DD
+			argIndex++
+			queryBuilder += fmt.Sprintf(" AND o.created_at >= $%d::date AND o.created_at < ($%d::date + interval '1 day')", argIndex, argIndex)
+			args = append(args, dateFilter)
+		}
 	}
 
 	// Count total records
@@ -607,12 +619,13 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			return
 		}
 
-		// Update parent bill totals (aggregate all KOTs)
+		// Update parent bill totals (aggregate all KOTs) and reset status if it was paid
 		updateBillQuery := `
 			UPDATE orders
 			SET subtotal = (SELECT COALESCE(SUM(subtotal), 0) FROM orders WHERE parent_order_id = $1),
 			    tax_amount = (SELECT COALESCE(SUM(tax_amount), 0) FROM orders WHERE parent_order_id = $1),
 			    total_amount = (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE parent_order_id = $1),
+			    status = CASE WHEN status = 'paid' THEN 'confirmed' ELSE status END,
 			    updated_at = NOW()
 			WHERE id = $1
 		`
@@ -874,9 +887,9 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	// Get current order status
-	var currentStatus string
-	err = tx.QueryRow("SELECT status FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&currentStatus)
+	// Get current order status and type
+	var currentStatus, orderType string
+	err = tx.QueryRow("SELECT status, order_type FROM orders WHERE id = $1 AND org_id = $2 AND location_id = $3", orderID, orgID, locationID).Scan(&currentStatus, &orderType)
 	if err == sql.ErrNoRows {
 		c.JSON(http.StatusNotFound, models.APIResponse{
 			Success: false,
@@ -970,8 +983,23 @@ func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
 	// NOTE: Table is never auto-freed by status changes.
 	// Staff must explicitly "Clear Table" when the customer leaves.
 
-	// If order is completed, update customer stats
-	if req.Status == "completed" {
+	// Auto-complete takeout/delivery orders once served (no table to clear)
+	if req.Status == "served" && (orderType == "takeout" || orderType == "delivery") {
+		_, err = tx.Exec(
+			"UPDATE orders SET status = 'completed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+			orderID,
+		)
+		if err != nil {
+			fmt.Printf("Warning: Failed to auto-complete %s order %s: %v\n", orderType, orderID, err)
+		} else {
+			// Log the auto-completion in history
+			_, _ = tx.Exec(historyQuery, orderID, "served", "completed", userID, "Auto-completed: "+orderType+" order served")
+		}
+	}
+
+	// If order is completed (explicitly or auto-completed), update customer stats
+	isAutoCompleted := req.Status == "served" && (orderType == "takeout" || orderType == "delivery")
+	if req.Status == "completed" || isAutoCompleted {
 		var customerID *uuid.UUID
 		var orderTotal float64
 		err = tx.QueryRow("SELECT customer_id, total_amount FROM orders WHERE id = $1", orderID).Scan(&customerID, &orderTotal)
@@ -1266,7 +1294,8 @@ func (h *OrderHandler) loadOrderItemComboChoices(orderItemID uuid.UUID) ([]model
 
 func (h *OrderHandler) loadOrderPayments(order *models.Order) error {
 	query := `
-		SELECT p.id, p.payment_method, p.amount, p.reference_number, p.status, 
+		SELECT p.id, p.payment_method, p.amount, p.cash_received, p.change_amount,
+		       p.reference_number, p.status,
 		       p.processed_by, p.processed_at, p.created_at,
 		       u.username, u.first_name, u.last_name
 		FROM payments p
@@ -1287,8 +1316,8 @@ func (h *OrderHandler) loadOrderPayments(order *models.Order) error {
 		var username, firstName, lastName sql.NullString
 
 		err := rows.Scan(
-			&payment.ID, &payment.PaymentMethod, &payment.Amount, &payment.ReferenceNumber,
-			&payment.Status, &payment.ProcessedBy, &payment.ProcessedAt, &payment.CreatedAt,
+			&payment.ID, &payment.PaymentMethod, &payment.Amount, &payment.CashReceived, &payment.ChangeAmount,
+			&payment.ReferenceNumber, &payment.Status, &payment.ProcessedBy, &payment.ProcessedAt, &payment.CreatedAt,
 			&username, &firstName, &lastName,
 		)
 		if err != nil {
@@ -2674,6 +2703,13 @@ func (h *OrderHandler) GetActiveBillForTable(c *gin.Context) {
 		aggregatedTotal += kot.TotalAmount
 	}
 
+	// Query total paid amount for this bill
+	var paidAmount float64
+	err = h.db.QueryRow(`SELECT COALESCE(SUM(amount), 0) FROM payments WHERE order_id = $1`, billID).Scan(&paidAmount)
+	if err != nil {
+		paidAmount = 0
+	}
+
 	response := models.BillSummaryResponse{
 		Bill:               *bill,
 		KOTs:               kots,
@@ -2682,6 +2718,7 @@ func (h *OrderHandler) GetActiveBillForTable(c *gin.Context) {
 		AggregatedTax:      aggregatedTax,
 		AggregatedDiscount: aggregatedDiscount,
 		AggregatedTotal:    aggregatedTotal,
+		PaidAmount:         paidAmount,
 		IsBillClosed:       false,
 	}
 

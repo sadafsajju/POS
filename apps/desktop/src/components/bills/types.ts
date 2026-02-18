@@ -19,5 +19,6 @@ export interface BillsFilters {
   search: string
   sortBy: BillsSortBy
   sortOrder: 'asc' | 'desc'
+  date: string // YYYY-MM-DD
 }
 

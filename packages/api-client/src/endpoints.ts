@@ -35,6 +35,31 @@ import type {
 } from '@pos/types';
 
 // ============================================
+// Promo Types
+// ============================================
+export interface PromoItem {
+  id: string;
+  org_id?: string;
+  title: string | null;
+  media_type: 'image' | 'video';
+  file_url: string;
+  display_order: number;
+  duration_seconds: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ============================================
+// Public Promos Endpoint (no auth)
+// ============================================
+export const promosApi = {
+  /** Fetch active promos for customer display (no auth required) */
+  getPublicPromos: () =>
+    getApiClient().get<PromoItem[]>('/promos'),
+};
+
+// ============================================
 // Setup Endpoints (First-time installation)
 // ============================================
 export interface SetupStatus {
@@ -91,11 +116,17 @@ export const authApi = {
   getStaffForPin: () =>
     getApiClient().get<StaffMember[]>('/auth/staff'),
 
+  pinStatus: () =>
+    getApiClient().get<{ has_pin: boolean }>('/auth/pin-status'),
+
   verifyPin: (pin: string) =>
     getApiClient().post<void>('/auth/verify-pin', { pin }),
 
   updatePin: (newPin: string) =>
     getApiClient().put<void>('/auth/pin', { new_pin: newPin }),
+
+  switchLocation: (locationId: string) =>
+    getApiClient().post<{ token: string; location: Location }>('/auth/switch-location', { location_id: locationId }),
 };
 
 // ============================================
@@ -350,6 +381,38 @@ export const adminApi = {
 
   reassignUserLocation: (userId: string, locationId: string) =>
     getApiClient().put(`/admin/users/${userId}/location`, { location_id: locationId }),
+
+  // Promo Management
+  getPromos: () =>
+    getApiClient().get<PromoItem[]>('/admin/promos'),
+
+  uploadPromo: (formData: FormData) =>
+    getApiClient().postForm<PromoItem>('/admin/promos/upload', formData),
+
+  createPromoFromMedia: (file_url: string, title?: string) =>
+    getApiClient().post<PromoItem>('/admin/promos/from-media', { file_url, title }),
+
+  deletePromo: (id: string) =>
+    getApiClient().delete(`/admin/promos/${id}`),
+
+  reorderPromos: (items: { id: string; display_order: number }[]) =>
+    getApiClient().put('/admin/promos/reorder', items),
+
+  togglePromo: (id: string) =>
+    getApiClient().put<{ id: string; is_active: boolean }>(`/admin/promos/${id}/toggle`),
+
+  updatePromoDuration: (id: string, duration_seconds: number) =>
+    getApiClient().put(`/admin/promos/${id}/duration`, { duration_seconds }),
+
+  // Media Library
+  getMedia: () =>
+    getApiClient().get<any[]>('/admin/media'),
+
+  uploadMedia: (formData: FormData) =>
+    getApiClient().postForm<any>('/admin/media/upload', formData),
+
+  deleteMedia: (id: string) =>
+    getApiClient().delete(`/admin/media/${id}`),
 };
 
 // ============================================

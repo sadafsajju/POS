@@ -53,6 +53,7 @@ export interface User {
   role: 'admin' | 'manager' | 'cashier' | 'kitchen';
   org_id: string;
   location_id?: string;
+  location_ids?: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -68,6 +69,7 @@ export interface LoginResponse {
   user: User;
   organization?: Organization;
   location?: Location;
+  locations?: Location[];
 }
 
 // Category Types
@@ -101,8 +103,13 @@ export interface Product {
   preparation_time: number;
   sort_order: number;
   dietary_type?: DietaryType;
+  calorie_count?: number;
+  food_allergens?: string;
   product_type: ProductType;
   has_option_groups?: boolean;
+  min_variation_price?: number;
+  max_variation_price?: number;
+  location_ids?: string[];
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -144,6 +151,84 @@ export interface OrderItemOption {
   price_adjustment: number;
 }
 
+// Global Variation Types
+export interface VariationGroup {
+  id: string;
+  org_id: string;
+  name: string;
+  selection_type: 'single' | 'multiple';
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  items: VariationItem[];
+  product_count?: number;
+}
+
+export interface VariationItem {
+  id: string;
+  variation_group_id: string;
+  name: string;
+  price_adjustment: number;
+  is_default: boolean;
+  is_available: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateVariationGroupRequest {
+  name: string;
+  selection_type: 'single' | 'multiple';
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  sort_order: number;
+  items: CreateVariationItemRequest[];
+}
+
+export interface CreateVariationItemRequest {
+  name: string;
+  price_adjustment?: number;
+  is_default: boolean;
+  sort_order: number;
+}
+
+// Product-Variation Linking (with per-item prices)
+export interface LinkVariationItemPrice {
+  variation_item_id: string;
+  price: number;
+}
+
+export interface LinkVariationGroupWithPrices {
+  variation_group_id: string;
+  sort_order: number;
+  item_prices: LinkVariationItemPrice[];
+}
+
+export interface ProductVariationLinkResponse {
+  variation_group_id: string;
+  group_name: string;
+  selection_type: 'single' | 'multiple';
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  sort_order: number;
+  items: ProductVariationItemPrice[];
+}
+
+export interface ProductVariationItemPrice {
+  variation_item_id: string;
+  item_name: string;
+  price: number;
+  is_default: boolean;
+  is_available: boolean;
+  sort_order: number;
+}
+
 // Combo Types
 export interface ComboSlot {
   id: string;
@@ -160,6 +245,8 @@ export interface ComboSlotChoice {
   id: string;
   combo_slot_id: string;
   product_id: string;
+  variation_item_id?: string;
+  variation_item_name?: string;
   price_override?: number | null;
   sort_order: number;
   created_at: string;
@@ -186,6 +273,7 @@ export interface CreateComboSlotRequest {
 
 export interface CreateComboSlotChoiceRequest {
   product_id: string;
+  variation_item_id?: string;
   price_override?: number | null;
   sort_order: number;
 }
@@ -206,6 +294,8 @@ export interface DiningTable {
   location?: string;
   floor?: string;
   is_occupied: boolean;
+  location_id?: string;
+  location_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -308,6 +398,8 @@ export interface Payment {
   order_id: string;
   payment_method: 'cash' | 'credit_card' | 'debit_card' | 'digital_wallet';
   amount: number;
+  cash_received?: number;
+  change_amount?: number;
   reference_number?: string;
   status: 'pending' | 'completed' | 'failed' | 'refunded';
   processed_by?: string;
@@ -416,5 +508,17 @@ export interface TableFilters {
   location?: string;
   occupied_only?: boolean;
   available_only?: boolean;
+}
+
+// Media Library
+export interface MediaItem {
+  id: string;
+  org_id?: string;
+  filename: string;
+  original_name?: string;
+  file_url: string;
+  file_size?: number;
+  mime_type?: string;
+  created_at: string;
 }
 

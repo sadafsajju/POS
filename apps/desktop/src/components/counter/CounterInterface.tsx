@@ -7,17 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig } from '@/components/ui/on-screen-keyboard/types'
-import {
-  Table as TableIcon,
-  Search,
-  CloudOff,
-  RefreshCw,
-  X,
-  ArrowLeft,
-  Package,
-  Car,
-  UtensilsCrossed
-} from 'lucide-react'
+import { Table as TableIcon, Search, CloudOff, RefreshCw, X, ArrowLeft, Package, Car, UtensilsCrossed} from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast } from '@pos/core'
 import type { DisplayCartItem } from '@pos/core'
@@ -25,6 +15,53 @@ import { counterApi, adminApi } from '@pos/api-client'
 
 // Types
 import type { DiningTable, Order, Category, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot } from './types'
+
+// --- Helpers to reduce repetition ---
+
+const ORDER_TYPE_CONFIG: Record<OrderType, { icon: typeof TableIcon; label: string; badgeColor: string; hoverColor: string }> = {
+  dine_in: { icon: TableIcon, label: 'Dine-In', badgeColor: 'bg-blue-700 hover:bg-blue-700', hoverColor: 'hover:border-amber-500' },
+  takeout: { icon: Package, label: 'Takeout', badgeColor: 'bg-orange-500', hoverColor: 'hover:border-orange-500' },
+  delivery: { icon: Car, label: 'Delivery', badgeColor: 'bg-green-500', hoverColor: 'hover:border-green-500' },
+}
+
+function OrderTypeTitle({ orderType, tableLabel }: { orderType: OrderType; tableLabel?: string }) {
+  const config = ORDER_TYPE_CONFIG[orderType]
+  const Icon = config.icon
+  return (
+    <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+      <Icon className="w-6 h-6" />
+      {tableLabel || (orderType === 'dine_in' ? 'Select a Table' : `${config.label} Order`)}
+    </h1>
+  )
+}
+
+function OrderTypeBadge({ orderType }: { orderType: OrderType }) {
+  const config = ORDER_TYPE_CONFIG[orderType]
+  return (
+    <Badge className={`${config.badgeColor} text-white px-3 py-1 text-sm`}>
+      {config.label}
+    </Badge>
+  )
+}
+
+function cartToKotItems(cartItems: Array<{ product: { name: string }; quantity: number; special_instructions?: string }>): KOTItem[] {
+  return cartItems.map(item => ({
+    name: item.product.name,
+    quantity: item.quantity,
+    special_instructions: item.special_instructions,
+  }))
+}
+
+/** Pick the right API method based on user role */
+function roleBasedApi<T>(
+  isAdmin: boolean,
+  userRole: string,
+  apis: { admin: () => T; server: () => T; counter: () => T }
+): T {
+  if (isAdmin) return apis.admin()
+  if (userRole === 'server') return apis.server()
+  return apis.counter()
+}
 
 // Hooks
 import { useCart } from './hooks/useCart'
@@ -248,19 +285,9 @@ export function CounterInterface() {
         : await counterApi.createOrder(order)
       return response
     },
-    onSuccess: (order, isOffline) => {
-      if (isOffline) {
-        setSuccessMessage('Order saved offline! Will sync when connected.')
-      } else {
-        setSuccessMessage('Order created successfully!')
-      }
-      if (settings.cartSettings?.autoClearAfterOrder !== false) {
-        cart.clearCart()
-        setCustomerName('')
-        setOrderNotes('')
-      }
-      invalidateQueries()
-      setTimeout(() => setSuccessMessage(null), 3000)
+    onSuccess: (_order, isOffline) => {
+      clearAfterOrder()
+      showSuccess(isOffline ? 'Order saved offline! Will sync when connected.' : 'Order created successfully!')
     },
     onError: (error) => {
       setErrorMessage(error.message || 'Failed to create order')
@@ -275,17 +302,36 @@ export function CounterInterface() {
     queryClient.invalidateQueries({ queryKey: ['activeBill'] })
   }
 
+  // Common mutation handlers
+  const handleMutationError = (error: Error, fallback: string) => {
+    setErrorMessage(error.message || fallback)
+    setSuccessMessage(null)
+  }
+
+  const showSuccess = (msg: string) => {
+    setErrorMessage(null)
+    setSuccessMessage(msg)
+    invalidateQueries()
+    setTimeout(() => setSuccessMessage(null), 3000)
+  }
+
+  const clearAfterOrder = () => {
+    if (settings.cartSettings?.autoClearAfterOrder !== false) {
+      cart.clearCart()
+      setCustomerName('')
+      setOrderNotes('')
+    }
+    setPendingPrintCart([])
+  }
+
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: (orderData: CreateOrderRequest & { shouldPrint?: boolean }) => {
-      if (isAdmin) {
-        return apiClient.createAdminOrder(orderData)
-      } else if (userRole === 'server') {
-        return apiClient.createServerOrder(orderData)
-      } else {
-        return apiClient.createCounterOrder(orderData)
-      }
-    },
+    mutationFn: (orderData: CreateOrderRequest & { shouldPrint?: boolean }) =>
+      roleBasedApi(isAdmin, userRole, {
+        admin: () => apiClient.createAdminOrder(orderData),
+        server: () => apiClient.createServerOrder(orderData),
+        counter: () => apiClient.createCounterOrder(orderData),
+      }),
     onSuccess: (response, variables) => {
       const createdOrder = response.data
 
@@ -314,38 +360,20 @@ export function CounterInterface() {
       }
 
       if (variables.shouldPrint && createdOrder) {
-        const kotItems: KOTItem[] = pendingPrintCart.map(item => ({
-          name: item.product.name,
-          quantity: item.quantity,
-          special_instructions: item.special_instructions
-        }))
         printKOT(
           createdOrder.order_number,
           selectedTable?.table_number,
           variables.customer_name,
           variables.order_type,
-          kotItems,
+          cartToKotItems(pendingPrintCart),
           variables.notes,
           false
         )
-        setSuccessMessage('Order created! KOT sent to kitchen.')
-      } else {
-        setSuccessMessage('Order created successfully!')
       }
-      if (settings.cartSettings?.autoClearAfterOrder !== false) {
-        cart.clearCart()
-        setCustomerName('')
-        setOrderNotes('')
-      }
-      setPendingPrintCart([])
-      setErrorMessage(null)
-      invalidateQueries()
-      setTimeout(() => setSuccessMessage(null), 3000)
+      clearAfterOrder()
+      showSuccess(variables.shouldPrint ? 'Order created! KOT sent to kitchen.' : 'Order created successfully!')
     },
-    onError: (error: Error) => {
-      setErrorMessage(error.message || 'Failed to create order. Please try again.')
-      setSuccessMessage(null)
-    }
+    onError: (error: Error) => handleMutationError(error, 'Failed to create order. Please try again.')
   })
 
   // Add items mutation
@@ -355,48 +383,27 @@ export function CounterInterface() {
       items: Array<{ product_id: string; quantity: number; special_instructions?: string }>,
       existingOrder?: Order,
       shouldPrint?: boolean
-    }) => {
-      if (isAdmin) {
-        return apiClient.addItemsToAdminOrder(orderId, items)
-      } else if (userRole === 'server') {
-        return apiClient.addItemsToServerOrder(orderId, items)
-      } else {
-        return apiClient.addItemsToCounterOrder(orderId, items)
-      }
-    },
+    }) => roleBasedApi(isAdmin, userRole, {
+      admin: () => apiClient.addItemsToAdminOrder(orderId, items),
+      server: () => apiClient.addItemsToServerOrder(orderId, items),
+      counter: () => apiClient.addItemsToCounterOrder(orderId, items),
+    }),
     onSuccess: (_, variables) => {
       if (variables.shouldPrint && variables.existingOrder) {
-        const kotItems: KOTItem[] = pendingPrintCart.map(item => ({
-          name: item.product.name,
-          quantity: item.quantity,
-          special_instructions: item.special_instructions
-        }))
         printKOT(
           variables.existingOrder.order_number,
           selectedTable?.table_number,
           variables.existingOrder.customer_name,
           orderType,
-          kotItems,
+          cartToKotItems(pendingPrintCart),
           orderNotes,
           true
         )
-        setSuccessMessage('Items added to order! KOT printed.')
-      } else {
-        setSuccessMessage('Items added to order successfully!')
       }
-      if (settings.cartSettings?.autoClearAfterOrder !== false) {
-        cart.clearCart()
-        setOrderNotes('')
-      }
-      setPendingPrintCart([])
-      setErrorMessage(null)
-      invalidateQueries()
-      setTimeout(() => setSuccessMessage(null), 3000)
+      clearAfterOrder()
+      showSuccess(variables.shouldPrint ? 'Items added to order! KOT printed.' : 'Items added to order successfully!')
     },
-    onError: (error: Error) => {
-      setErrorMessage(error.message || 'Failed to add items. Please try again.')
-      setSuccessMessage(null)
-    }
+    onError: (error: Error) => handleMutationError(error, 'Failed to add items. Please try again.')
   })
 
   // Delete order mutation (for canceling orders)
@@ -406,8 +413,6 @@ export function CounterInterface() {
         ? apiClient.deleteAdminOrder(orderId)
         : apiClient.deleteOrder(orderId),
     onSuccess: async () => {
-      setErrorMessage(null)
-      setSuccessMessage('Order cancelled successfully!')
       // Clear cached data immediately for instant UI update
       if (selectedTable) {
         queryClient.setQueryData(['activeBill', selectedTable.id], null)
@@ -419,71 +424,44 @@ export function CounterInterface() {
       await queryClient.refetchQueries({ queryKey: ['activeBill'] })
       await queryClient.refetchQueries({ queryKey: ['allActiveOrders'] })
       await queryClient.refetchQueries({ queryKey: ['tables'] })
-      setTimeout(() => setSuccessMessage(null), 3000)
+      showSuccess('Order cancelled successfully!')
     },
-    onError: (error: Error) => {
-      setErrorMessage(error.message || 'Failed to cancel order. Please try again.')
-      setSuccessMessage(null)
-    }
+    onError: (error: Error) => handleMutationError(error, 'Failed to cancel order. Please try again.')
   })
 
   // Update order item mutation
   const updateOrderItemMutation = useMutation({
-    mutationFn: ({ orderId, itemId, quantity }: { orderId: string; itemId: string; quantity: number }) => {
-      if (isAdmin) {
-        return apiClient.updateAdminOrderItem(orderId, itemId, { quantity })
-      } else if (userRole === 'server') {
-        return apiClient.updateServerOrderItem(orderId, itemId, { quantity })
-      } else {
-        return apiClient.updateCounterOrderItem(orderId, itemId, { quantity })
-      }
-    },
+    mutationFn: ({ orderId, itemId, quantity }: { orderId: string; itemId: string; quantity: number }) =>
+      roleBasedApi(isAdmin, userRole, {
+        admin: () => apiClient.updateAdminOrderItem(orderId, itemId, { quantity }),
+        server: () => apiClient.updateServerOrderItem(orderId, itemId, { quantity }),
+        counter: () => apiClient.updateCounterOrderItem(orderId, itemId, { quantity }),
+      }),
     onSuccess: (response) => {
-      setErrorMessage(null)
-      setSuccessMessage('Item updated successfully!')
-      // Update the order being edited with new data
-      if (response.data && orderToEdit) {
-        setOrderToEdit(response.data)
-      }
-      invalidateQueries()
-      setTimeout(() => setSuccessMessage(null), 3000)
+      if (response.data && orderToEdit) setOrderToEdit(response.data)
+      showSuccess('Item updated successfully!')
     },
-    onError: (error: Error) => {
-      setErrorMessage(error.message || 'Failed to update item. Please try again.')
-      setSuccessMessage(null)
-    }
+    onError: (error: Error) => handleMutationError(error, 'Failed to update item. Please try again.')
   })
 
   // Remove order item mutation
   const removeOrderItemMutation = useMutation({
-    mutationFn: ({ orderId, itemId }: { orderId: string; itemId: string }) => {
-      if (isAdmin) {
-        return apiClient.removeAdminOrderItem(orderId, itemId)
-      } else if (userRole === 'server') {
-        return apiClient.removeServerOrderItem(orderId, itemId)
-      } else {
-        return apiClient.removeCounterOrderItem(orderId, itemId)
-      }
-    },
+    mutationFn: ({ orderId, itemId }: { orderId: string; itemId: string }) =>
+      roleBasedApi(isAdmin, userRole, {
+        admin: () => apiClient.removeAdminOrderItem(orderId, itemId),
+        server: () => apiClient.removeServerOrderItem(orderId, itemId),
+        counter: () => apiClient.removeCounterOrderItem(orderId, itemId),
+      }),
     onSuccess: (response) => {
-      setErrorMessage(null)
-      setSuccessMessage('Item removed successfully!')
-      // Update the order being edited with new data, or close if order was cancelled
-      if (response.data) {
-        if (response.data.status === 'cancelled') {
-          setOrderToEdit(null)
-          setSuccessMessage('Item removed and order cancelled (no items remaining)')
-        } else {
-          setOrderToEdit(response.data)
-        }
+      if (response.data?.status === 'cancelled') {
+        setOrderToEdit(null)
+        showSuccess('Item removed and order cancelled (no items remaining)')
+      } else {
+        if (response.data) setOrderToEdit(response.data)
+        showSuccess('Item removed successfully!')
       }
-      invalidateQueries()
-      setTimeout(() => setSuccessMessage(null), 3000)
     },
-    onError: (error: Error) => {
-      setErrorMessage(error.message || 'Failed to remove item. Please try again.')
-      setSuccessMessage(null)
-    }
+    onError: (error: Error) => handleMutationError(error, 'Failed to remove item. Please try again.')
   })
 
   // Handle order creation
@@ -529,12 +507,7 @@ export function CounterInterface() {
       try {
         const result = await createOfflineOrder(orderData)
         if (shouldPrint && 'orderNumber' in result) {
-          const kotItems: KOTItem[] = pendingPrintCart.map(item => ({
-            name: item.product.name,
-            quantity: item.quantity,
-            special_instructions: item.special_instructions
-          }))
-          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, kotItems, orderData.notes, false)
+          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCart), orderData.notes, false)
         }
       } catch (error) {
         console.error('Failed to create offline order:', error)
@@ -565,39 +538,18 @@ export function CounterInterface() {
     }
   }
 
-  // Handle update order item
-  const handleUpdateOrderItem = (orderId: string, itemId: string, quantity: number) => {
-    updateOrderItemMutation.mutate({ orderId, itemId, quantity })
-  }
-
-  // Handle remove order item
-  const handleRemoveOrderItem = (orderId: string, itemId: string) => {
-    removeOrderItemMutation.mutate({ orderId, itemId })
-  }
-
   // Payment overlay handlers
   const handleOpenPayment = () => {
     if (!canProcessPayment) return
+    if (orderType === 'dine_in' && !selectedTable) return
 
-    // Dine-in: requires a selected table
-    if (orderType === 'dine_in') {
-      if (!selectedTable) return
-
-      // If there's an active bill ready for payment, open directly
-      if (activeBill && activeBill.bill?.status !== 'paid') {
-        setShowPaymentOverlay(true)
-        return
-      }
-
-      // If there are items in cart but no active bill, create order first then open payment
-      if (cart.cart.length > 0) {
-        pendingPayment.current = true
-        handleCreateOrder(false)
-      }
+    // Dine-in with existing active bill: open payment directly
+    if (orderType === 'dine_in' && activeBill && activeBill.bill?.status !== 'paid') {
+      setShowPaymentOverlay(true)
       return
     }
 
-    // Takeout/Delivery: create order then open payment
+    // Otherwise: create order first, then open payment on success
     if (cart.cart.length > 0) {
       pendingPayment.current = true
       handleCreateOrder(false)
@@ -615,28 +567,18 @@ export function CounterInterface() {
   const handlePaymentComplete = () => {
     setShowPaymentOverlay(false)
     setTakeawayBill(null)
-    invalidateQueries()
-    if (orderType === 'dine_in') {
-      setSelectedTable(null)
-    }
+    if (orderType === 'dine_in') setSelectedTable(null)
     navigateTo('order-type')
-    setSuccessMessage('Payment processed successfully!')
-    setTimeout(() => setSuccessMessage(null), 3000)
+    showSuccess('Payment processed successfully!')
   }
 
   const handleClearTable = async () => {
     if (!selectedTable) return
     try {
-      if (isAdmin) {
-        await apiClient.clearAdminTable(selectedTable.id)
-      } else {
-        await apiClient.clearCounterTable(selectedTable.id)
-      }
-      invalidateQueries()
+      await (isAdmin ? apiClient.clearAdminTable(selectedTable.id) : apiClient.clearCounterTable(selectedTable.id))
       setSelectedTable(null)
       navigateTo('order-type')
-      setSuccessMessage('Table cleared successfully!')
-      setTimeout(() => setSuccessMessage(null), 3000)
+      showSuccess('Table cleared successfully!')
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to clear table')
       setTimeout(() => setErrorMessage(null), 3000)
@@ -645,32 +587,20 @@ export function CounterInterface() {
 
   // Handle configurable/combo product: fetch data, then open appropriate dialog
   const handleConfigureProduct = async (product: Product) => {
-    if (product.product_type === 'combo') {
-      // Combo product: load combo slots
-      setComboProduct(product)
-      setIsLoadingCombo(true)
-      try {
-        const response = await apiClient.getComboSlots(product.id)
-        const slots = Array.isArray(response.data) ? response.data : []
-        setComboSlots(slots)
-      } catch {
-        setComboSlots([])
-      } finally {
-        setIsLoadingCombo(false)
-      }
-    } else {
-      // Configurable product: load option groups (includes variation groups from backend)
-      setConfigProduct(product)
-      setIsLoadingOptions(true)
-      try {
-        const response = await apiClient.getOptionGroups(product.id)
-        const groups = Array.isArray(response.data) ? response.data : []
-        setConfigOptionGroups(groups)
-      } catch {
-        setConfigOptionGroups([])
-      } finally {
-        setIsLoadingOptions(false)
-      }
+    const isCombo = product.product_type === 'combo'
+    if (isCombo) { setComboProduct(product); setIsLoadingCombo(true) }
+    else { setConfigProduct(product); setIsLoadingOptions(true) }
+    try {
+      const response = await (isCombo ? apiClient.getComboSlots(product.id) : apiClient.getOptionGroups(product.id))
+      const data = Array.isArray(response.data) ? response.data : []
+      if (isCombo) setComboSlots(data as ComboSlot[])
+      else setConfigOptionGroups(data as ProductOptionGroup[])
+    } catch {
+      if (isCombo) setComboSlots([])
+      else setConfigOptionGroups([])
+    } finally {
+      if (isCombo) setIsLoadingCombo(false)
+      else setIsLoadingOptions(false)
     }
   }
 
@@ -702,7 +632,7 @@ export function CounterInterface() {
         {activeTab === 'tables' && (
           <div className="p-4 bg-zinc-900 border-b border-zinc-800">
             <div className="flex items-center gap-3">
-              {enabledOrderTypes.length > 1 && (
+              {enabledOrderTypes.length > 1 && !isServer && (
                 <Button
                   variant="outline"
                   size="lg"
@@ -712,31 +642,16 @@ export function CounterInterface() {
                   <ArrowLeft className="w-6 h-6" />
                 </Button>
               )}
-              <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                {orderType === 'dine_in' ? (
-                  <>
-                    <TableIcon className="w-6 h-6" />
-                    Select a Table
-                  </>
-                ) : orderType === 'takeout' ? (
-                  <>
-                    <Package className="w-6 h-6" />
-                    Takeout Order
-                  </>
-                ) : (
-                  <>
-                    <Car className="w-6 h-6" />
-                    Delivery Order
-                  </>
-                )}
-              </h1>
-              <Badge className={`${
-                orderType === 'dine_in' ? 'bg-blue-700 hover:bg-blue-700' :
-                orderType === 'takeout' ? 'bg-orange-500' : 'bg-green-500'
-              } text-white px-3 py-1 text-sm`}>
-                {orderType === 'dine_in' ? 'Dine-In' :
-                 orderType === 'takeout' ? 'Takeout' : 'Delivery'}
-              </Badge>
+              <OrderTypeTitle orderType={orderType} />
+              <OrderTypeBadge orderType={orderType} />
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={invalidateQueries}
+                className="h-12 w-12 p-0 ml-auto bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         )}
@@ -763,31 +678,8 @@ export function CounterInterface() {
               )}
               <div className="flex items-center gap-3 flex-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                    {orderType === 'dine_in' && selectedTable ? (
-                      <>
-                        <TableIcon className="w-6 h-6" />
-                        Table {selectedTable.table_number}
-                      </>
-                    ) : orderType === 'takeout' ? (
-                      <>
-                        <Package className="w-6 h-6" />
-                        Takeout Order
-                      </>
-                    ) : (
-                      <>
-                        <Car className="w-6 h-6" />
-                        Delivery Order
-                      </>
-                    )}
-                  </h1>
-                  <Badge className={`${
-                    orderType === 'dine_in' ? 'bg-blue-700 hover:bg-blue-700' :
-                    orderType === 'takeout' ? 'bg-orange-500' : 'bg-green-500'
-                  } text-white px-3 py-1 text-sm `}>
-                    {orderType === 'dine_in' ? 'Dine-In' :
-                     orderType === 'takeout' ? 'Takeout' : 'Delivery'}
-                  </Badge>
+                  <OrderTypeTitle orderType={orderType} tableLabel={orderType === 'dine_in' && selectedTable ? `Table ${selectedTable.table_number}` : undefined} />
+                  <OrderTypeBadge orderType={orderType} />
                 </div>
                 {/* Search */}
                 <div className="flex items-center gap-2 ml-auto flex-1 justify-end">
@@ -825,6 +717,14 @@ export function CounterInterface() {
                       <Search className="w-6 h-6" />
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={invalidateQueries}
+                    className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -842,68 +742,37 @@ export function CounterInterface() {
               <div className="flex-1 flex flex-col items-center justify-center p-6">
                 <h1 className="text-3xl font-black tracking-tight text-zinc-100 mb-8">Are you dining in or taking away?</h1>
                 <div className="flex gap-6 w-full max-w-4xl">
-                  {(settings.cartSettings?.showDineIn !== false) && (
-                    <button
-                      onClick={() => navigateTo('tables', 'dine_in')}
-                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-amber-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
-                    >
-                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/dine-in.png)' }} />
-                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
-                        <UtensilsCrossed className="w-10 h-10" />
-                        <span className="text-3xl font-bold">Dine-In</span>
-                        {activeTablesCount > 0 && (
-                          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-sm font-semibold">
-                            <TableIcon className="w-3.5 h-3.5" />
-                            {activeTablesCount} active {activeTablesCount === 1 ? 'table' : 'tables'}
-                          </span>
-                        )}
+                  {([
+                    { type: 'dine_in' as OrderType, show: settings.cartSettings?.showDineIn !== false, icon: UtensilsCrossed, label: 'Dine-In', image: 'dine-in.png', hoverBorder: 'hover:border-amber-500', onClick: () => navigateTo('tables', 'dine_in'), extra: activeTablesCount > 0 && (
+                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-sm font-semibold">
+                        <TableIcon className="w-3.5 h-3.5" />
+                        {activeTablesCount} active {activeTablesCount === 1 ? 'table' : 'tables'}
                       </span>
-                    </button>
-                  )}
-                  {(settings.cartSettings?.showTakeout !== false) && (
-                    <button
-                      onClick={() => {
-                        setSelectedTable(null)
-                        navigateTo('create', 'takeout')
-                      }}
-                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-orange-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
-                    >
-                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/takeout.png)' }} />
-                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
-                        <Package className="w-10 h-10" />
-                        <span className="text-3xl font-bold">Takeout</span>
-                      </span>
-                    </button>
-                  )}
-                  {(settings.cartSettings?.showDelivery !== false) && (
-                    <button
-                      onClick={() => {
-                        setSelectedTable(null)
-                        navigateTo('tables', 'delivery')
-                      }}
-                      className="flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent hover:border-green-500 active:scale-[0.97] transition-all duration-200 select-none touch-manipulation"
-                    >
-                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: 'url(/images/delivery.png)' }} />
-                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
-                        <Car className="w-10 h-10" />
-                        <span className="text-3xl font-bold">Delivery</span>
-                      </span>
-                    </button>
-                  )}
+                    )},
+                    { type: 'takeout' as OrderType, show: settings.cartSettings?.showTakeout !== false, icon: Package, label: 'Takeout', image: 'takeout.png', hoverBorder: 'hover:border-orange-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'takeout') } },
+                    { type: 'delivery' as OrderType, show: settings.cartSettings?.showDelivery !== false, icon: Car, label: 'Delivery', image: 'delivery.png', hoverBorder: 'hover:border-green-500', onClick: () => { setSelectedTable(null); navigateTo('tables', 'delivery') } },
+                  ]).filter(c => c.show).map(card => {
+                    const Icon = card.icon
+                    return (
+                      <button key={card.type} onClick={card.onClick} className={`flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent ${card.hoverBorder} active:scale-[0.97] transition-all duration-200 select-none touch-manipulation`}>
+                        <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url(/images/${card.image})` }} />
+                        <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                        <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
+                          <Icon className="w-10 h-10" />
+                          <span className="text-3xl font-bold">{card.label}</span>
+                          {card.extra}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
           )}
-          {/* Aggregator Orders - show on tables view */}
-          {activeTab === 'tables' && (
+          {activeTab === 'tables' && (<>
             <div className="px-4 pt-4">
               <AggregatorOrders />
             </div>
-          )}
-          {activeTab === 'tables' && (
             <TablesView
               tables={safeTables}
               allOrders={safeAllOrders}
@@ -929,7 +798,7 @@ export function CounterInterface() {
               onProceedToProducts={() => navigateTo('create')}
               hasCartItems={(tableId) => cart.hasItemsInCart(tableId, 'dine_in')}
             />
-          )}
+          </>)}
           {activeTab === 'create' && (
             <CreateOrderView
               products={filteredProducts}
@@ -1073,8 +942,8 @@ export function CounterInterface() {
         <EditOrderDialog
           order={orderToEdit}
           isUpdating={isUpdatingItem}
-          onUpdateItem={handleUpdateOrderItem}
-          onRemoveItem={handleRemoveOrderItem}
+          onUpdateItem={(orderId, itemId, quantity) => updateOrderItemMutation.mutate({ orderId, itemId, quantity })}
+          onRemoveItem={(orderId, itemId) => removeOrderItemMutation.mutate({ orderId, itemId })}
           onClose={() => setOrderToEdit(null)}
           formatCurrency={format}
         />
@@ -1090,27 +959,11 @@ export function CounterInterface() {
                 row={row}
                 isShifted={false}
                 onKeyPress={(config: KeyConfig) => {
-                  switch (config.type) {
-                    case 'char':
-                      if (searchTerm.length < 100) {
-                        setSearchTerm(searchTerm + (config.value || ''))
-                      }
-                      break
-                    case 'backspace':
-                      setSearchTerm(searchTerm.slice(0, -1))
-                      break
-                    case 'space':
-                      if (searchTerm.length < 100) {
-                        setSearchTerm(searchTerm + ' ')
-                      }
-                      break
-                    case 'clear':
-                      setSearchTerm('')
-                      break
-                    case 'enter':
-                      setShowSearchKeyboard(false)
-                      break
-                  }
+                  if (config.type === 'char' || config.type === 'space') {
+                    if (searchTerm.length < 100) setSearchTerm(searchTerm + (config.type === 'space' ? ' ' : config.value || ''))
+                  } else if (config.type === 'backspace') setSearchTerm(searchTerm.slice(0, -1))
+                  else if (config.type === 'clear') setSearchTerm('')
+                  else if (config.type === 'enter') setShowSearchKeyboard(false)
                 }}
               />
             ))}

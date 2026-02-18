@@ -1,9 +1,5 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Plus,
   Trash2,
@@ -11,10 +7,23 @@ import {
   MapPin,
   Phone,
   Building2,
-  X,
   Save,
   Loader2,
+  MoreVertical,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import apiClient from '@/api/client'
 import { toastHelpers } from '@/lib/toast-helpers'
 import type { Location } from '@/types'
@@ -47,7 +56,9 @@ export function AdminLocationManagement() {
     },
   })
 
-  const locations: Location[] = Array.isArray(locationsData) ? locationsData : []
+  const locations: Location[] = (Array.isArray(locationsData) ? locationsData : [])
+    .slice()
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   // Create mutation
   const createMutation = useMutation({
@@ -131,194 +142,234 @@ export function AdminLocationManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+      <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 select-none">
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-zinc-900 border-b border-zinc-800">
+          <span className="text-lg font-bold tracking-tight text-zinc-300">Locations</span>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+        </div>
       </div>
     )
   }
 
   if (queryError) {
     return (
-      <div className="max-w-3xl mx-auto">
-        <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          Failed to load locations: {queryError.message}. Try logging out and back in.
+      <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 select-none">
+        <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-zinc-900 border-b border-zinc-800">
+          <span className="text-lg font-bold tracking-tight text-zinc-300">Locations</span>
+        </header>
+        <div className="flex-1 p-6">
+          <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            Failed to load locations: {queryError.message}. Try logging out and back in.
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Add Button */}
-      {!showForm && (
-        <div className="flex justify-end">
-          <Button
-            onClick={() => { setFormData(emptyForm); setEditingLocation(null); setShowForm(true) }}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Location
-          </Button>
+    <div className="h-full flex flex-col overflow-hidden bg-zinc-950 text-zinc-100 select-none">
+      {/* Header Strip */}
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-bold tracking-tight text-zinc-300">Locations</span>
+          <div className="h-5 w-px bg-zinc-700" />
+          <span className="text-sm font-bold text-zinc-200 tabular-nums">{locations.length}</span>
+          <span className="text-xs text-zinc-500">total</span>
+        </div>
+        <button
+          onClick={() => { setFormData(emptyForm); setEditingLocation(null); setShowForm(true) }}
+          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500 text-white text-sm font-bold tracking-wide hover:bg-emerald-400 active:bg-emerald-600 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Add Location
+        </button>
+      </header>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+      {/* Locations List */}
+      {locations.length === 0 ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <MapPin className="mx-auto h-10 w-10 text-zinc-700 mb-3" />
+            <p className="text-sm font-semibold text-zinc-500">No locations</p>
+            <p className="text-xs text-zinc-600 mt-1">
+              Add your first branch to start managing multiple locations.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {locations.map((location) => (
+            <div
+              key={location.id}
+              className="rounded-lg border-l-4 border-l-teal-500 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors"
+            >
+              <div className="flex items-start justify-between px-4 py-4">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="p-2 bg-teal-500/10 rounded-lg flex-shrink-0 mt-0.5">
+                    <Building2 className="h-4 w-4 text-teal-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-base font-bold text-zinc-100 truncate">
+                        {location.name}
+                      </span>
+                      <span className="inline-flex px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 flex-shrink-0">
+                        {location.code}
+                      </span>
+                      {location.is_active ? (
+                        <span className="inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex-shrink-0">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-zinc-500/15 text-zinc-500 border border-zinc-500/30 flex-shrink-0">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      {location.address && (
+                        <span className="flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 text-zinc-600" />
+                          {location.address}
+                        </span>
+                      )}
+                      {location.phone && (
+                        <span className="flex items-center gap-1.5">
+                          <Phone className="h-3 w-3 text-zinc-600" />
+                          {location.phone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex-shrink-0 ml-4 p-1.5 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-700 min-w-[140px]">
+                    <DropdownMenuItem
+                      onClick={() => handleEdit(location)}
+                      className="gap-2 text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => deleteMutation.mutate(location.id)}
+                      disabled={deleteMutation.isPending}
+                      className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Create / Edit Form */}
-      {showForm && (
-        <Card className="border-teal-500/30">
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">
-                  {editingLocation ? 'Edit Location' : 'New Location'}
-                </h3>
-                <Button type="button" variant="ghost" size="icon" onClick={resetForm}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+      </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Create / Edit Location Dialog */}
+      <Dialog open={showForm} onOpenChange={(v) => { if (!v) resetForm() }}>
+        <DialogContent className="dark flex flex-col !max-w-none !w-screen !h-screen !rounded-none p-0 gap-0 overflow-hidden bg-zinc-950 border-zinc-800 text-zinc-100">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-zinc-800 flex-shrink-0 bg-zinc-900">
+            <DialogTitle className="text-zinc-100">
+              {editingLocation ? 'Edit Location' : 'Create New Location'}
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              {editingLocation
+                ? `Editing "${editingLocation.name}"`
+                : 'Add a new branch to your organization'}
+            </DialogDescription>
+          </DialogHeader>
+          <form id="location-form" onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="max-w-2xl mx-auto p-6 space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-400">Branch Name *</label>
+                    <input
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="e.g. MG Road Branch"
+                      required
+                      className="w-full px-3 py-2 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-400">Location Code *</label>
+                    <input
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                      placeholder="e.g. MG-ROAD"
+                      required
+                      className="w-full px-3 py-2 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors font-mono"
+                    />
+                    <p className="text-[11px] text-zinc-600">Short unique identifier for this branch</p>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Branch Name *</label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. MG Road Branch"
-                    required
+                  <label className="text-xs font-medium text-zinc-400">Address</label>
+                  <input
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Full address"
+                    className="w-full px-3 py-2 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Location Code *</label>
-                  <Input
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    placeholder="e.g. MG-ROAD"
-                    required
+                  <label className="text-xs font-medium text-zinc-400">Phone</label>
+                  <input
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Contact number"
+                    className="w-full px-3 py-2 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
                   />
-                  <p className="text-xs text-zinc-500">Short unique identifier for this branch</p>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-zinc-300">Address</label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Full address"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-zinc-300">Phone</label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="Contact number"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button type="submit" disabled={isSaving} className="gap-2">
+            {/* Fixed footer */}
+            <div className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 px-6 py-4">
+              <div className="max-w-2xl mx-auto flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   {isSaving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
                   {editingLocation ? 'Update Location' : 'Create Location'}
-                </Button>
-                <Button type="button" variant="outline" onClick={resetForm} disabled={isSaving}>
-                  Cancel
-                </Button>
+                </button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Locations List */}
-      {locations.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <MapPin className="mx-auto h-12 w-12 text-zinc-600" />
-              <h3 className="mt-3 text-sm font-medium text-zinc-300">No locations</h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Add your first branch to start managing multiple locations.
-              </p>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {locations.map((location) => (
-            <Card key={location.id} className="hover:border-zinc-700 transition-colors">
-              <CardContent className="pt-5 pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 min-w-0 flex-1">
-                    <div className="p-2.5 bg-teal-500/10 rounded-lg flex-shrink-0">
-                      <Building2 className="h-5 w-5 text-teal-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-base font-semibold text-zinc-100 truncate">
-                          {location.name}
-                        </h4>
-                        <Badge variant="outline" className="text-xs font-mono flex-shrink-0">
-                          {location.code}
-                        </Badge>
-                        {location.is_active ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs flex-shrink-0">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs flex-shrink-0">
-                            Inactive
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
-                        {location.address && (
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {location.address}
-                          </span>
-                        )}
-                        {location.phone && (
-                          <span className="flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5" />
-                            {location.phone}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEdit(location)}
-                      className="gap-1.5"
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => deleteMutation.mutate(location.id)}
-                      disabled={deleteMutation.isPending}
-                      className="gap-1.5 text-red-400 hover:text-red-300 hover:border-red-500/50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,28 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   TextInputField,
   TextareaField,
   PriceInputField,
   NumberInputField,
   SelectField,
+  SwitchField,
   FormSubmitButton,
   DietaryTypeField,
-  productStatusOptions
+  AllergenMultiSelectField,
+  ProductTypeSelector,
 } from '@/components/forms/FormComponents'
+import { ImagePickerField } from '@/components/forms/ImagePickerField'
+import { LocationMultiSelectField } from '@/components/forms/LocationMultiSelectField'
 import { createProductSchema, updateProductSchema, type CreateProductData, type UpdateProductData } from '@/lib/form-schemas'
-import { OptionGroupsEditor } from '@/components/forms/OptionGroupsEditor'
 import { ComboSlotsEditor, type DraftComboSlot } from '@/components/forms/ComboSlotsEditor'
+import { ProductVariationsEditor, type DraftVariationData } from '@/components/forms/ProductVariationsEditor'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { useSettingsStore } from '@pos/core'
 import apiClient from '@/api/client'
-import type { Product, CreateOptionGroupRequest, CreateComboSlotRequest } from '@/types'
+import type { Product, CreateComboSlotRequest } from '@/types'
 
 interface ProductFormProps {
   product?: Product // If provided, we're editing; otherwise creating
@@ -30,17 +31,23 @@ interface ProductFormProps {
   onCreated?: (product: Product) => void // Called after creation to auto-switch to edit mode
   onCancel?: () => void
   mode?: 'create' | 'edit'
+  /** When true, hides the built-in footer so the parent can render buttons externally using form="product-form" */
+  hideFooter?: boolean
+  /** Called when the form's loading state changes, so parent can reflect it on external buttons */
+  onLoadingChange?: (isLoading: boolean) => void
 }
 
-export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'create' }: ProductFormProps) {
+export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'create', hideFooter, onLoadingChange }: ProductFormProps) {
   const queryClient = useQueryClient()
   const { settings } = useSettingsStore()
   const isEditing = mode === 'edit' && product
 
-  // Draft option groups for create mode (stored locally until product is saved)
-  const [pendingGroups, setPendingGroups] = useState<CreateOptionGroupRequest[]>([])
   // Draft combo slots for create mode (stored locally until product is saved)
   const [pendingComboSlots, setPendingComboSlots] = useState<DraftComboSlot[]>([])
+  // Draft variation data for create mode (stored locally until product is saved)
+  const [pendingVariationData, setPendingVariationData] = useState<DraftVariationData>({ title: '', items: [] })
+  // Whether this product has variation-based pricing (hides base price field)
+  const [hasVariations, setHasVariations] = useState(false)
 
   // Fetch categories for dropdown
   const { data: categories = [] } = useQuery({
@@ -64,10 +71,13 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
         price: product.price,
         category_id: product.category_id,
         image_url: product.image_url || '',
-        status: product.status as any,
+        is_available: product.is_available ?? true,
         preparation_time: product.preparation_time || 5,
         dietary_type: product.dietary_type,
+        calorie_count: product.calorie_count || undefined,
+        food_allergens: product.food_allergens || '',
         product_type: product.product_type || 'simple',
+        location_ids: product.location_ids || undefined,
       }
     : {
         name: '',
@@ -75,10 +85,13 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
         price: 0,
         category_id: categories[0]?.id || 1,
         image_url: '',
-        status: 'active' as const,
+        is_available: true,
         preparation_time: 5,
         dietary_type: undefined,
+        calorie_count: undefined,
+        food_allergens: '',
         product_type: 'simple' as const,
+        location_ids: undefined,
       }
 
   const form = useForm<CreateProductData | UpdateProductData>({
@@ -90,20 +103,12 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
   const watchedProductType = form.watch('product_type')
   const isCombo = watchedProductType === 'combo'
 
-  // Create mutation - also batch-creates any pending option groups
+  // Create mutation - also batch-creates any pending variation links and combo slots
   const createMutation = useMutation({
     mutationFn: async (data: CreateProductData) => {
       const response = await apiClient.createProduct(data)
       if (response.data) {
         const productId = response.data.id
-        // Batch-create pending option groups after product is created
-        for (const group of pendingGroups) {
-          try {
-            await apiClient.createOptionGroup(productId, group)
-          } catch (err) {
-            console.error('Failed to create option group:', err)
-          }
-        }
         // Batch-create pending combo slots (with inline choices) after product is created
         for (const slot of pendingComboSlots) {
           try {
@@ -120,6 +125,55 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
             await apiClient.createComboSlot(productId, slotRequest)
           } catch (err) {
             console.error('Failed to create combo slot:', err)
+          }
+        }
+        // Batch-save pending variations: link existing group or create new one
+        const validItems = pendingVariationData.items.filter(i => i.name.trim())
+        if (validItems.length > 0) {
+          try {
+            if (pendingVariationData.selectedGroupId) {
+              // Existing group selected — fetch it to get item IDs, then link with prices
+              const groupRes = await apiClient.getVariationGroup(pendingVariationData.selectedGroupId)
+              if (groupRes.data) {
+                const group = groupRes.data
+                await apiClient.linkVariationsToProduct(productId, [{
+                  variation_group_id: group.id,
+                  sort_order: 1,
+                  item_prices: (group.items || []).map((vi: { id: string }, i: number) => ({
+                    variation_item_id: vi.id,
+                    price: parseFloat(validItems[i]?.price || '0') || 0,
+                  })),
+                }])
+              }
+            } else {
+              // Create new group, then link with prices
+              const groupRes = await apiClient.createVariationGroup({
+                name: pendingVariationData.title.trim() || 'Variations',
+                selection_type: 'single',
+                is_required: true,
+                min_selections: 0,
+                max_selections: 0,
+                sort_order: 0,
+                items: validItems.map((item, i) => ({
+                  name: item.name.trim(),
+                  is_default: i === 0,
+                  sort_order: i + 1,
+                })),
+              })
+              if (groupRes.data) {
+                const group = groupRes.data
+                await apiClient.linkVariationsToProduct(productId, [{
+                  variation_group_id: group.id,
+                  sort_order: 1,
+                  item_prices: (group.items || []).map((vi: { id: string }, i: number) => ({
+                    variation_item_id: vi.id,
+                    price: parseFloat(validItems[i]?.price || '0') || 0,
+                  })),
+                }])
+              }
+            }
+          } catch (err) {
+            console.error('Failed to save variations:', err)
           }
         }
       }
@@ -168,187 +222,249 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
 
   const isLoading = createMutation.isPending || updateMutation.isPending
 
+  useEffect(() => {
+    onLoadingChange?.(isLoading)
+  }, [isLoading, onLoadingChange])
+
   if (categories.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground mb-4">
+        <p className="text-zinc-500 mb-4">
           You need to create at least one category before adding products.
         </p>
-        <Button onClick={onCancel} variant="outline">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors"
+        >
           Go Back
-        </Button>
+        </button>
       </div>
     )
   }
 
   return (
     <Form {...form}>
-      <form id="product-form" onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+      <form id="product-form" onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
         {/* Scrollable content area */}
-        <div className="flex-1 overflow-auto">
-          <div className="max-w-3xl mx-auto space-y-6 p-6">
-            {/* Basic Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Basic Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <TextInputField
-                  control={form.control}
-                  name="name"
-                  label="Product Name"
-                  placeholder="Enter product name"
-                  description="The name that will appear on the menu"
-                />
-
-                <TextareaField
-                  control={form.control}
-                  name="description"
-                  label="Description"
-                  placeholder="Describe the product..."
-                  rows={3}
-                  description="Optional description for staff and customers"
-                />
-
-                <TextInputField
-                  control={form.control}
-                  name="image_url"
-                  label="Image URL"
-                  placeholder="https://example.com/image.jpg"
-                  description="Optional product image URL"
-                />
-              </CardContent>
-            </Card>
-
-            {/* Pricing & Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Pricing & Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <PriceInputField
-                    control={form.control}
-                    name="price"
-                    label="Price"
-                    currency={settings.currencySymbol || '$'}
-                    description="Product selling price"
-                  />
-
-                  <NumberInputField
-                    control={form.control}
-                    name="preparation_time"
-                    label="Preparation Time (minutes)"
-                    min={1}
-                    max={120}
-                    description="Estimated cooking/prep time"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Category & Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Category & Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SelectField
-                    control={form.control}
-                    name="category_id"
-                    label="Category"
-                    options={categoryOptions}
-                    placeholder="Select a category"
-                    description="Product category for menu organization"
-                  />
-
-                  <SelectField
-                    control={form.control}
-                    name="status"
-                    label="Status"
-                    options={productStatusOptions}
-                    description="Active products appear on the menu"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Product Type & Variants */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Product Type & Variants</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center space-x-3">
-                  <Checkbox
-                    id="is_combo"
-                    checked={isCombo}
-                    onCheckedChange={(checked) => {
-                      form.setValue('product_type', checked ? 'combo' : 'simple')
-                    }}
-                  />
-                  <div className="grid gap-0.5 leading-none">
-                    <label
-                      htmlFor="is_combo"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Combo Product
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      Bundle multiple products together as a combo meal
-                    </p>
+        <div className="flex-1 min-h-0 overflow-auto bg-zinc-950">
+          <div className="max-w-5xl mx-auto p-6">
+            <div className="flex gap-6">
+              {/* Main content */}
+              <div className="flex-1 min-w-0 space-y-4">
+                {/* Product Type */}
+                <section className="rounded-lg border border-zinc-800 bg-zinc-900">
+                  <div className="p-5">
+                    <ProductTypeSelector
+                      control={form.control}
+                      name="product_type"
+                      label="Item type"
+                    />
                   </div>
-                </div>
+                </section>
 
-                <DietaryTypeField
-                  control={form.control}
-                  name="dietary_type"
-                  label="Dietary Type"
-                  description="Select the dietary classification for this product"
-                />
+                {/* Basic Information */}
+                <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-zinc-300">Basic Information</h3>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <TextInputField
+                      control={form.control}
+                      name="name"
+                      label="Product Name"
+                      placeholder="Enter product name"
+                      description="The name that will appear on the menu"
+                    />
 
-                <div className="border-t pt-6">
-                  {isCombo ? (
-                    <ComboSlotsEditor
-                      productId={isEditing && product ? product.id : undefined}
-                      draftSlots={!isEditing ? pendingComboSlots : undefined}
-                      onDraftSlotsChange={!isEditing ? setPendingComboSlots : undefined}
+                    <TextareaField
+                      control={form.control}
+                      name="description"
+                      label="Description"
+                      placeholder="Describe the product..."
+                      rows={3}
+                      description="Optional description for staff and customers"
                     />
-                  ) : (
-                    <OptionGroupsEditor
-                      productId={isEditing && product ? product.id : undefined}
-                      draftGroups={!isEditing ? pendingGroups : undefined}
-                      onDraftGroupsChange={!isEditing ? setPendingGroups : undefined}
+                  </div>
+                </section>
+
+                {/* Image */}
+                <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-zinc-300">Image</h3>
+                  </div>
+                  <div className="p-5">
+                    <ImagePickerField
+                      control={form.control}
+                      name="image_url"
+                      label="Product Image"
+                      description="Upload an image or choose from the media library"
                     />
-                  )}
+                  </div>
+                </section>
+
+                {/* Pricing & Details */}
+                <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-zinc-300">Pricing & Details</h3>
+                  </div>
+                  <div className="p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {!hasVariations ? (
+                        <PriceInputField
+                          control={form.control}
+                          name="price"
+                          label="Price"
+                          currency={settings.currencySymbol || '$'}
+                          description="Product selling price"
+                        />
+                      ) : (
+                        <div className="flex items-center">
+                          <p className="text-xs text-zinc-500">
+                            Price is set per variation below
+                          </p>
+                        </div>
+                      )}
+
+                      <NumberInputField
+                        control={form.control}
+                        name="preparation_time"
+                        label="Preparation Time (minutes)"
+                        min={1}
+                        max={120}
+                        description="Estimated cooking/prep time"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Nutritional Info (hidden for combo) */}
+                {!isCombo && (
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-zinc-800">
+                      <h3 className="text-sm font-semibold text-zinc-300">Nutritional Info</h3>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <DietaryTypeField
+                        control={form.control}
+                        name="dietary_type"
+                        label="Dietary Type"
+                        description="Select the dietary classification for this product"
+                      />
+                      <NumberInputField
+                        control={form.control}
+                        name="calorie_count"
+                        label="Calorie Count (kcal)"
+                        min={0}
+                        max={10000}
+                        description="Calories per serving"
+                      />
+                      <AllergenMultiSelectField
+                        control={form.control}
+                        name="food_allergens"
+                        label="Food Allergens"
+                        description="Select all allergens present in this product"
+                      />
+                    </div>
+                  </section>
+                )}
+
+                {/* Variations (only for non-combo products) */}
+                {!isCombo && (
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="p-5">
+                      <ProductVariationsEditor
+                        productId={isEditing && product ? product.id : undefined}
+                        draft={!isEditing ? pendingVariationData : undefined}
+                        onDraftChange={!isEditing ? setPendingVariationData : undefined}
+                        onHasVariations={setHasVariations}
+                      />
+                    </div>
+                  </section>
+                )}
+
+                {/* Combo Slots (only for combo products) */}
+                {isCombo && (
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="p-5">
+                      <ComboSlotsEditor
+                        productId={isEditing && product ? product.id : undefined}
+                        draftSlots={!isEditing ? pendingComboSlots : undefined}
+                        onDraftSlotsChange={!isEditing ? setPendingComboSlots : undefined}
+                      />
+                    </div>
+                  </section>
+                )}
+              </div>
+
+              {/* Sidebar */}
+              <div className="w-80 shrink-0">
+                <div className="sticky top-6 space-y-4">
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-zinc-800">
+                      <h3 className="text-sm font-semibold text-zinc-300">Category & Availability</h3>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <SelectField
+                        control={form.control}
+                        name="category_id"
+                        label="Category"
+                        options={categoryOptions}
+                        placeholder="Select a category"
+                        description="Product category for menu organization"
+                      />
+
+                      <SwitchField
+                        control={form.control}
+                        name="is_available"
+                        label="Available"
+                        description="Available products appear on the menu"
+                      />
+                    </div>
+                  </section>
+
+                  {/* Location Availability - only shows when multiple locations exist */}
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-zinc-800">
+                      <h3 className="text-sm font-semibold text-zinc-300">Location Availability</h3>
+                    </div>
+                    <div className="p-5">
+                      <LocationMultiSelectField
+                        control={form.control}
+                        name="location_ids"
+                        label="Available at"
+                        description="Leave empty for all locations"
+                      />
+                    </div>
+                  </section>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Fixed footer */}
-        <div className="flex-shrink-0 border-t bg-background px-6 py-4">
-          <div className="max-w-3xl mx-auto flex items-center justify-end gap-3">
-            {onCancel && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={isLoading}
+        {/* Footer - hidden when parent renders actions in header */}
+        {!hideFooter && (
+          <div className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 px-6 py-4">
+            <div className="max-w-3xl mx-auto flex items-center justify-end gap-3">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isLoading}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+              )}
+              <FormSubmitButton
+                isLoading={isLoading}
+                loadingText={isEditing ? "Updating..." : "Creating..."}
               >
-                Cancel
-              </Button>
-            )}
-            <FormSubmitButton
-              isLoading={isLoading}
-              loadingText={isEditing ? "Updating..." : "Creating..."}
-            >
-              {isEditing ? 'Update Product' : 'Create Product'}
-            </FormSubmitButton>
+                {isEditing ? 'Update Product' : 'Create Product'}
+              </FormSubmitButton>
+            </div>
           </div>
-        </div>
+        )}
       </form>
     </Form>
   )

@@ -690,6 +690,60 @@ func (h *OptionHandler) loadOptionGroups(productID uuid.UUID) ([]models.ProductO
 		groups[i].Items = items
 	}
 
+	// Also load global variations linked to this product
+	globalRows, err := h.db.Query(`
+		SELECT vg.id, vg.name, vg.selection_type, vg.is_required,
+		       vg.min_selections, vg.max_selections, pv.sort_order,
+		       vg.created_at, vg.updated_at
+		FROM variation_groups vg
+		INNER JOIN product_variations pv ON pv.variation_group_id = vg.id
+		WHERE pv.product_id = $1 AND vg.is_active = true
+		ORDER BY pv.sort_order ASC, vg.name ASC
+	`, productID)
+	if err == nil {
+		defer globalRows.Close()
+		for globalRows.Next() {
+			var g models.ProductOptionGroup
+			if err := globalRows.Scan(
+				&g.ID, &g.Name, &g.SelectionType, &g.IsRequired,
+				&g.MinSelections, &g.MaxSelections, &g.SortOrder,
+				&g.CreatedAt, &g.UpdatedAt,
+			); err != nil {
+				continue
+			}
+			g.ProductID = productID
+
+			// Load variation items with per-product prices from product_variation_prices
+			itemRows, err := h.db.Query(`
+				SELECT vi.id, vi.variation_group_id, vi.name,
+				       COALESCE(pvp.price, vi.price_adjustment) as price_adjustment,
+				       vi.is_default, vi.is_available, vi.sort_order, vi.created_at, vi.updated_at
+				FROM variation_items vi
+				LEFT JOIN product_variation_prices pvp ON pvp.variation_item_id = vi.id AND pvp.product_id = $2
+				WHERE vi.variation_group_id = $1 AND vi.is_available = true
+				ORDER BY vi.sort_order ASC, vi.name ASC
+			`, g.ID, productID)
+			if err == nil {
+				var items []models.ProductOptionItem
+				for itemRows.Next() {
+					var item models.ProductOptionItem
+					if err := itemRows.Scan(
+						&item.ID, &item.OptionGroupID, &item.Name, &item.PriceAdjustment,
+						&item.IsDefault, &item.IsAvailable, &item.SortOrder,
+						&item.CreatedAt, &item.UpdatedAt,
+					); err != nil {
+						continue
+					}
+					items = append(items, item)
+				}
+				itemRows.Close()
+				g.Items = items
+			}
+
+			groups = append(groups, g)
+		}
+	}
+
 	if groups == nil {
 		groups = []models.ProductOptionGroup{}
 	}

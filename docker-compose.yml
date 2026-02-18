@@ -62,6 +62,7 @@ services:
       - pos-network
     volumes:
       - ./backend:/app
+      - ./uploads:/root/uploads
     restart: unless-stopped
 
   # Web Admin Dashboard (can also serve as POS in browser)

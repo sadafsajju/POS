@@ -188,6 +188,13 @@ export function generateReceiptHtml(
       <div class="divider"></div>
       <div><strong>Payment:</strong></div>
       <table>${paymentRows}</table>
+      ${paidPaymentDetails?.cash_received ? `
+        <div class="divider"></div>
+        <table>
+          <tr><td>Cash Received</td><td style="text-align:right">${formatCurrency(paidPaymentDetails.cash_received)}</td></tr>
+          ${paidPaymentDetails.change_amount ? `<tr><td>Change</td><td style="text-align:right">${formatCurrency(paidPaymentDetails.change_amount)}</td></tr>` : ''}
+        </table>
+      ` : ''}
       <div class="divider"></div>
       <div class="footer">Thank you for your visit!</div>
     </body>

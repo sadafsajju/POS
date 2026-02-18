@@ -5,7 +5,7 @@ export const emailSchema = z.string().email('Invalid email format')
 export const passwordSchema = z.string().min(6, 'Password must be at least 6 characters')
 export const requiredStringSchema = z.string().min(1, 'This field is required')
 export const positiveNumberSchema = z.number().min(0, 'Must be a positive number')
-export const priceSchema = z.number().min(0.01, 'Price must be greater than 0')
+export const priceSchema = z.number().min(0, 'Price must be 0 or greater')
 
 // User/Staff related schemas
 export const userRoles = ['admin', 'manager', 'server', 'counter', 'kitchen'] as const
@@ -21,19 +21,19 @@ export const createUserSchema = z.object({
   last_name: requiredStringSchema,
   role: userRoleSchema,
   pin: pinSchema,
-  location_id: z.string().optional(),
+  location_ids: z.array(z.string()).optional(),
 })
 
 export const updateUserSchema = z.object({
   id: z.string().or(z.number()),
   username: requiredStringSchema.min(3, 'Username must be at least 3 characters').optional(),
   email: emailSchema.optional(),
-  password: passwordSchema.optional(),
+  password: passwordSchema.optional().or(z.literal('')),
   first_name: requiredStringSchema.optional(),
   last_name: requiredStringSchema.optional(),
   role: userRoleSchema.optional(),
   pin: pinSchema,
-  location_id: z.string().optional(),
+  location_ids: z.array(z.string()).optional(),
 })
 
 // Product related schemas
@@ -59,12 +59,15 @@ export const createProductSchema = z.object({
   name: requiredStringSchema.min(2, 'Product name must be at least 2 characters'),
   description: z.string().optional(),
   price: priceSchema,
-  category_id: z.string().or(z.number()).transform(val => Number(val)),
-  image_url: z.string().url().optional().or(z.literal('')),
-  status: productStatusSchema.default('active'),
+  category_id: z.string().or(z.number()).transform(val => String(val)),
+  image_url: z.string().optional().or(z.literal('')),
+  is_available: z.boolean().default(true),
   preparation_time: z.number().min(0).max(120).default(5), // minutes
   dietary_type: dietaryTypeSchema,
+  calorie_count: z.number().min(0).optional(),
+  food_allergens: z.string().optional(),
   product_type: productTypeSchema.default('simple'),
+  location_ids: z.array(z.string()).optional(),
 })
 
 // Option group/item schemas for validation
@@ -93,7 +96,7 @@ export const updateProductSchema = createProductSchema.partial().extend({
 export const createCategorySchema = z.object({
   name: requiredStringSchema.min(2, 'Category name must be at least 2 characters'),
   description: z.string().optional(),
-  image_url: z.string().url().optional().or(z.literal('')),
+  image_url: z.string().optional().or(z.literal('')),
   sort_order: z.number().min(0).default(0),
 })
 
@@ -114,6 +117,7 @@ export const createTableSchema = z.object({
   status: tableStatusSchema.default('available'),
   floor: floorSchema.default('Ground'),
   location: z.string().optional(),
+  location_id: z.string().min(1, 'Location is required'),
 })
 
 export const updateTableSchema = createTableSchema.partial().extend({

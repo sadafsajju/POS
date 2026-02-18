@@ -174,8 +174,8 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	now := time.Now()
 
 	paymentQuery := `
-		INSERT INTO payments (id, order_id, payment_method, amount, reference_number, status, processed_by, processed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO payments (id, order_id, payment_method, amount, cash_received, change_amount, reference_number, status, processed_by, processed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	// Simulate payment processing
@@ -187,7 +187,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	}
 
 	_, err = tx.Exec(paymentQuery, paymentID, orderID, req.PaymentMethod, req.Amount,
-		req.ReferenceNumber, paymentStatus, userID, now)
+		req.CashReceived, req.ChangeAmount, req.ReferenceNumber, paymentStatus, userID, now)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -334,7 +334,8 @@ func (h *PaymentHandler) GetPayments(c *gin.Context) {
 
 	// Fetch payments
 	query := `
-		SELECT p.id, p.payment_method, p.amount, p.reference_number, p.status, 
+		SELECT p.id, p.payment_method, p.amount, p.cash_received, p.change_amount,
+		       p.reference_number, p.status,
 		       p.processed_by, p.processed_at, p.created_at,
 		       u.username, u.first_name, u.last_name
 		FROM payments p
@@ -360,8 +361,8 @@ func (h *PaymentHandler) GetPayments(c *gin.Context) {
 		var username, firstName, lastName sql.NullString
 
 		err := rows.Scan(
-			&payment.ID, &payment.PaymentMethod, &payment.Amount, &payment.ReferenceNumber,
-			&payment.Status, &payment.ProcessedBy, &payment.ProcessedAt, &payment.CreatedAt,
+			&payment.ID, &payment.PaymentMethod, &payment.Amount, &payment.CashReceived, &payment.ChangeAmount,
+			&payment.ReferenceNumber, &payment.Status, &payment.ProcessedBy, &payment.ProcessedAt, &payment.CreatedAt,
 			&username, &firstName, &lastName,
 		)
 		if err != nil {
@@ -477,7 +478,8 @@ func (h *PaymentHandler) getPaymentByID(paymentID uuid.UUID) (*models.Payment, e
 	var username, firstName, lastName sql.NullString
 
 	query := `
-		SELECT p.id, p.order_id, p.payment_method, p.amount, p.reference_number, p.status, 
+		SELECT p.id, p.order_id, p.payment_method, p.amount, p.cash_received, p.change_amount,
+		       p.reference_number, p.status,
 		       p.processed_by, p.processed_at, p.created_at,
 		       u.username, u.first_name, u.last_name
 		FROM payments p
@@ -487,6 +489,7 @@ func (h *PaymentHandler) getPaymentByID(paymentID uuid.UUID) (*models.Payment, e
 
 	err := h.db.QueryRow(query, paymentID).Scan(
 		&payment.ID, &payment.OrderID, &payment.PaymentMethod, &payment.Amount,
+		&payment.CashReceived, &payment.ChangeAmount,
 		&payment.ReferenceNumber, &payment.Status, &payment.ProcessedBy,
 		&payment.ProcessedAt, &payment.CreatedAt,
 		&username, &firstName, &lastName,

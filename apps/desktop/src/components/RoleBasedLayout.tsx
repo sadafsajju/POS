@@ -18,6 +18,7 @@ import {
 // Use shared packages
 import type { User as UserType } from '@pos/types'
 import { useAuthStore, useSyncStore, useCustomerDisplayStore } from '@pos/core'
+import { LocationSwitcher } from '@/components/ui/location-switcher'
 
 interface RoleBasedLayoutProps {
   user: UserType
@@ -160,9 +161,9 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
-      <div className="border-b border-border bg-card px-6 py-3 flex-shrink-0">
+      <div className="border-b border-zinc-800 bg-zinc-900 px-6 py-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           {/* Left Side - User Info and Navigation */}
           <div className="flex items-center gap-6">
@@ -170,7 +171,7 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
             <div className="flex items-center gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">
+                  <span className="font-semibold text-zinc-100">
                     {user.first_name} {user.last_name}
                   </span>
                   <span
@@ -178,20 +179,25 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
                     title={isOnline ? 'Online' : 'Offline'}
                   />
                 </div>
-                <span className="text-xs text-muted-foreground">{roleConfig.title}</span>
+                <span className="text-xs text-zinc-500">{roleConfig.title}</span>
               </div>
             </div>
 
+            <LocationSwitcher />
+
             {/* Navigation Tabs */}
             {availableViews.length > 1 && (
-              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
+              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-700">
                 {availableViews.map(view => (
                   <Button
                     key={view.id}
-                    variant={currentView === view.id ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setCurrentView(view.id)}
-                    className="flex items-center gap-2"
+                    className={`flex items-center gap-2 ${
+                      currentView === view.id
+                        ? 'bg-zinc-700 text-zinc-100 hover:bg-zinc-600'
+                        : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                    }`}
                   >
                     {view.icon}
                     {view.label}
@@ -204,28 +210,29 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
           {/* Right Side - Actions */}
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
               onClick={isDisplayOpen ? closeDisplay : openDisplay}
-              className={`flex items-center gap-2 ${isDisplayOpen ? 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10' : ''}`}
+              className={`flex items-center gap-2 ${
+                isDisplayOpen
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200'
+              }`}
             >
               <Monitor className="w-4 h-4" />
               Display
             </Button>
             <Button
-              variant="outline"
               size="sm"
               onClick={handleLock}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200"
             >
               <Lock className="w-4 h-4" />
               Lock
             </Button>
             <Button
-              variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200"
             >
               <LogOut className="w-4 h-4" />
               Logout

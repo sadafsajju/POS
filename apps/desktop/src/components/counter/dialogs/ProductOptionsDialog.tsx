@@ -88,6 +88,7 @@ export function ProductOptionsDialog({
     return adj
   }, [selections, itemMap])
 
+  const isVariationBased = product.price === 0 && product.min_variation_price != null
   const unitPrice = product.price + totalAdjustment
   const totalPrice = unitPrice * quantity
 
@@ -132,9 +133,16 @@ export function ProductOptionsDialog({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg font-black tracking-tight text-zinc-100">{product.name}</CardTitle>
-              <p className="text-sm text-zinc-400 mt-1">
-                Base price: {formatCurrency(product.price)}
-              </p>
+              {!isVariationBased && (
+                <p className="text-sm text-zinc-400 mt-1">
+                  Base price: {formatCurrency(product.price)}
+                </p>
+              )}
+              {isVariationBased && (
+                <p className="text-sm text-zinc-400 mt-1">
+                  Select a variation
+                </p>
+              )}
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">
               <X className="h-4 w-4" />
@@ -206,11 +214,15 @@ export function ProductOptionsDialog({
                             </div>
                             <span className="text-sm text-zinc-100">{item.name}</span>
                           </div>
-                          {item.price_adjustment !== 0 && (
+                          {isVariationBased && item.price_adjustment > 0 ? (
+                            <span className="text-sm font-medium text-amber-400">
+                              {formatCurrency(item.price_adjustment)}
+                            </span>
+                          ) : item.price_adjustment !== 0 ? (
                             <span className={`text-sm font-medium ${item.price_adjustment > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                               {item.price_adjustment > 0 ? '+' : ''}{formatCurrency(item.price_adjustment)}
                             </span>
-                          )}
+                          ) : null}
                         </button>
                       )
                     })}

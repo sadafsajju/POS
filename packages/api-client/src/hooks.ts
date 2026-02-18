@@ -64,6 +64,19 @@ export const queryKeys = {
     tables: (params?: Record<string, unknown>) => ['admin', 'tables', params] as const,
   },
 
+  // Promos
+  promos: {
+    all: ['promos'] as const,
+    public: ['promos', 'public'] as const,
+    admin: ['promos', 'admin'] as const,
+  },
+
+  // Media
+  media: {
+    all: ['media'] as const,
+    admin: ['media', 'admin'] as const,
+  },
+
   // Customers
   customers: {
     all: ['customers'] as const,
@@ -80,7 +93,7 @@ export const staleTime = {
   // Static data - rarely changes
   categories: 5 * 60 * 1000, // 5 minutes
   products: 5 * 60 * 1000, // 5 minutes
-  tables: 2 * 60 * 1000, // 2 minutes
+  tables: 5 * 1000, // 5 seconds – table status changes frequently
 
   // Dynamic data - changes frequently
   orders: 30 * 1000, // 30 seconds
@@ -97,6 +110,12 @@ export const staleTime = {
 
   // Settings - rarely changes
   settings: 10 * 60 * 1000, // 10 minutes
+
+  // Promos
+  promos: 2 * 60 * 1000, // 2 minutes
+
+  // Media
+  media: 2 * 60 * 1000, // 2 minutes
 
   // Customers
   customers: 5 * 60 * 1000, // 5 minutes

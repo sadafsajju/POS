@@ -89,11 +89,11 @@ export function PinInput({
           onPaste={handlePaste}
           onFocus={(e) => e.target.select()}
           className={cn(
-            'w-14 h-16 text-center text-2xl font-bold rounded-xl border-2 bg-zinc-50 outline-none transition-all',
-            'focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 focus:bg-white',
+            'w-14 h-16 text-center text-2xl font-bold rounded-xl border-2 bg-zinc-800 text-zinc-100 outline-none transition-all',
+            'focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:bg-zinc-800',
             error
-              ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-500/10'
-              : 'border-zinc-200',
+              ? 'border-red-500/60 bg-red-500/10 focus:border-red-500 focus:ring-red-500/20'
+              : 'border-zinc-700',
             disabled && 'opacity-50 cursor-not-allowed',
           )}
           aria-label={`PIN digit ${index + 1}`}

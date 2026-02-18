@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { PinInput } from '@/components/ui/pin-input'
+import { NumberPad } from '@/components/ui/number-pad'
 import { authApi } from '@pos/api-client'
 
 interface PinDialogProps {
@@ -61,6 +61,7 @@ export function PinDialog({
   }, [onVerified])
 
   const handlePinChange = useCallback((value: string) => {
+    if (value.length > 4) return
     setPin(value)
     setError('')
     // Auto-submit when all 4 digits are entered
@@ -71,40 +72,58 @@ export function PinDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel() }}>
-      <DialogContent className="sm:max-w-[360px]">
+      <DialogContent className="sm:max-w-[360px] bg-zinc-900 border-zinc-800 text-zinc-100">
         <DialogHeader className="items-center text-center">
-          <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-2">
-            <ShieldAlert className="w-6 h-6 text-zinc-600" />
+          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mb-2">
+            <ShieldAlert className="w-6 h-6 text-zinc-400" />
           </div>
-          <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
-          <DialogDescription className="text-sm">{description}</DialogDescription>
+          <DialogTitle className="text-lg font-bold text-zinc-100">{title}</DialogTitle>
+          <DialogDescription className="text-sm text-zinc-500">{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
-          <PinInput
-            value={pin}
-            onChange={handlePinChange}
-            disabled={isVerifying}
-            error={!!error}
-            autoFocus
-          />
-
-          {error && (
-            <p className="text-sm text-red-500 text-center mt-3">{error}</p>
-          )}
-
-          {isVerifying && (
-            <div className="flex items-center justify-center gap-2 mt-3 text-sm text-zinc-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Verifying...
+        <div className="py-4 space-y-5">
+          {/* PIN dots display */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-center gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-4 h-4 rounded-full transition-all duration-150 ${
+                    error
+                      ? 'bg-red-500'
+                      : i < pin.length
+                        ? 'bg-zinc-100 scale-110'
+                        : 'bg-zinc-700'
+                  }`}
+                />
+              ))}
             </div>
-          )}
+
+            {error && (
+              <p className="text-sm text-red-400 text-center">{error}</p>
+            )}
+
+            {isVerifying && (
+              <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verifying...
+              </div>
+            )}
+          </div>
+
+          {/* On-screen numpad */}
+          <NumberPad
+            value={pin}
+            onValueChange={handlePinChange}
+            maxDigits={4}
+            allowDecimal={false}
+          />
         </div>
 
         <div className="flex justify-center">
           <button
             onClick={onCancel}
-            className="px-6 py-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 transition-colors"
+            className="px-6 py-2 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             Cancel
           </button>

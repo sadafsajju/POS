@@ -5,6 +5,7 @@ import type {
   LoginRequest,
   LoginResponse,
   User,
+  Location,
   Product,
   Category,
   DiningTable,
@@ -28,6 +29,10 @@ import type {
   ProductOptionItem,
   CreateOptionGroupRequest,
   CreateOptionItemRequest,
+  CreateVariationGroupRequest,
+  CreateVariationItemRequest,
+  LinkVariationGroupWithPrices,
+  ProductVariationLinkResponse,
   ComboSlot,
   CreateComboSlotRequest,
   CreateComboSlotChoiceRequest,
@@ -124,6 +129,14 @@ class APIClient {
     return this.request({
       method: 'GET',
       url: '/auth/me',
+    });
+  }
+
+  async switchLocation(locationId: string): Promise<APIResponse<{ token: string; location: Location }>> {
+    return this.request({
+      method: 'POST',
+      url: '/auth/switch-location',
+      data: { location_id: locationId },
     });
   }
 
@@ -534,6 +547,75 @@ class APIClient {
     });
   }
 
+  // Global variation group endpoints
+  async getVariationGroups(params?: { page?: number; per_page?: number; search?: string }): Promise<any> {
+    return this.request({
+      method: 'GET',
+      url: '/admin/variations',
+      params,
+    });
+  }
+
+  async getVariationGroup(id: string): Promise<any> {
+    return this.request({
+      method: 'GET',
+      url: `/admin/variations/${id}`,
+    });
+  }
+
+  async createVariationGroup(data: CreateVariationGroupRequest): Promise<any> {
+    return this.request({
+      method: 'POST',
+      url: '/admin/variations',
+      data,
+    });
+  }
+
+  async updateVariationGroup(id: string, data: Partial<CreateVariationGroupRequest>): Promise<any> {
+    return this.request({
+      method: 'PUT',
+      url: `/admin/variations/${id}`,
+      data,
+    });
+  }
+
+  async deleteVariationGroup(id: string): Promise<APIResponse> {
+    return this.request({
+      method: 'DELETE',
+      url: `/admin/variations/${id}`,
+    });
+  }
+
+  async createVariationItem(groupId: string, data: CreateVariationItemRequest): Promise<any> {
+    return this.request({
+      method: 'POST',
+      url: `/admin/variation-groups/${groupId}/items`,
+      data,
+    });
+  }
+
+  async deleteVariationItem(itemId: string): Promise<APIResponse> {
+    return this.request({
+      method: 'DELETE',
+      url: `/admin/variation-items/${itemId}`,
+    });
+  }
+
+  async getProductVariationLinks(productId: string): Promise<APIResponse<ProductVariationLinkResponse[]>> {
+    return this.request({
+      method: 'GET',
+      url: `/products/${productId}/variation-links`,
+    });
+  }
+
+  async linkVariationsToProduct(productId: string, variationGroups: LinkVariationGroupWithPrices[]): Promise<APIResponse> {
+    return this.request({
+      method: 'PUT',
+      url: `/admin/products/${productId}/variation-links`,
+      data: { variation_groups: variationGroups },
+    });
+  }
+
   // Combo slot management
   async getComboSlots(productId: string): Promise<APIResponse<ComboSlot[]>> {
     return this.request({
@@ -628,11 +710,11 @@ class APIClient {
   }
 
   // Admin tables endpoint with pagination
-  async getAdminTables(params?: { page?: number, limit?: number, search?: string, status?: string }): Promise<APIResponse<DiningTable[]>> {
-    return this.request({ 
-      method: 'GET', 
+  async getAdminTables(params?: { page?: number, per_page?: number, search?: string, status?: string, location_id?: string }): Promise<APIResponse<DiningTable[]>> {
+    return this.request({
+      method: 'GET',
       url: '/admin/tables',
-      params 
+      params
     });
   }
 
@@ -755,6 +837,29 @@ class APIClient {
 
   async reassignUserLocation(userId: string, locationId: string): Promise<APIResponse<void>> {
     return this.request({ method: 'PUT', url: `/admin/users/${userId}/location`, data: { location_id: locationId } });
+  }
+
+  // Media library
+  async getMedia(): Promise<APIResponse<any[]>> {
+    return this.request({ method: 'GET', url: '/admin/media' });
+  }
+
+  async uploadMedia(formData: FormData): Promise<APIResponse<any>> {
+    try {
+      const response = await this.client.post('/admin/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(error.response?.data?.message || error.message);
+      }
+      throw error;
+    }
+  }
+
+  async deleteMedia(id: string): Promise<APIResponse> {
+    return this.request({ method: 'DELETE', url: `/admin/media/${id}` });
   }
 
   // Settings management

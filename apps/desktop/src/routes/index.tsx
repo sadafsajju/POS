@@ -10,7 +10,7 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
   // Use auth store
-  const { user, isAuthenticated, isLoading, _hasHydrated } = useAuthStore()
+  const { user, isAuthenticated, isLoading, isLocked, _hasHydrated } = useAuthStore()
 
   // Debug logging
   console.log('HomePage auth state:', { user: user?.username, isAuthenticated, isLoading, _hasHydrated })
@@ -19,10 +19,10 @@ function HomePage() {
   if (!_hasHydrated || isLoading) {
     console.log('HomePage: Still hydrating...')
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading POS System...</p>
+          <div className="w-8 h-8 border-4 border-zinc-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-zinc-500">Loading POS System...</p>
         </div>
       </div>
     )
@@ -35,8 +35,18 @@ function HomePage() {
       window.location.href = '/login'
     }
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-zinc-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
+
+  // Locked - redirect to lock screen
+  if (isLocked) {
+    window.location.href = '/lock'
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-zinc-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -48,8 +58,8 @@ function HomePage() {
       window.location.href = '/admin/pos'
     }
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-zinc-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }

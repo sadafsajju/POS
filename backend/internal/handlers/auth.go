@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"pos-backend/internal/middleware"
@@ -116,15 +117,27 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		&org.ID, &org.Name, &org.Slug, &org.LogoURL, &org.IsActive, &org.CreatedAt, &org.UpdatedAt,
 	)
 
-	// Fetch location if user has one
+	// Fetch all assigned locations
+	userLocations := h.getUserLocations(user.ID, user.LocationID)
+
+	// Fetch active location details
 	var loc *models.Location
 	if user.LocationID != nil {
-		var l models.Location
-		err := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1`, *user.LocationID).Scan(
-			&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
-		)
-		if err == nil {
-			loc = &l
+		for i := range userLocations {
+			if userLocations[i].ID == *user.LocationID {
+				loc = &userLocations[i]
+				break
+			}
+		}
+		// Fallback: query directly if not found in junction table
+		if loc == nil {
+			var l models.Location
+			err := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1`, *user.LocationID).Scan(
+				&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
+			)
+			if err == nil {
+				loc = &l
+			}
 		}
 	}
 
@@ -136,6 +149,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			User:         user,
 			Organization: &org,
 			Location:     loc,
+			Locations:    userLocations,
 		},
 	})
 }
@@ -207,15 +221,26 @@ func (h *AuthHandler) loginWithPin(c *gin.Context, pin string) {
 				&org.ID, &org.Name, &org.Slug, &org.LogoURL, &org.IsActive, &org.CreatedAt, &org.UpdatedAt,
 			)
 
-			// Fetch location if user has one
+			// Fetch all assigned locations
+			userLocations := h.getUserLocations(user.ID, user.LocationID)
+
+			// Fetch active location details
 			var loc *models.Location
 			if user.LocationID != nil {
-				var l models.Location
-				err := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1`, *user.LocationID).Scan(
-					&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
-				)
-				if err == nil {
-					loc = &l
+				for i := range userLocations {
+					if userLocations[i].ID == *user.LocationID {
+						loc = &userLocations[i]
+						break
+					}
+				}
+				if loc == nil {
+					var l models.Location
+					err := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1`, *user.LocationID).Scan(
+						&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
+					)
+					if err == nil {
+						loc = &l
+					}
 				}
 			}
 
@@ -227,6 +252,7 @@ func (h *AuthHandler) loginWithPin(c *gin.Context, pin string) {
 					User:         user,
 					Organization: &org,
 					Location:     loc,
+					Locations:    userLocations,
 				},
 			})
 			return
@@ -285,7 +311,7 @@ func (h *AuthHandler) VerifyPin(c *gin.Context) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(pinHash.String), []byte(req.Pin)); err != nil {
-		c.JSON(http.StatusUnauthorized, models.APIResponse{
+		c.JSON(http.StatusForbidden, models.APIResponse{
 			Success: false,
 			Message: "Invalid PIN",
 			Error:   stringPtr("invalid_pin"),
@@ -296,6 +322,36 @@ func (h *AuthHandler) VerifyPin(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "PIN verified",
+	})
+}
+
+// PinStatus checks whether the current user has a PIN set
+func (h *AuthHandler) PinStatus(c *gin.Context) {
+	userID, _, _, ok := middleware.GetUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Authentication required",
+			Error:   stringPtr("auth_required"),
+		})
+		return
+	}
+
+	var pinHash sql.NullString
+	err := h.db.QueryRow("SELECT pin_hash FROM users WHERE id = $1", userID).Scan(&pinHash)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Database error",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "PIN status retrieved",
+		Data:    map[string]bool{"has_pin": pinHash.Valid},
 	})
 }
 
@@ -430,6 +486,164 @@ func (h *AuthHandler) UpdatePin(c *gin.Context) {
 	c.JSON(http.StatusOK, models.APIResponse{
 		Success: true,
 		Message: "PIN updated successfully",
+	})
+}
+
+// getUserLocations fetches all active locations assigned to a user via the user_locations junction table.
+// Falls back to the single users.location_id if no junction table entries exist.
+func (h *AuthHandler) getUserLocations(userID uuid.UUID, singleLocationID *uuid.UUID) []models.Location {
+	rows, err := h.db.Query(`
+		SELECT l.id, l.org_id, l.name, l.code, l.address, l.phone, l.is_active, l.created_at, l.updated_at
+		FROM locations l
+		INNER JOIN user_locations ul ON ul.location_id = l.id
+		WHERE ul.user_id = $1 AND l.is_active = true
+		ORDER BY ul.is_primary DESC, l.name ASC
+	`, userID)
+	if err != nil {
+		// If table doesn't exist yet, fall back silently
+		if singleLocationID != nil {
+			var l models.Location
+			err2 := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1 AND is_active = true`, *singleLocationID).Scan(
+				&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
+			)
+			if err2 == nil {
+				return []models.Location{l}
+			}
+		}
+		return []models.Location{}
+	}
+	defer rows.Close()
+
+	var locations []models.Location
+	for rows.Next() {
+		var l models.Location
+		if err := rows.Scan(&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt); err != nil {
+			continue
+		}
+		locations = append(locations, l)
+	}
+
+	// Backward compat: if junction table is empty but user has location_id, return that
+	if len(locations) == 0 && singleLocationID != nil {
+		var l models.Location
+		err := h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1 AND is_active = true`, *singleLocationID).Scan(
+			&l.ID, &l.OrgID, &l.Name, &l.Code, &l.Address, &l.Phone, &l.IsActive, &l.CreatedAt, &l.UpdatedAt,
+		)
+		if err == nil {
+			locations = []models.Location{l}
+		}
+	}
+
+	return locations
+}
+
+// SwitchLocation allows a user to switch their active location
+func (h *AuthHandler) SwitchLocation(c *gin.Context) {
+	userID, _, _, ok := middleware.GetUserFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Authentication required",
+			Error:   stringPtr("auth_required"),
+		})
+		return
+	}
+
+	var req struct {
+		LocationID string `json:"location_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "location_id is required",
+			Error:   stringPtr("missing_location_id"),
+		})
+		return
+	}
+
+	locUUID, err := uuid.Parse(req.LocationID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid location_id",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	// Verify user is assigned to this location
+	var exists bool
+	err = h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM user_locations WHERE user_id = $1 AND location_id = $2)`, userID, locUUID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusForbidden, models.APIResponse{
+			Success: false,
+			Message: "You are not assigned to this location",
+			Error:   stringPtr("location_not_assigned"),
+		})
+		return
+	}
+
+	// Update user's active location
+	_, err = h.db.Exec(`UPDATE users SET location_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, locUUID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to switch location",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch updated user to generate new token
+	var user models.User
+	var pinHash sql.NullString
+	var locIDNullable sql.NullString
+	err = h.db.QueryRow(`
+		SELECT id, username, email, password_hash, pin_hash, first_name, last_name, role, is_active, org_id, location_id, created_at, updated_at
+		FROM users WHERE id = $1
+	`, userID).Scan(
+		&user.ID, &user.Username, &user.Email, &user.PasswordHash, &pinHash,
+		&user.FirstName, &user.LastName, &user.Role, &user.IsActive,
+		&user.OrgID, &locIDNullable,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to fetch user",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	if locIDNullable.Valid {
+		parsed, _ := uuid.Parse(locIDNullable.String)
+		user.LocationID = &parsed
+	}
+
+	// Generate new JWT with updated location
+	token, err := middleware.GenerateToken(&user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to generate token",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Fetch location details
+	var loc models.Location
+	h.db.QueryRow(`SELECT id, org_id, name, code, address, phone, is_active, created_at, updated_at FROM locations WHERE id = $1`, locUUID).Scan(
+		&loc.ID, &loc.OrgID, &loc.Name, &loc.Code, &loc.Address, &loc.Phone, &loc.IsActive, &loc.CreatedAt, &loc.UpdatedAt,
+	)
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: fmt.Sprintf("Switched to %s", loc.Name),
+		Data: map[string]interface{}{
+			"token":    token,
+			"location": loc,
+		},
 	})
 }
 

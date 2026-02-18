@@ -12,12 +12,12 @@ function PlatformsSettingsPage() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="flex-shrink-0 px-6 py-4 bg-zinc-900 border-b border-zinc-800">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-zinc-800 rounded-lg text-zinc-300">
+          <div >
             <Plug className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight text-zinc-100">Platform Integrations</h2>
-            <p className="text-sm text-zinc-500">Configure Swiggy and Zomato order integrations</p>
+            {/* <p className="text-sm text-zinc-500">Configure Swiggy and Zomato order integrations</p> */}
           </div>
         </div>
       </header>

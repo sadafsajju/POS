@@ -1,65 +1,57 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { 
-  UserPlus, 
-  Trash2, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
+  UserPlus,
   Search,
-  Mail,
-  Calendar,
-  Shield,
-  Edit,
-  Table,
+  RefreshCw,
   Users
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import apiClient from '@/api/client'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { UserForm } from '@/components/forms/UserForm'
 import { AdminStaffTable } from '@/components/admin/AdminStaffTable'
 import { PaginationControlsComponent } from '@/components/ui/pagination-controls'
 import { usePagination } from '@/hooks/usePagination'
-import { UserListSkeleton, SearchingSkeleton } from '@/components/ui/skeletons'
-import { PageLoading, InlineLoading } from '@/components/ui/loading-spinner'
 import { useRequirePin } from '@pos/core'
 import type { User } from '@/types'
 
-type DisplayMode = 'table' | 'cards'
-
 export function AdminStaffManagement() {
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('table')
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [showCreateForm, setShowCreateForm] = useState(false)
+
+  // User dialog state
+  const [userDialogOpen, setUserDialogOpen] = useState(false)
+  const [userDialogMode, setUserDialogMode] = useState<'create' | 'edit'>('create')
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
 
   const queryClient = useQueryClient()
 
   // Pagination hook
-  const pagination = usePagination({ 
-    initialPage: 1, 
+  const pagination = usePagination({
+    initialPage: 1,
     initialPageSize: 10,
-    total: 0 
+    total: 0
   })
 
   // Debounce search term
   useEffect(() => {
-    if (searchTerm !== debouncedSearch) {
-      setIsSearching(true)
-    }
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm)
       pagination.goToFirstPage()
-      setIsSearching(false)
     }, 500)
     return () => clearTimeout(timer)
-  }, [searchTerm, debouncedSearch])
+  }, [searchTerm])
 
   // Fetch users with pagination
-  const { data: usersData, isLoading, isFetching, isPlaceholderData } = useQuery({
+  const { data: usersData, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['users', pagination.page, pagination.pageSize, debouncedSearch],
     queryFn: () => apiClient.getUsers({
       page: pagination.page,
@@ -72,7 +64,7 @@ export function AdminStaffManagement() {
   const users = Array.isArray(usersData) ? usersData : (usersData as any)?.data || []
   const paginationInfo = (usersData as any)?.meta || { total: 0 }
 
-  // Delete user mutation (keep existing functionality)  
+  // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: ({ id }: { id: string, username: string }) => apiClient.deleteUser(id),
     onSuccess: (_, { username: deletedUsername }) => {
@@ -83,16 +75,6 @@ export function AdminStaffManagement() {
       toastHelpers.apiError('Delete user', error)
     }
   })
-
-  const handleFormSuccess = () => {
-    setShowCreateForm(false)
-    setEditingUser(null)
-  }
-
-  const handleCancelForm = () => {
-    setShowCreateForm(false)
-    setEditingUser(null)
-  }
 
   const requirePin = useRequirePin()
 
@@ -107,231 +89,139 @@ export function AdminStaffManagement() {
     }
   }, [requirePin, deleteUserMutation])
 
-  // Data is already filtered on the server side
-  const filteredUsers = users
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin': return 'bg-red-100 text-red-800 hover:bg-red-200'
-      case 'manager': return 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-      case 'server': return 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-      case 'counter': return 'bg-green-100 text-green-800 hover:bg-green-200'
-      case 'kitchen': return 'bg-orange-100 text-orange-800 hover:bg-orange-200'
-      default: return 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-    }
+  // User dialog handlers
+  const handleAddUser = () => {
+    setEditingUser(null)
+    setUserDialogMode('create')
+    setUserDialogOpen(true)
   }
 
-  // Show form if creating or editing
-  if (showCreateForm || editingUser) {
-    return (
-      <div className="h-full overflow-y-auto p-6">
-        <UserForm
-          user={editingUser || undefined}
-          mode={editingUser ? 'edit' : 'create'}
-          onSuccess={handleFormSuccess}
-          onCancel={handleCancelForm}
-        />
-      </div>
-    )
+  const handleEditUser = (user: User) => {
+    setEditingUser(user)
+    setUserDialogMode('edit')
+    setUserDialogOpen(true)
   }
 
-  if (isLoading) {
-    return (
-      <div className="h-full overflow-y-auto p-6 space-y-6">
-        {/* Header Skeleton */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-8 w-48 bg-muted animate-pulse rounded-md" />
-            <div className="h-4 w-72 bg-muted animate-pulse rounded-md" />
-          </div>
-          <div className="h-10 w-24 bg-muted animate-pulse rounded-md" />
-        </div>
-
-        {/* Search and Controls Skeleton */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="h-10 w-full max-w-sm bg-muted animate-pulse rounded-md" />
-        </div>
-
-        {/* User List Skeleton */}
-        <UserListSkeleton count={pagination.pageSize} />
-      </div>
-    )
+  const closeUserDialog = () => {
+    setUserDialogOpen(false)
+    setEditingUser(null)
+    setUserDialogMode('create')
   }
+
+  const totalUsers = paginationInfo.total || users.length
+  const activeUsers = Array.isArray(users) ? users.filter((u: User) => u.is_active).length : 0
+  const inactiveUsers = Array.isArray(users) ? users.filter((u: User) => !u.is_active).length : 0
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto w-full p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Staff Management</h2>
-          <p className="text-muted-foreground">
-            Manage your restaurant staff and their permissions
-          </p>
-        </div>
-        <div className="flex items-center space-x-4">
-          {/* View Toggle */}
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <Button
-              variant={displayMode === 'table' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setDisplayMode('table')}
-              className="px-3"
-            >
-              <Table className="h-4 w-4 mr-1" />
-              Table
-            </Button>
-            <Button
-              variant={displayMode === 'cards' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setDisplayMode('cards')}
-              className="px-3"
-            >
-              <Users className="h-4 w-4 mr-1" />
-              Cards
-            </Button>
-          </div>
-          <Button onClick={() => setShowCreateForm(true)} className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Add New Staff
-          </Button>
-        </div>
-      </div>
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search staff by name, email, or username..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-            {isSearching && (
-              <div className="absolute right-2 top-2.5">
-                <InlineLoading size="sm" />
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="h-full flex flex-col overflow-hidden select-none">
 
-      {/* Staff List */}
-      <div className="space-y-4">
-        {displayMode === 'table' ? (
+      {/* ── Header Strip ─────────────────────────────────────────────── */}
+      <header className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-bold tracking-tight text-zinc-300">STAFF</span>
+          <div className="h-5 w-px bg-zinc-700" />
+          <Pill color="bg-blue-500" count={totalUsers} label="Total" />
+          <Pill color="bg-emerald-500" count={activeUsers} label="Active" />
+          <Pill color="bg-zinc-500" count={inactiveUsers} label="Inactive" />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="p-2 rounded-md bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+          </button>
+        </div>
+      </header>
+
+      {/* ── Search + Add ─────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 flex items-center gap-1 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800/60">
+        <div className="flex items-center gap-2 text-zinc-500">
+          <Users className="h-4 w-4" />
+          <span className="text-sm font-medium text-zinc-400">All Staff</span>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Search */}
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+          <input
+            type="text"
+            placeholder="Search staff by name, email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-md bg-zinc-800 border border-zinc-700/50 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 focus:border-zinc-600 transition-colors"
+          />
+        </div>
+
+        {/* Add button */}
+        <button
+          onClick={handleAddUser}
+          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+        >
+          <UserPlus className="h-4 w-4" />
+          Add Staff
+        </button>
+      </div>
+
+      {/* ── Content ──────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-4 space-y-4">
           <AdminStaffTable
-            data={filteredUsers}
-            onEdit={setEditingUser}
+            data={users}
+            onEdit={handleEditUser}
             onDelete={handleDeleteUser}
             isLoading={isLoading}
           />
-        ) : filteredUsers.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-sm font-medium text-foreground">No staff members</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {searchTerm ? 'No staff members match your search.' : 'Get started by adding a new staff member.'}
-                </p>
-                {!searchTerm && (
-                  <div className="mt-6">
-                    <Button onClick={() => setShowCreateForm(true)} className="gap-2">
-                      <UserPlus className="h-4 w-4" />
-                      Add New Staff
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {filteredUsers.map((user: User) => (
-              <Card key={user.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-white">
-                            {user.first_name[0]}{user.last_name[0]}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                          <p className="text-lg font-semibold text-foreground">
-                            {user.first_name} {user.last_name}
-                          </p>
-                          <Badge className={getRoleBadgeColor(user.role)}>
-                            <Shield className="w-3 h-3 mr-1" />
-                            {user.role.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center mt-1 text-sm text-muted-foreground space-x-4">
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-4 w-4" />
-                            {user.email}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            Joined {new Date(user.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingUser(user)}
-                        className="gap-2"
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteUser(user)}
-                        disabled={deleteUserMutation.isPending}
-                        className="gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
-                      >
-                        {deleteUserMutation.isPending ? (
-                          <InlineLoading size="sm" />
-                        ) : (
-                          <>
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+
+          {users.length > 0 && (
+            <PaginationControlsComponent
+              pagination={pagination}
+              total={totalUsers}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Pagination with loading state */}
-      {filteredUsers.length > 0 && (
-        <div className="space-y-4">
-          {isFetching && !isLoading && (
-            <div className="flex justify-center">
-              <InlineLoading text="Updating results..." />
-            </div>
-          )}
-          <PaginationControlsComponent
-            pagination={pagination}
-            total={paginationInfo.total || users.length}
-          />
-        </div>
-      )}
-      </div>
+      {/* User Create/Edit Dialog */}
+      <Dialog open={userDialogOpen} onOpenChange={(open) => { if (!open) closeUserDialog() }}>
+        <DialogContent className="dark flex flex-col !max-w-none !w-screen !h-screen !rounded-none p-0 gap-0 overflow-hidden bg-zinc-950 border-zinc-800 text-zinc-100">
+          <DialogHeader className="px-6 pt-5 pb-4 border-b border-zinc-800 flex-shrink-0 bg-zinc-900">
+            <DialogTitle className="text-zinc-100">
+              {userDialogMode === 'edit' ? 'Edit Staff Member' : 'Add New Staff Member'}
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              {userDialogMode === 'edit'
+                ? `Editing "${editingUser?.first_name} ${editingUser?.last_name}"`
+                : 'Add a new staff member to your team'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            <UserForm
+              key={editingUser ? `edit-${editingUser.id}` : 'create'}
+              user={editingUser || undefined}
+              mode={userDialogMode}
+              onSuccess={closeUserDialog}
+              onCancel={closeUserDialog}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ── Pill (matches KDS/Menu style) ────────────────────────────────────────────
+
+function Pill({ color, count, label }: { color: string; count: number; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={cn('w-2 h-2 rounded-full', color)} />
+      <span className="text-sm font-bold text-zinc-200 tabular-nums">{count}</span>
+      <span className="text-xs text-zinc-500">{label}</span>
     </div>
   )
 }

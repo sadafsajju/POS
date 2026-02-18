@@ -18,6 +18,7 @@ export interface PaginationControls {
   goToFirstPage: () => void
   goToLastPage: () => void
   setPageSize: (pageSize: number) => void
+  setPage: (page: number) => void
 }
 
 export interface UsePaginationOptions {
@@ -89,6 +90,7 @@ export function usePagination({
     goToFirstPage,
     goToLastPage,
     setPageSize: handleSetPageSize,
+    setPage,
   }
 }
 

@@ -248,6 +248,15 @@ export function EnhancedKitchenOrderCard({
                     )}
                   >
                     {item.quantity}× {item.product?.name}
+                    {Array.isArray(item.combo_choices) && item.combo_choices.length > 0 && (
+                      <span className="block ml-4 mt-0.5">
+                        {item.combo_choices.map((choice, idx) => (
+                          <span key={idx} className="block text-xs text-muted-foreground">
+                            • {choice.product_name}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                     {item.special_instructions && (
                       <span className="block text-xs text-muted-foreground italic">
                         {item.special_instructions}
@@ -418,7 +427,25 @@ export function EnhancedKitchenOrderCard({
                 >
                   {item.quantity}× {item.product?.name}
                 </label>
-                
+
+                {Array.isArray(item.combo_choices) && item.combo_choices.length > 0 && (
+                  <div className="ml-4 mt-1 space-y-0.5">
+                    {item.combo_choices.map((choice, idx) => (
+                      <p key={idx} className="text-sm text-muted-foreground">
+                        • {choice.product_name}
+                        {choice.selected_options && (() => {
+                          const opts = typeof choice.selected_options === 'string' ? (() => { try { return JSON.parse(choice.selected_options) } catch { return [] } })() : choice.selected_options
+                          return Array.isArray(opts) && opts.length > 0 ? (
+                            <span className="text-xs ml-1">
+                              ({opts.map((o: any) => o.option_name || o.name).join(', ')})
+                            </span>
+                          ) : null
+                        })()}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
                 {item.special_instructions && (
                   <p className="text-sm text-muted-foreground italic mt-1">
                     Note: {item.special_instructions}

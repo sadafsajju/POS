@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { X, Plus, Minus, Check, Settings2 } from 'lucide-react'
+import { X, Plus, Minus, Check } from 'lucide-react'
 import type { Product, ComboSlot, ProductOptionGroup, ProductOptionItem } from '../types'
 import type { SelectedOption, SelectedComboChoice } from '../types'
 import apiClient from '@/api/client'
@@ -38,14 +38,30 @@ export function ComboConfigDialog({
   const [optionGroupsCache, setOptionGroupsCache] = useState<Record<string, ProductOptionGroup[]>>({})
   const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({})
 
-  // Reset state when dialog opens
+  // Reset state and pre-select first choice in each slot when dialog opens
   useEffect(() => {
     if (open) {
       setQuantity(1)
-      setSelections({})
       setNestedOptions({})
+      // Pre-select the first choice for each slot
+      const defaults: Record<string, string> = {}
+      for (const slot of comboSlots) {
+        const choices = slot.choices || []
+        if (choices.length > 0) {
+          defaults[slot.id] = choices[0].product_id
+          // Load option groups only for truly configurable products (not variation-only)
+          const choiceProduct = choices[0].product
+          if (choiceProduct?.product_type === 'configurable' && !optionGroupsCache[choices[0].product_id]) {
+            apiClient.getOptionGroups(choices[0].product_id).then(response => {
+              const groups = Array.isArray(response.data) ? response.data : []
+              setOptionGroupsCache(prev => ({ ...prev, [choices[0].product_id]: groups }))
+            }).catch(() => {})
+          }
+        }
+      }
+      setSelections(defaults)
     }
-  }, [open])
+  }, [open, comboSlots])
 
   if (!open) return null
 
@@ -57,7 +73,7 @@ export function ComboConfigDialog({
     // Clear nested options when changing choice
     setNestedOptions(prev => ({ ...prev, [slotId]: [] }))
 
-    // If the chosen product is configurable, load its option groups
+    // Only load option groups for truly configurable products (not variation-only)
     if (choiceProduct?.product_type === 'configurable' && !optionGroupsCache[choiceProductId]) {
       setLoadingOptions(prev => ({ ...prev, [choiceProductId]: true }))
       try {
@@ -150,10 +166,12 @@ export function ComboConfigDialog({
       if (!selectedProductId) continue
       const choice = (slot.choices || []).find(c => c.product_id === selectedProductId)
       if (!choice) continue
+      const baseName = choice.product?.name || 'Unknown'
+      const displayName = choice.variation_item_name ? `${baseName} — ${choice.variation_item_name}` : baseName
       comboChoices.push({
         slotName: slot.name,
         productId: choice.product_id,
-        productName: choice.product?.name || 'Unknown',
+        productName: displayName,
         priceAdjustment: choice.price_override ?? 0,
         selectedOptions: nestedOptions[slot.id] || [],
       })
@@ -224,10 +242,12 @@ export function ComboConfigDialog({
                             `}>
                               {isSelected && <Check className="h-3 w-3" />}
                             </div>
-                            <span className="text-sm text-zinc-100">{choiceProduct?.name || 'Unknown'}</span>
-                            {choiceProduct?.product_type === 'configurable' && (
-                              <Settings2 className="h-3 w-3 text-zinc-500" />
-                            )}
+                            <span className="text-sm text-zinc-100">
+                              {choiceProduct?.name || 'Unknown'}
+                              {choice.variation_item_name && (
+                                <span className="text-zinc-400 font-normal"> — {choice.variation_item_name}</span>
+                              )}
+                            </span>
                           </div>
                           {choice.price_override != null && choice.price_override > 0 ? (
                             <span className="text-sm font-medium text-orange-400">
@@ -238,7 +258,7 @@ export function ComboConfigDialog({
                           )}
                         </button>
 
-                        {/* Nested option groups for configurable choices */}
+                        {/* Nested option groups for truly configurable choices only */}
                         {isSelected && choiceProduct?.product_type === 'configurable' && (
                           <div className="ml-7 mt-2 space-y-3">
                             {loadingOptions[choice.product_id] && (
@@ -285,11 +305,11 @@ export function ComboConfigDialog({
                                               </div>
                                               <span className="text-zinc-100">{item.name}</span>
                                             </div>
-                                            {item.price_adjustment !== 0 && (
+                                            {item.price_adjustment !== 0 ? (
                                               <span className={`font-medium ${item.price_adjustment > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                                                 {item.price_adjustment > 0 ? '+' : ''}{formatCurrency(item.price_adjustment)}
                                               </span>
-                                            )}
+                                            ) : null}
                                           </button>
                                         )
                                       })}

@@ -14,6 +14,8 @@ import {
   Plug,
   KeyRound,
   MapPin,
+  Image,
+  ImagePlus,
 } from 'lucide-react'
 
 const settingsSections = [
@@ -139,6 +141,26 @@ const managementSections = [
     accent: 'bg-teal-500',
     activeText: 'text-teal-400',
     activeBg: 'bg-teal-500/10',
+  },
+  {
+    id: 'media',
+    label: 'Media',
+    icon: <ImagePlus className="w-4 h-4" />,
+    description: 'Image library',
+    href: '/admin/settings/media',
+    accent: 'bg-sky-500',
+    activeText: 'text-sky-400',
+    activeBg: 'bg-sky-500/10',
+  },
+  {
+    id: 'promos',
+    label: 'Promos',
+    icon: <Image className="w-4 h-4" />,
+    description: 'Customer display carousel',
+    href: '/admin/settings/promos',
+    accent: 'bg-purple-500',
+    activeText: 'text-purple-400',
+    activeBg: 'bg-purple-500/10',
   },
   {
     id: 'platforms',

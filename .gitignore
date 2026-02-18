@@ -89,3 +89,12 @@ files/
 # Temporary files
 *.tmp
 *.temp
+
+# Turborepo
+.turbo/
+
+# Claude Code
+.claude/
+
+# Tauri build artifacts
+apps/desktop/src-tauri/target/

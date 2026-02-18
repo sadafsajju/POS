@@ -85,6 +85,17 @@ export class ApiClient {
     }
   }
 
+  async postForm<T>(url: string, formData: FormData): Promise<ApiResponse<T>> {
+    try {
+      const response = await this.client.post<ApiResponse<T>>(url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
   async delete<T>(url: string): Promise<ApiResponse<T>> {
     try {
       const response = await this.client.delete<ApiResponse<T>>(url);

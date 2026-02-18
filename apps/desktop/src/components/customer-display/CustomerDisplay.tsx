@@ -1,7 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCustomerDisplayReceiver } from '@pos/core'
 import type { CustomerDisplayState, DisplayCartItem } from '@pos/core'
 import { ShoppingBag, Clock, CreditCard, CheckCircle2 } from 'lucide-react'
+
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+const PROMOS_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/promos`
+
+interface PublicPromo {
+  id: string
+  title: string | null
+  media_type: 'image' | 'video'
+  file_url: string
+  display_order: number
+  duration_seconds: number
+}
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -10,9 +22,169 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+// --- Clock Overlay ---
+
+function ClockOverlay() {
+  const [time, setTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const hours = time.getHours()
+  const minutes = time.getMinutes().toString().padStart(2, '0')
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+
+  return (
+    <div className="absolute top-6 right-6 z-10 flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 backdrop-blur-sm">
+      <Clock className="w-4 h-4 text-zinc-400" />
+      <span className="text-sm font-mono tracking-widest text-zinc-300">
+        {displayHours}:{minutes} {period}
+      </span>
+    </div>
+  )
+}
+
+// --- Promo Carousel ---
+
+function PromoCarousel({ promos }: { promos: PublicPromo[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [fadeIn, setFadeIn] = useState(true)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  const isSingle = promos.length === 1
+
+  const advanceSlide = useCallback(() => {
+    if (isSingle) return
+    setFadeIn(false)
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % promos.length)
+      setFadeIn(true)
+    }, 500) // crossfade duration
+  }, [promos.length, isSingle])
+
+  const current = promos[currentIndex]
+
+  useEffect(() => {
+    if (!current || isSingle) return
+
+    if (current.media_type === 'image') {
+      const duration = (current.duration_seconds || 5) * 1000
+      timerRef.current = setTimeout(advanceSlide, duration)
+    }
+    // For video, we advance on 'ended' event
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [currentIndex, current, advanceSlide, isSingle])
+
+  // Reset to first slide if promos change
+  useEffect(() => {
+    setCurrentIndex(0)
+    setFadeIn(true)
+  }, [promos])
+
+  if (!current) return null
+
+  const mediaUrl = `${API_BASE}${current.file_url}`
+
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-black">
+      <ClockOverlay />
+
+      <div
+        className={`absolute inset-0 ${
+          isSingle ? '' : `transition-opacity duration-500 ${fadeIn ? 'opacity-100' : 'opacity-0'}`
+        }`}
+      >
+        {current.media_type === 'video' ? (
+          <video
+            ref={videoRef}
+            key={current.id}
+            src={mediaUrl}
+            className="w-full h-full object-contain"
+            autoPlay
+            muted
+            loop={isSingle}
+            playsInline
+            onEnded={isSingle ? undefined : advanceSlide}
+          />
+        ) : (
+          <img
+            key={current.id}
+            src={mediaUrl}
+            alt={current.title || ''}
+            className="w-full h-full object-contain"
+          />
+        )}
+      </div>
+
+      {/* Slide indicator dots */}
+      {promos.length > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+          {promos.map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                i === currentIndex
+                  ? 'bg-white w-6'
+                  : 'bg-white/40'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // --- Idle Screen ---
 
 function IdleScreen() {
+  const [promos, setPromos] = useState<PublicPromo[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchPromos = async () => {
+      try {
+        const res = await fetch(PROMOS_URL)
+        const json = await res.json()
+        if (!cancelled && json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setPromos(json.data)
+        }
+      } catch {
+        // Silently fail — show fallback
+      } finally {
+        if (!cancelled) setLoaded(true)
+      }
+    }
+
+    fetchPromos()
+    // Refresh promos every 2 minutes
+    const interval = setInterval(fetchPromos, 2 * 60 * 1000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
+  // Show carousel if promos available
+  if (loaded && promos.length > 0) {
+    return <PromoCarousel promos={promos} />
+  }
+
+  // Fallback welcome screen
+  return <WelcomeScreen />
+}
+
+function WelcomeScreen() {
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {

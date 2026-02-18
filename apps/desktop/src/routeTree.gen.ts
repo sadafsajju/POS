@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LockRouteImport } from './routes/lock'
 import { Route as KitchenRouteImport } from './routes/kitchen'
+import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
@@ -26,9 +28,11 @@ import { Route as AdminSettingsTablesRouteImport } from './routes/admin/settings
 import { Route as AdminSettingsSystemRouteImport } from './routes/admin/settings/system'
 import { Route as AdminSettingsStaffRouteImport } from './routes/admin/settings/staff'
 import { Route as AdminSettingsReceiptsRouteImport } from './routes/admin/settings/receipts'
+import { Route as AdminSettingsPromosRouteImport } from './routes/admin/settings/promos'
 import { Route as AdminSettingsProductsRouteImport } from './routes/admin/settings/products'
 import { Route as AdminSettingsPlatformsRouteImport } from './routes/admin/settings/platforms'
 import { Route as AdminSettingsMenuRouteImport } from './routes/admin/settings/menu'
+import { Route as AdminSettingsMediaRouteImport } from './routes/admin/settings/media'
 import { Route as AdminSettingsLocationsRouteImport } from './routes/admin/settings/locations'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin/settings/general'
 import { Route as AdminSettingsFinancialRouteImport } from './routes/admin/settings/financial'
@@ -36,8 +40,6 @@ import { Route as AdminSettingsCartRouteImport } from './routes/admin/settings/c
 import { Route as AdminSettingsAccountRouteImport } from './routes/admin/settings/account'
 import { Route as AdminSettingsAboutRouteImport } from './routes/admin/settings/about'
 import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/settings/menu/index'
-import { Route as AdminSettingsMenuNewRouteImport } from './routes/admin/settings/menu/new'
-import { Route as AdminSettingsMenuProductIdEditRouteImport } from './routes/admin/settings/menu/$productId.edit'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -49,9 +51,19 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LockRoute = LockRouteImport.update({
+  id: '/lock',
+  path: '/lock',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KitchenRoute = KitchenRouteImport.update({
   id: '/kitchen',
   path: '/kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
+  id: '/customer-display',
+  path: '/customer-display',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -124,6 +136,11 @@ const AdminSettingsReceiptsRoute = AdminSettingsReceiptsRouteImport.update({
   path: '/receipts',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsPromosRoute = AdminSettingsPromosRouteImport.update({
+  id: '/promos',
+  path: '/promos',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsProductsRoute = AdminSettingsProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -137,6 +154,11 @@ const AdminSettingsPlatformsRoute = AdminSettingsPlatformsRouteImport.update({
 const AdminSettingsMenuRoute = AdminSettingsMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsMediaRoute = AdminSettingsMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
 const AdminSettingsLocationsRoute = AdminSettingsLocationsRouteImport.update({
@@ -174,22 +196,13 @@ const AdminSettingsMenuIndexRoute = AdminSettingsMenuIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSettingsMenuRoute,
 } as any)
-const AdminSettingsMenuNewRoute = AdminSettingsMenuNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AdminSettingsMenuRoute,
-} as any)
-const AdminSettingsMenuProductIdEditRoute =
-  AdminSettingsMenuProductIdEditRouteImport.update({
-    id: '/$productId/edit',
-    path: '/$productId/edit',
-    getParentRoute: () => AdminSettingsMenuRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/customer-display': typeof CustomerDisplayRoute
   '/kitchen': typeof KitchenRoute
+  '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -205,21 +218,23 @@ export interface FileRoutesByFullPath {
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
+  '/admin/settings/promos': typeof AdminSettingsPromosRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
   '/admin/settings/tables': typeof AdminSettingsTablesRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu/new': typeof AdminSettingsMenuNewRoute
   '/admin/settings/menu/': typeof AdminSettingsMenuIndexRoute
-  '/admin/settings/menu/$productId/edit': typeof AdminSettingsMenuProductIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/customer-display': typeof CustomerDisplayRoute
   '/kitchen': typeof KitchenRoute
+  '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -234,22 +249,24 @@ export interface FileRoutesByTo {
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
+  '/admin/settings/promos': typeof AdminSettingsPromosRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
   '/admin/settings/tables': typeof AdminSettingsTablesRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu/new': typeof AdminSettingsMenuNewRoute
   '/admin/settings/menu': typeof AdminSettingsMenuIndexRoute
-  '/admin/settings/menu/$productId/edit': typeof AdminSettingsMenuProductIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/customer-display': typeof CustomerDisplayRoute
   '/kitchen': typeof KitchenRoute
+  '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -265,24 +282,26 @@ export interface FileRoutesById {
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
+  '/admin/settings/promos': typeof AdminSettingsPromosRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
   '/admin/settings/tables': typeof AdminSettingsTablesRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu/new': typeof AdminSettingsMenuNewRoute
   '/admin/settings/menu/': typeof AdminSettingsMenuIndexRoute
-  '/admin/settings/menu/$productId/edit': typeof AdminSettingsMenuProductIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
+    | '/customer-display'
     | '/kitchen'
+    | '/lock'
     | '/login'
     | '/setup'
     | '/admin/bills'
@@ -298,21 +317,23 @@ export interface FileRouteTypes {
     | '/admin/settings/financial'
     | '/admin/settings/general'
     | '/admin/settings/locations'
+    | '/admin/settings/media'
     | '/admin/settings/menu'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
+    | '/admin/settings/promos'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
     | '/admin/settings/tables'
     | '/admin/settings/'
-    | '/admin/settings/menu/new'
     | '/admin/settings/menu/'
-    | '/admin/settings/menu/$productId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/customer-display'
     | '/kitchen'
+    | '/lock'
     | '/login'
     | '/setup'
     | '/admin/bills'
@@ -327,21 +348,23 @@ export interface FileRouteTypes {
     | '/admin/settings/financial'
     | '/admin/settings/general'
     | '/admin/settings/locations'
+    | '/admin/settings/media'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
+    | '/admin/settings/promos'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
     | '/admin/settings/tables'
     | '/admin/settings'
-    | '/admin/settings/menu/new'
     | '/admin/settings/menu'
-    | '/admin/settings/menu/$productId/edit'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/customer-display'
     | '/kitchen'
+    | '/lock'
     | '/login'
     | '/setup'
     | '/admin/bills'
@@ -357,23 +380,25 @@ export interface FileRouteTypes {
     | '/admin/settings/financial'
     | '/admin/settings/general'
     | '/admin/settings/locations'
+    | '/admin/settings/media'
     | '/admin/settings/menu'
     | '/admin/settings/platforms'
     | '/admin/settings/products'
+    | '/admin/settings/promos'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
     | '/admin/settings/tables'
     | '/admin/settings/'
-    | '/admin/settings/menu/new'
     | '/admin/settings/menu/'
-    | '/admin/settings/menu/$productId/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  CustomerDisplayRoute: typeof CustomerDisplayRoute
   KitchenRoute: typeof KitchenRoute
+  LockRoute: typeof LockRoute
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
 }
@@ -394,11 +419,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lock': {
+      id: '/lock'
+      path: '/lock'
+      fullPath: '/lock'
+      preLoaderRoute: typeof LockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/kitchen': {
       id: '/kitchen'
       path: '/kitchen'
       fullPath: '/kitchen'
       preLoaderRoute: typeof KitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customer-display': {
+      id: '/customer-display'
+      path: '/customer-display'
+      fullPath: '/customer-display'
+      preLoaderRoute: typeof CustomerDisplayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -499,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsReceiptsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/promos': {
+      id: '/admin/settings/promos'
+      path: '/promos'
+      fullPath: '/admin/settings/promos'
+      preLoaderRoute: typeof AdminSettingsPromosRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/products': {
       id: '/admin/settings/products'
       path: '/products'
@@ -518,6 +564,13 @@ declare module '@tanstack/react-router' {
       path: '/menu'
       fullPath: '/admin/settings/menu'
       preLoaderRoute: typeof AdminSettingsMenuRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/media': {
+      id: '/admin/settings/media'
+      path: '/media'
+      fullPath: '/admin/settings/media'
+      preLoaderRoute: typeof AdminSettingsMediaRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
     '/admin/settings/locations': {
@@ -569,33 +622,15 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsMenuIndexRouteImport
       parentRoute: typeof AdminSettingsMenuRoute
     }
-    '/admin/settings/menu/new': {
-      id: '/admin/settings/menu/new'
-      path: '/new'
-      fullPath: '/admin/settings/menu/new'
-      preLoaderRoute: typeof AdminSettingsMenuNewRouteImport
-      parentRoute: typeof AdminSettingsMenuRoute
-    }
-    '/admin/settings/menu/$productId/edit': {
-      id: '/admin/settings/menu/$productId/edit'
-      path: '/$productId/edit'
-      fullPath: '/admin/settings/menu/$productId/edit'
-      preLoaderRoute: typeof AdminSettingsMenuProductIdEditRouteImport
-      parentRoute: typeof AdminSettingsMenuRoute
-    }
   }
 }
 
 interface AdminSettingsMenuRouteChildren {
-  AdminSettingsMenuNewRoute: typeof AdminSettingsMenuNewRoute
   AdminSettingsMenuIndexRoute: typeof AdminSettingsMenuIndexRoute
-  AdminSettingsMenuProductIdEditRoute: typeof AdminSettingsMenuProductIdEditRoute
 }
 
 const AdminSettingsMenuRouteChildren: AdminSettingsMenuRouteChildren = {
-  AdminSettingsMenuNewRoute: AdminSettingsMenuNewRoute,
   AdminSettingsMenuIndexRoute: AdminSettingsMenuIndexRoute,
-  AdminSettingsMenuProductIdEditRoute: AdminSettingsMenuProductIdEditRoute,
 }
 
 const AdminSettingsMenuRouteWithChildren =
@@ -608,9 +643,11 @@ interface AdminSettingsRouteChildren {
   AdminSettingsFinancialRoute: typeof AdminSettingsFinancialRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSettingsLocationsRoute: typeof AdminSettingsLocationsRoute
+  AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
   AdminSettingsMenuRoute: typeof AdminSettingsMenuRouteWithChildren
   AdminSettingsPlatformsRoute: typeof AdminSettingsPlatformsRoute
   AdminSettingsProductsRoute: typeof AdminSettingsProductsRoute
+  AdminSettingsPromosRoute: typeof AdminSettingsPromosRoute
   AdminSettingsReceiptsRoute: typeof AdminSettingsReceiptsRoute
   AdminSettingsStaffRoute: typeof AdminSettingsStaffRoute
   AdminSettingsSystemRoute: typeof AdminSettingsSystemRoute
@@ -625,9 +662,11 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsFinancialRoute: AdminSettingsFinancialRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSettingsLocationsRoute: AdminSettingsLocationsRoute,
+  AdminSettingsMediaRoute: AdminSettingsMediaRoute,
   AdminSettingsMenuRoute: AdminSettingsMenuRouteWithChildren,
   AdminSettingsPlatformsRoute: AdminSettingsPlatformsRoute,
   AdminSettingsProductsRoute: AdminSettingsProductsRoute,
+  AdminSettingsPromosRoute: AdminSettingsPromosRoute,
   AdminSettingsReceiptsRoute: AdminSettingsReceiptsRoute,
   AdminSettingsStaffRoute: AdminSettingsStaffRoute,
   AdminSettingsSystemRoute: AdminSettingsSystemRoute,
@@ -664,7 +703,9 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  CustomerDisplayRoute: CustomerDisplayRoute,
   KitchenRoute: KitchenRoute,
+  LockRoute: LockRoute,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
 }

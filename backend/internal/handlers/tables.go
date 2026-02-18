@@ -41,11 +41,12 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 	// Using DISTINCT ON to ensure one row per table, prioritizing tables with active orders
 	queryBuilder := `
 		SELECT DISTINCT ON (t.id)
-		       t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.is_occupied,
-		       t.created_at, t.updated_at,
+		       t.id, t.table_number, t.seating_capacity, t.location, t.floor, t.status, t.is_occupied,
+		       t.created_at, t.updated_at, t.location_id, COALESCE(l.name, '') as location_name,
 		       o.id as order_id, o.order_number, o.customer_name, o.status as order_status,
 		       o.created_at as order_created_at, o.total_amount
 		FROM dining_tables t
+		LEFT JOIN locations l ON t.location_id = l.id
 		LEFT JOIN orders o ON t.id = o.table_id
 		    AND o.status NOT IN ('completed', 'cancelled')
 		    AND (o.is_kot = false OR o.is_kot IS NULL)
@@ -89,8 +90,8 @@ func (h *TableHandler) GetTables(c *gin.Context) {
 		var totalAmount sql.NullFloat64
 
 		err := rows.Scan(
-			&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor, &table.IsOccupied,
-			&table.CreatedAt, &table.UpdatedAt,
+			&table.ID, &table.TableNumber, &table.SeatingCapacity, &table.Location, &table.Floor, &table.Status, &table.IsOccupied,
+			&table.CreatedAt, &table.UpdatedAt, &table.LocationID, &table.LocationName,
 			&orderID, &orderNumber, &customerName, &orderStatus, &orderCreatedAt, &totalAmount,
 		)
 		if err != nil {

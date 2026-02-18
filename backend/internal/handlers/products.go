@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type ProductHandler struct {
@@ -48,8 +49,11 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	queryBuilder := `
 		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
-		       p.dietary_type, p.product_type,
-		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
+		       p.dietary_type, p.calorie_count, p.food_allergens, p.product_type,
+		       (EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) OR EXISTS(SELECT 1 FROM product_variations WHERE product_id = p.id)) as has_option_groups,
+		       (SELECT MIN(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as min_variation_price,
+		       (SELECT MAX(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as max_variation_price,
+		       p.location_ids,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -61,7 +65,7 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	argIndex := 0
 
 	// Scope to org
-	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	orgID, locID, orgLocOk := middleware.GetOrgLocationFromContext(c)
 	if !orgLocOk {
 		c.JSON(http.StatusUnauthorized, models.APIResponse{
 			Success: false,
@@ -73,6 +77,13 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	argIndex++
 	queryBuilder += fmt.Sprintf(" AND p.org_id = $%d", argIndex)
 	args = append(args, orgID)
+
+	// Filter by location if user has a location assigned (non-admin)
+	if locID != uuid.Nil {
+		argIndex++
+		queryBuilder += fmt.Sprintf(" AND (p.location_ids IS NULL OR $%d = ANY(p.location_ids))", argIndex)
+		args = append(args, locID)
+	}
 
 	if categoryID != "" {
 		if _, err := uuid.Parse(categoryID); err == nil {
@@ -131,12 +142,16 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 	for rows.Next() {
 		var product models.Product
 		var categoryName, categoryColor sql.NullString
+		var minVarPrice, maxVarPrice sql.NullFloat64
+		var locationIDs pq.StringArray
 
 		err := rows.Scan(
 			&product.ID, &product.CategoryID, &product.Name, &product.Description,
 			&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 			&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
-			&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
+			&product.DietaryType, &product.CalorieCount, &product.FoodAllergens, &product.ProductType, &product.HasOptionGroups,
+			&minVarPrice, &maxVarPrice,
+			&locationIDs,
 			&product.CreatedAt, &product.UpdatedAt,
 			&categoryName, &categoryColor,
 		)
@@ -147,6 +162,15 @@ func (h *ProductHandler) GetProducts(c *gin.Context) {
 				Error:   stringPtr(err.Error()),
 			})
 			return
+		}
+		if locationIDs != nil {
+			product.LocationIDs = []string(locationIDs)
+		}
+		if minVarPrice.Valid {
+			product.MinVariationPrice = &minVarPrice.Float64
+		}
+		if maxVarPrice.Valid {
+			product.MaxVariationPrice = &maxVarPrice.Float64
 		}
 
 		// Add category info if available
@@ -205,8 +229,11 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	query := `
 		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
-		       p.dietary_type, p.product_type,
-		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
+		       p.dietary_type, p.calorie_count, p.food_allergens, p.product_type,
+		       (EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) OR EXISTS(SELECT 1 FROM product_variations WHERE product_id = p.id)) as has_option_groups,
+		       (SELECT MIN(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as min_variation_price,
+		       (SELECT MAX(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as max_variation_price,
+		       p.location_ids,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -214,11 +241,15 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 		WHERE p.id = $1 AND p.org_id = $2
 	`
 
+	var minVarPrice, maxVarPrice sql.NullFloat64
+	var locationIDs pq.StringArray
 	err = h.db.QueryRow(query, productID, orgID).Scan(
 		&product.ID, &product.CategoryID, &product.Name, &product.Description,
 		&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 		&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
-		&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
+		&product.DietaryType, &product.CalorieCount, &product.FoodAllergens, &product.ProductType, &product.HasOptionGroups,
+		&minVarPrice, &maxVarPrice,
+		&locationIDs,
 		&product.CreatedAt, &product.UpdatedAt,
 		&categoryName, &categoryColor,
 	)
@@ -239,6 +270,16 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 			Error:   stringPtr(err.Error()),
 		})
 		return
+	}
+
+	if locationIDs != nil {
+		product.LocationIDs = []string(locationIDs)
+	}
+	if minVarPrice.Valid {
+		product.MinVariationPrice = &minVarPrice.Float64
+	}
+	if maxVarPrice.Valid {
+		product.MaxVariationPrice = &maxVarPrice.Float64
 	}
 
 	// Add category info if available
@@ -339,7 +380,7 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 	availableOnly := c.Query("available_only") == "true"
 
 	// Scope to org
-	orgID, _, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	orgID, locID, orgLocOk := middleware.GetOrgLocationFromContext(c)
 	if !orgLocOk {
 		c.JSON(http.StatusUnauthorized, models.APIResponse{
 			Success: false,
@@ -352,8 +393,11 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 	query := `
 		SELECT p.id, p.category_id, p.name, p.description, p.price, p.image_url,
 		       p.barcode, p.sku, p.is_available, p.preparation_time, p.sort_order,
-		       p.dietary_type, p.product_type,
-		       EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) as has_option_groups,
+		       p.dietary_type, p.calorie_count, p.food_allergens, p.product_type,
+		       (EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) OR EXISTS(SELECT 1 FROM product_variations WHERE product_id = p.id)) as has_option_groups,
+		       (SELECT MIN(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as min_variation_price,
+		       (SELECT MAX(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as max_variation_price,
+		       p.location_ids,
 		       p.created_at, p.updated_at,
 		       c.name as category_name, c.color as category_color
 		FROM products p
@@ -361,13 +405,23 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 		WHERE p.category_id = $1 AND p.org_id = $2
 	`
 
+	args := []interface{}{categoryID, orgID}
+	argIndex := 2
+
+	// Filter by location if user has a location assigned
+	if locID != uuid.Nil {
+		argIndex++
+		query += fmt.Sprintf(" AND (p.location_ids IS NULL OR $%d = ANY(p.location_ids))", argIndex)
+		args = append(args, locID)
+	}
+
 	if availableOnly {
 		query += ` AND p.is_available = true`
 	}
 
 	query += ` ORDER BY p.sort_order ASC, p.name ASC`
 
-	rows, err := h.db.Query(query, categoryID, orgID)
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -382,12 +436,16 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 	for rows.Next() {
 		var product models.Product
 		var categoryName, categoryColor sql.NullString
+		var minVarPrice, maxVarPrice sql.NullFloat64
+		var locationIDs pq.StringArray
 
 		err := rows.Scan(
 			&product.ID, &product.CategoryID, &product.Name, &product.Description,
 			&product.Price, &product.ImageURL, &product.Barcode, &product.SKU,
 			&product.IsAvailable, &product.PreparationTime, &product.SortOrder,
-			&product.DietaryType, &product.ProductType, &product.HasOptionGroups,
+			&product.DietaryType, &product.CalorieCount, &product.FoodAllergens, &product.ProductType, &product.HasOptionGroups,
+			&minVarPrice, &maxVarPrice,
+			&locationIDs,
 			&product.CreatedAt, &product.UpdatedAt,
 			&categoryName, &categoryColor,
 		)
@@ -398,6 +456,15 @@ func (h *ProductHandler) GetProductsByCategory(c *gin.Context) {
 				Error:   stringPtr(err.Error()),
 			})
 			return
+		}
+		if locationIDs != nil {
+			product.LocationIDs = []string(locationIDs)
+		}
+		if minVarPrice.Valid {
+			product.MinVariationPrice = &minVarPrice.Float64
+		}
+		if maxVarPrice.Valid {
+			product.MaxVariationPrice = &maxVarPrice.Float64
 		}
 
 		// Add category info

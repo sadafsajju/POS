@@ -3,6 +3,8 @@ import { ImageOff, Clock, Barcode, Settings2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import type { Product, CartItem, Category } from '../types'
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+
 const dietaryColors: Record<string, string> = {
   veg: '#22c55e',
   non_veg: '#ef4444',
@@ -83,7 +85,7 @@ export function CreateOrderView({
         key={product.id}
         onClick={() => !isUnavailable && handleProductClick(product)}
         className={`
-          relative overflow-hidden cursor-pointer transition-all
+          relative overflow-hidden cursor-pointer transition-all rounded-xl
           ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-zinc-900
           ${isUnavailable
             ? 'opacity-50 cursor-not-allowed'
@@ -97,7 +99,7 @@ export function CreateOrderView({
           <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
             {product.image_url ? (
               <img
-                src={product.image_url}
+                src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
@@ -182,8 +184,20 @@ export function CreateOrderView({
           </div>
           <div className="flex items-center justify-between gap-2">
             {displaySettings.showPrice && (
-              <span className="text-base font-bold text-amber-400">
-                {formatCurrency(product.price)}
+              <span className="text-xl font-normal tabular-nums font-mono">
+                {(() => {
+                  const renderPrice = (str: string) => {
+                    const match = str.match(/^([^\d]*)(.+)$/)
+                    if (!match) return <span className="text-emerald-600">{str}</span>
+                    return <><span className="text-emerald-600/40">{match[1]}</span><span className="text-emerald-600">{match[2]}</span></>
+                  }
+                  if (product.min_variation_price != null) {
+                    return product.min_variation_price === product.max_variation_price
+                      ? renderPrice(formatCurrency(product.min_variation_price))
+                      : <>{renderPrice(formatCurrency(product.min_variation_price))} <span className="text-emerald-600">-</span> {renderPrice(formatCurrency(product.max_variation_price!))}</>
+                  }
+                  return renderPrice(formatCurrency(product.price))
+                })()}
               </span>
             )}
             {displaySettings.showAvailability && !displaySettings.showImage && isUnavailable && (

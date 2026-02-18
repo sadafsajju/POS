@@ -7,8 +7,6 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -26,8 +24,17 @@ import {
   Shield,
   Mail,
   Calendar,
-  MoreHorizontal
+  MoreHorizontal,
+  Users
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import type { User } from "@/types"
 
 interface AdminStaffTableProps {
@@ -35,6 +42,34 @@ interface AdminStaffTableProps {
   onEdit: (user: User) => void
   onDelete: (user: User) => void
   isLoading?: boolean
+}
+
+function SortButton({ column, icon: Icon, label }: { column: any; icon: any; label: string }) {
+  const isSorted = column.getIsSorted()
+  return (
+    <button
+      onClick={() => column.toggleSorting(isSorted === "asc")}
+      className="flex items-center gap-1.5 h-8 px-2 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors text-xs font-medium"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+      {isSorted === "asc" ? (
+        <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
+      ) : isSorted === "desc" ? (
+        <ArrowDown className="h-3.5 w-3.5 text-emerald-400" />
+      ) : (
+        <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+      )}
+    </button>
+  )
+}
+
+const roleBadgeStyles: Record<string, string> = {
+  admin: "bg-red-500/15 text-red-400 ring-red-500/20",
+  manager: "bg-violet-500/15 text-violet-400 ring-violet-500/20",
+  server: "bg-blue-500/15 text-blue-400 ring-blue-500/20",
+  counter: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20",
+  kitchen: "bg-amber-500/15 text-amber-400 ring-amber-500/20",
 }
 
 export function AdminStaffTable({
@@ -45,55 +80,26 @@ export function AdminStaffTable({
 }: AdminStaffTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
 
-  const getRoleBadgeColor = (role: string) => {
-    const colors: Record<string, string> = {
-      'admin': 'bg-red-100 text-red-800 hover:bg-red-200',
-      'manager': 'bg-purple-100 text-purple-800 hover:bg-purple-200',
-      'server': 'bg-blue-100 text-blue-800 hover:bg-blue-200',
-      'counter': 'bg-green-100 text-green-800 hover:bg-green-200',
-      'kitchen': 'bg-orange-100 text-orange-800 hover:bg-orange-200',
-    }
-    return colors[role.toLowerCase()] || 'bg-muted text-muted-foreground'
-  }
-
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "first_name",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted()
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="h-8 px-2 lg:px-3"
-          >
-            Name
-            {isSorted === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : isSorted === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        )
-      },
+      header: ({ column }) => <SortButton column={column} icon={Users} label="Name" />,
       cell: ({ row }) => {
         const user = row.original
         return (
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3">
             <div className="flex-shrink-0">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center">
-                <span className="text-sm font-semibold text-white">
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500/20 to-violet-500/20 ring-1 ring-zinc-700 flex items-center justify-center">
+                <span className="text-xs font-semibold text-zinc-300">
                   {user.first_name[0]}{user.last_name[0]}
                 </span>
               </div>
             </div>
-            <div>
-              <div className="font-medium text-foreground">
+            <div className="min-w-0">
+              <div className="font-medium text-zinc-200 truncate">
                 {user.first_name} {user.last_name}
               </div>
-              <div className="text-sm text-muted-foreground">@{user.username}</div>
+              <div className="text-xs text-zinc-500">@{user.username}</div>
             </div>
           </div>
         )
@@ -101,136 +107,95 @@ export function AdminStaffTable({
     },
     {
       accessorKey: "email",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted()
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="h-8 px-2 lg:px-3"
-          >
-            <Mail className="mr-2 h-4 w-4" />
-            Email
-            {isSorted === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : isSorted === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        )
-      },
+      header: ({ column }) => <SortButton column={column} icon={Mail} label="Email" />,
       cell: ({ getValue }) => {
         const email = getValue() as string
-        return (
-          <div className="flex items-center">
-            <span className="text-foreground">{email}</span>
-          </div>
-        )
+        return <span className="text-sm text-zinc-300">{email}</span>
       },
     },
     {
       accessorKey: "role",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted()
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="h-8 px-2 lg:px-3"
-          >
-            <Shield className="mr-2 h-4 w-4" />
-            Role
-            {isSorted === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : isSorted === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        )
-      },
+      header: ({ column }) => <SortButton column={column} icon={Shield} label="Role" />,
       cell: ({ getValue }) => {
         const role = getValue() as string
+        const styles = roleBadgeStyles[role.toLowerCase()] || "bg-zinc-800 text-zinc-400 ring-zinc-700"
         return (
-          <Badge className={getRoleBadgeColor(role)}>
+          <span className={cn(
+            "inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium ring-1",
+            styles
+          )}>
             {role.toUpperCase()}
-          </Badge>
+          </span>
         )
       },
     },
     {
       accessorKey: "is_active",
-      header: "Status",
+      header: () => (
+        <span className="text-xs font-medium text-zinc-400 px-2">Status</span>
+      ),
       cell: ({ getValue }) => {
         const isActive = getValue() as boolean
         return (
-          <Badge variant={isActive ? "default" : "secondary"}>
-            <div className={`w-2 h-2 rounded-full mr-2 ${isActive ? 'bg-green-400' : 'bg-gray-400'}`} />
-            {isActive ? "Active" : "Inactive"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "w-2 h-2 rounded-full",
+              isActive ? "bg-emerald-400" : "bg-zinc-600"
+            )} />
+            <span className={cn(
+              "text-xs font-medium",
+              isActive ? "text-emerald-400" : "text-zinc-600"
+            )}>
+              {isActive ? "Active" : "Inactive"}
+            </span>
+          </div>
         )
       },
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted()
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="h-8 px-2 lg:px-3"
-          >
-            <Calendar className="mr-2 h-4 w-4" />
-            Joined
-            {isSorted === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
-            ) : isSorted === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
-            )}
-          </Button>
-        )
-      },
+      header: ({ column }) => <SortButton column={column} icon={Calendar} label="Joined" />,
       cell: ({ getValue }) => {
         const date = getValue() as string
         return (
-          <div className="text-foreground">
+          <span className="text-sm text-zinc-500 tabular-nums">
             {new Date(date).toLocaleDateString()}
-          </div>
+          </span>
         )
       },
     },
     {
       id: "actions",
-      header: "Actions",
+      header: () => (
+        <span className="text-xs font-medium text-zinc-400 px-2">Actions</span>
+      ),
       cell: ({ row }) => {
         const user = row.original
         return (
-          <div className="flex items-center space-x-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onEdit(user)}
-              className="h-8 px-2 lg:px-3"
-            >
-              <Edit className="h-4 w-4" />
-              <span className="sr-only lg:not-sr-only lg:ml-2">Edit</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onDelete(user)}
-              className="h-8 px-2 lg:px-3 text-red-600 hover:text-red-700 hover:border-red-300"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only lg:not-sr-only lg:ml-2">Delete</span>
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center justify-center h-8 w-8 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 bg-zinc-900 border-zinc-800 text-zinc-200">
+              <DropdownMenuItem
+                onClick={() => onEdit(user)}
+                className="gap-2 text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100 cursor-pointer"
+              >
+                <Edit className="h-3.5 w-3.5" />
+                Edit Staff
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-zinc-800" />
+              <DropdownMenuItem
+                onClick={() => onDelete(user)}
+                className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-300 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Staff
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )
       },
     },
@@ -249,33 +214,28 @@ export function AdminStaffTable({
 
   return (
     <div className="w-full">
-      <div className="rounded-md border bg-card">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id} className="px-4">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
+              <TableRow key={headerGroup.id} className="border-zinc-800 hover:bg-transparent">
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="px-4 bg-zinc-900/80 text-zinc-400">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className="border-zinc-800/60 hover:bg-transparent">
                   {columns.map((_, j) => (
-                    <TableCell key={j}>
-                      <div className="h-4 bg-muted rounded animate-pulse" />
+                    <TableCell key={j} className="px-4 py-3">
+                      <div className="h-4 bg-zinc-800 rounded animate-pulse" />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -284,24 +244,24 @@ export function AdminStaffTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className="hover:bg-muted/50"
+                  className="border-zinc-800/60 hover:bg-zinc-800/40 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="px-4 py-2.5">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-muted-foreground" />
+              <TableRow className="border-zinc-800/60 hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-32 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center">
+                      <Users className="w-6 h-6 text-zinc-600" />
                     </div>
-                    <p className="text-muted-foreground">No staff members found</p>
+                    <p className="text-sm font-medium text-zinc-400">No staff members found</p>
+                    <p className="text-xs text-zinc-600">Try adjusting your search or add a new staff member</p>
                   </div>
                 </TableCell>
               </TableRow>

@@ -100,22 +100,18 @@ function AccountSettingsPage() {
     }
   }, [newPin, confirmPin])
 
-  // Check if user has a PIN by attempting a verify — but for UX simplicity,
-  // we provide both options and let the user choose
   const [hasPin, setHasPin] = useState<boolean | null>(null)
 
-  // Auto-detect if user has PIN on first render
+  // Check if user has a PIN set via dedicated endpoint
   useEffect(() => {
-    authApi.verifyPin('0000').then((res) => {
-      // If we get success=false with 'pin_not_set' error, user has no PIN
-      if (!res.success && res.error === 'pin_not_set') {
-        setHasPin(false)
+    authApi.pinStatus().then((res) => {
+      if (res.success && res.data) {
+        setHasPin(res.data.has_pin)
       } else {
-        // Either the PIN matched (unlikely) or it was invalid — either way, PIN exists
         setHasPin(true)
       }
     }).catch(() => {
-      setHasPin(true) // Assume PIN exists on error
+      setHasPin(true)
     })
   }, [])
 

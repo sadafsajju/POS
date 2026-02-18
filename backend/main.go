@@ -68,6 +68,9 @@ func main() {
 		c.JSON(200, gin.H{"status": "healthy", "message": "POS API is running"})
 	})
 
+	// Serve uploaded files (promos, etc.)
+	router.Static("/uploads", "./uploads")
+
 	// Initialize API routes
 	apiRoutes := router.Group("/api/v1")
 	api.SetupRoutes(apiRoutes, db, authMiddleware)

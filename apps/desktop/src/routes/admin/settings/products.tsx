@@ -88,7 +88,7 @@ const displayOptions: { key: keyof ProductDisplaySettings; label: string; descri
   { key: 'showDescription', label: 'Description', description: 'Show product descriptions below the name' },
   { key: 'showPrice', label: 'Price', description: 'Display the product price on cards' },
   { key: 'showCategory', label: 'Category', description: 'Show which category the product belongs to' },
-  { key: 'showDietaryType', label: 'Dietary Type', description: 'Display veg/non-veg/vegan indicators' },
+  { key: 'showDietaryType', label: 'Nutritional Info', description: 'Display veg/non-veg/vegan indicators' },
   { key: 'showAvailability', label: 'Availability Status', description: 'Show if product is available or out of stock' },
   { key: 'showSku', label: 'SKU', description: 'Display the product SKU code' },
   { key: 'showBarcode', label: 'Barcode', description: 'Show the product barcode number' },
@@ -113,17 +113,17 @@ function PreviewCard({
   return (
     <div
       className={cn(
-        'relative overflow-hidden cursor-pointer transition-all flex flex-col bg-card',
+        'relative overflow-hidden cursor-pointer transition-all rounded-xl flex flex-col bg-zinc-900',
         displaySettings.showImage && 'aspect-square',
         isUnavailable
           ? 'opacity-50 cursor-not-allowed'
-          : 'hover:bg-muted/50 active:scale-[0.98]',
-        product.cartQty > 0 && 'ring-2 ring-primary z-10',
+          : 'hover:bg-zinc-800 active:scale-[0.98]',
+        product.cartQty > 0 && 'ring-2 ring-amber-500 z-10',
       )}
     >
       {/* Product Image */}
       {displaySettings.showImage && (
-        <div className="relative h-2/3 bg-muted overflow-hidden">
+        <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
           {product.image_url ? (
             <img
               src={product.image_url}
@@ -131,14 +131,14 @@ function PreviewCard({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <ImageOff className="w-12 h-12 text-muted-foreground/30" />
+            <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+              <ImageOff className="w-12 h-12 text-zinc-700" />
             </div>
           )}
 
           {/* Quantity Badge */}
           {product.cartQty > 0 && (
-            <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
+            <div className="absolute top-2 right-2 bg-amber-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
               {product.cartQty}
             </div>
           )}
@@ -166,7 +166,7 @@ function PreviewCard({
 
       {/* Quantity badge when image hidden */}
       {!displaySettings.showImage && product.cartQty > 0 && (
-        <div className="absolute top-2 right-2 bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
+        <div className="absolute top-2 right-2 bg-amber-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
           {product.cartQty}
         </div>
       )}
@@ -174,7 +174,7 @@ function PreviewCard({
       {/* Product Info */}
       <div className={cn('flex-1 p-2 flex flex-col justify-between', !displaySettings.showImage && 'py-3')}>
         <div>
-          <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1">
+          <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1 text-zinc-100">
             {displaySettings.showDietaryType && product.dietary_type && (
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
@@ -183,27 +183,27 @@ function PreviewCard({
             )}
             {product.name}
             {(hasOptions || isCombo) && (
-              <Settings2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              <Settings2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
             )}
           </h3>
           {displaySettings.showDescription && product.description && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-zinc-500 truncate">
               {product.description}
             </p>
           )}
           {displaySettings.showSku && product.sku && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-500">
               SKU: {product.sku}
             </p>
           )}
           {displaySettings.showBarcode && product.barcode && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <p className="text-xs text-zinc-500 flex items-center gap-1">
               <Barcode className="w-3 h-3" />
               {product.barcode}
             </p>
           )}
           {!displaySettings.showImage && displaySettings.showPreparationTime && product.preparation_time > 0 && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <p className="text-xs text-zinc-500 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {product.preparation_time} min
             </p>
@@ -211,8 +211,13 @@ function PreviewCard({
         </div>
         <div className="flex items-center justify-between gap-2">
           {displaySettings.showPrice && (
-            <span className="text-base font-bold text-primary">
-              {formatCurrency(product.price)}
+            <span className="text-xl font-normal tabular-nums font-mono">
+              {(() => {
+                const str = formatCurrency(product.price)
+                const match = str.match(/^([^\d]*)(.+)$/)
+                if (!match) return <span className="text-emerald-600">{str}</span>
+                return <><span className="text-emerald-600/40">{match[1]}</span><span className="text-emerald-600">{match[2]}</span></>
+              })()}
             </span>
           )}
           {displaySettings.showAvailability && !displaySettings.showImage && isUnavailable && (
@@ -349,7 +354,7 @@ function ProductsSettingsPage() {
         </div>
 
         {/* ── Right: Live Preview (sticky) ─────────────────────────────── */}
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
+        <div className="bg-zinc-950 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
           <div className="px-5 pt-5 pb-2 flex items-baseline justify-between">
             <div>
               <h3 className="text-sm font-bold text-zinc-300">Live Preview</h3>
@@ -359,9 +364,9 @@ function ProductsSettingsPage() {
           </div>
 
           {/* Category header - matching real POS */}
-          <div className="mx-5 mb-2 bg-card border-b border-border px-3 py-2 text-sm font-semibold flex items-center justify-between rounded-t-lg">
+          <div className="mx-5 mb-2 bg-zinc-900 border-b border-zinc-800 px-3 py-2 text-sm font-semibold flex items-center justify-between rounded-t-lg text-zinc-100">
             <span>Main Course</span>
-            <span className="text-muted-foreground text-xs">4 items</span>
+            <span className="text-zinc-500 text-xs">4 items</span>
           </div>
 
           {/* 2x2 product grid - matching real POS layout */}

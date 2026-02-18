@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Loader2 } from 'lucide-react'
+import { Loader2, UtensilsCrossed, Layers, ChevronDown } from 'lucide-react'
 
 // Generic form field wrapper
 interface FormFieldWrapperProps<T extends FieldValues> {
@@ -226,7 +226,7 @@ export function SelectField<T extends FieldValues>({
       render={({ field }) => (
         <FormItem>
           <FormLabel>{label}</FormLabel>
-          <Select onValueChange={field.onChange} defaultValue={field.value}>
+          <Select onValueChange={field.onChange} value={field.value != null ? String(field.value) : undefined}>
             <FormControl>
               <SelectTrigger>
                 <SelectValue placeholder={placeholder} />
@@ -440,6 +440,87 @@ export function DietaryIndicator({ type, size = 'md', showLabel = false }: Dieta
   )
 }
 
+// Allergen Multi-Select Field
+const allergenOptions = [
+  { value: 'gluten', label: 'Gluten' },
+  { value: 'dairy', label: 'Dairy' },
+  { value: 'nuts', label: 'Nuts' },
+  { value: 'peanuts', label: 'Peanuts' },
+  { value: 'soy', label: 'Soy' },
+  { value: 'eggs', label: 'Eggs' },
+  { value: 'fish', label: 'Fish' },
+  { value: 'shellfish', label: 'Shellfish' },
+  { value: 'sesame', label: 'Sesame' },
+  { value: 'celery', label: 'Celery' },
+  { value: 'mustard', label: 'Mustard' },
+  { value: 'lupin', label: 'Lupin' },
+  { value: 'sulphites', label: 'Sulphites' },
+] as const
+
+interface AllergenMultiSelectFieldProps<T extends FieldValues> {
+  control: Control<T>
+  name: FieldPath<T>
+  label: string
+  description?: string
+}
+
+export function AllergenMultiSelectField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+}: AllergenMultiSelectFieldProps<T>) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => {
+        const selected: string[] = field.value
+          ? String(field.value).split(',').map((s: string) => s.trim()).filter(Boolean)
+          : []
+
+        const toggle = (value: string) => {
+          const next = selected.includes(value)
+            ? selected.filter((v) => v !== value)
+            : [...selected, value]
+          field.onChange(next.join(', ') || undefined)
+        }
+
+        return (
+          <FormItem>
+            <FormLabel>{label}</FormLabel>
+            <FormControl>
+              <div className="flex flex-wrap gap-2">
+                {allergenOptions.map((option) => {
+                  const isSelected = selected.includes(option.value)
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => toggle(option.value)}
+                      className={`
+                        px-3 py-1.5 rounded-lg border-2 text-sm transition-all
+                        ${isSelected
+                          ? 'border-red-500/60 bg-red-500/10 text-red-300 font-medium'
+                          : 'border-zinc-700 hover:border-zinc-500 text-zinc-400'
+                        }
+                      `}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </FormControl>
+            {description && <FormDescription>{description}</FormDescription>}
+            <FormMessage />
+          </FormItem>
+        )
+      }}
+    />
+  )
+}
+
 // Dietary Type Field - Visual selector with colored dots
 interface DietaryTypeFieldProps<T extends FieldValues> {
   control: Control<T>
@@ -497,6 +578,105 @@ export function DietaryTypeField<T extends FieldValues>({
           <FormMessage />
         </FormItem>
       )}
+    />
+  )
+}
+
+// Product Type Selector — card-style dropdown with icons and descriptions
+const productTypeOptions = [
+  {
+    value: 'simple',
+    label: 'Prepared food and beverage',
+    description: 'Best for restaurants or other food venues.',
+    icon: UtensilsCrossed,
+  },
+  {
+    value: 'combo',
+    label: 'Combo',
+    description: 'Best for selling a group of food and beverage items.',
+    icon: Layers,
+  },
+] as const
+
+interface ProductTypeSelectorProps<T extends FieldValues> {
+  control: Control<T>
+  name: FieldPath<T>
+  label: string
+}
+
+export function ProductTypeSelector<T extends FieldValues>({
+  control,
+  name,
+  label,
+}: ProductTypeSelectorProps<T>) {
+  const [open, setOpen] = React.useState(false)
+
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => {
+        const selected = productTypeOptions.find((o) => o.value === field.value) || productTypeOptions[0]
+        const Icon = selected.icon
+
+        return (
+          <FormItem>
+            <FormLabel>{label}</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpen(!open)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-zinc-700 bg-zinc-800 hover:border-zinc-500 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-center w-9 h-9 rounded-md bg-zinc-700">
+                    <Icon className="w-5 h-5 text-zinc-300" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-200">{selected.label}</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                </button>
+
+                {open && (
+                  <div className="absolute z-50 mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl overflow-hidden">
+                    {productTypeOptions.map((option) => {
+                      const OptIcon = option.icon
+                      const isSelected = field.value === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            field.onChange(option.value)
+                            setOpen(false)
+                          }}
+                          className={`
+                            w-full flex items-center gap-3 px-4 py-3 text-left transition-colors
+                            ${isSelected
+                              ? 'bg-primary/10'
+                              : 'hover:bg-zinc-700/50'
+                            }
+                          `}
+                        >
+                          <div className={`flex items-center justify-center w-9 h-9 rounded-md ${isSelected ? 'bg-primary/20' : 'bg-zinc-700'}`}>
+                            <OptIcon className={`w-5 h-5 ${isSelected ? 'text-primary' : 'text-zinc-400'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-zinc-200'}`}>{option.label}</p>
+                            <p className="text-xs text-zinc-500">{option.description}</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )
+      }}
     />
   )
 }

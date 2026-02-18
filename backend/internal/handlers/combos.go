@@ -161,9 +161,9 @@ func (h *ComboHandler) CreateComboSlot(c *gin.Context) {
 	// Create inline choices
 	for _, choice := range req.Choices {
 		_, err = tx.Exec(`
-			INSERT INTO combo_slot_choices (id, combo_slot_id, product_id, price_override, sort_order)
-			VALUES ($1, $2, $3, $4, $5)
-		`, uuid.New(), slotID, choice.ProductID, choice.PriceOverride, choice.SortOrder)
+			INSERT INTO combo_slot_choices (id, combo_slot_id, product_id, variation_item_id, price_override, sort_order)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, uuid.New(), slotID, choice.ProductID, choice.VariationItemID, choice.PriceOverride, choice.SortOrder)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -402,9 +402,9 @@ func (h *ComboHandler) CreateComboSlotChoice(c *gin.Context) {
 	}
 
 	_, err = h.db.Exec(`
-		INSERT INTO combo_slot_choices (id, combo_slot_id, product_id, price_override, sort_order)
-		VALUES ($1, $2, $3, $4, $5)
-	`, uuid.New(), slotID, req.ProductID, req.PriceOverride, req.SortOrder)
+		INSERT INTO combo_slot_choices (id, combo_slot_id, product_id, variation_item_id, price_override, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, uuid.New(), slotID, req.ProductID, req.VariationItemID, req.PriceOverride, req.SortOrder)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{
 			Success: false,
@@ -474,10 +474,15 @@ func (h *ComboHandler) loadComboSlots(productID uuid.UUID) ([]models.ComboSlot, 
 	// Load choices for each slot
 	for i, slot := range slots {
 		choiceRows, err := h.db.Query(`
-			SELECT c.id, c.combo_slot_id, c.product_id, c.price_override, c.sort_order, c.created_at, c.updated_at,
-			       p.name, p.price, p.product_type, p.is_available
+			SELECT c.id, c.combo_slot_id, c.product_id, c.variation_item_id, c.price_override, c.sort_order, c.created_at, c.updated_at,
+			       p.name, p.price, p.product_type, p.is_available,
+			       (EXISTS(SELECT 1 FROM product_option_groups WHERE product_id = p.id) OR EXISTS(SELECT 1 FROM product_variations WHERE product_id = p.id)) as has_option_groups,
+			       (SELECT MIN(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as min_variation_price,
+			       (SELECT MAX(pvp.price) FROM product_variation_prices pvp WHERE pvp.product_id = p.id) as max_variation_price,
+			       vi.name as variation_item_name
 			FROM combo_slot_choices c
 			JOIN products p ON c.product_id = p.id
+			LEFT JOIN variation_items vi ON c.variation_item_id = vi.id
 			WHERE c.combo_slot_id = $1
 			ORDER BY c.sort_order, c.created_at
 		`, slot.ID)
@@ -488,26 +493,44 @@ func (h *ComboHandler) loadComboSlots(productID uuid.UUID) ([]models.ComboSlot, 
 		var choices []models.ComboSlotChoice
 		for choiceRows.Next() {
 			var choice models.ComboSlotChoice
+			var variationItemID *uuid.UUID
 			var productName string
 			var productPrice float64
 			var productType string
 			var isAvailable bool
+			var hasOptionGroups bool
+			var minVarPrice, maxVarPrice sql.NullFloat64
+			var variationItemName sql.NullString
 
-			err := choiceRows.Scan(&choice.ID, &choice.ComboSlotID, &choice.ProductID, &choice.PriceOverride,
+			err := choiceRows.Scan(&choice.ID, &choice.ComboSlotID, &choice.ProductID, &variationItemID, &choice.PriceOverride,
 				&choice.SortOrder, &choice.CreatedAt, &choice.UpdatedAt,
-				&productName, &productPrice, &productType, &isAvailable)
+				&productName, &productPrice, &productType, &isAvailable,
+				&hasOptionGroups, &minVarPrice, &maxVarPrice, &variationItemName)
 			if err != nil {
 				choiceRows.Close()
 				return nil, err
 			}
 
-			choice.Product = &models.Product{
-				ID:          choice.ProductID,
-				Name:        productName,
-				Price:       productPrice,
-				ProductType: productType,
-				IsAvailable: isAvailable,
+			choice.VariationItemID = variationItemID
+			if variationItemName.Valid {
+				choice.VariationItemName = variationItemName.String
 			}
+
+			prod := models.Product{
+				ID:              choice.ProductID,
+				Name:            productName,
+				Price:           productPrice,
+				ProductType:     productType,
+				IsAvailable:     isAvailable,
+				HasOptionGroups: hasOptionGroups,
+			}
+			if minVarPrice.Valid {
+				prod.MinVariationPrice = &minVarPrice.Float64
+			}
+			if maxVarPrice.Valid {
+				prod.MaxVariationPrice = &maxVarPrice.Float64
+			}
+			choice.Product = &prod
 			choices = append(choices, choice)
 		}
 		choiceRows.Close()
