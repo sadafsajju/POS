@@ -90,6 +90,7 @@ All endpoints return: `{ success: bool, message: string, data?: T, error?: strin
 - **Tauri 2.0** (not 1.x) — use Tauri 2 APIs. Hardware stubs in `apps/desktop/src-tauri/src/hardware/`.
 - **Go is not installed locally** — always use Docker for backend operations.
 - **Offline-first is critical** — consider what happens without internet. Orders must work offline with local queue and sync.
+- **Touch mode is toggled via `settings.touchMode`** — All text inputs that support on-screen keyboard must check this setting. When OFF, use regular `<input>` elements. When ON, use tappable fields that open `OnScreenKeyboard` or inline `KeyboardRow`. Toggle lives in Admin > Settings > System. See "Touch Mode" section below.
 
 ## Adding New Features
 
@@ -202,6 +203,31 @@ Default admin login: `admin` / `admin123`
 - **Cloud Relay Server** — Separate Go service receiving webhooks from Swiggy/Zomato and relaying to local POS via WebSocket
 - **Zomato API Integration** — Requires vendor approval as POS partner
 - **Swiggy API Integration** — Requires partner program enrollment
+
+## Touch Mode (On-Screen Keyboard)
+
+Controlled by `touchMode: boolean` in `StoreSettings`. Stored as `touch_mode` in the settings API. Default: `false` (off). Toggled in Admin > Settings > System.
+
+### How it works
+- **Touch ON**: Text inputs render as tappable `<button>`/`<div>` elements that open `OnScreenKeyboard` (full-screen modal) or inline `KeyboardRow` (fixed at bottom). The `OnScreenKeyboard` also accepts physical keyboard input via a hidden `<input>`.
+- **Touch OFF**: Standard `<input>` elements with physical keyboard support. No on-screen keyboard rendered.
+
+### Files that check `touchMode`
+
+| File | What it gates |
+|------|---------------|
+| `routes/login.tsx` | Username/password fields + keyboard |
+| `components/counter/CounterInterface.tsx` | Product search bar + inline keyboard |
+| `components/counter/views/TablesView.tsx` | Takeout/delivery customer name input + keyboard |
+| `components/counter/panels/CartPanel.tsx` | Item special instructions + order notes |
+| `components/counter/payment-steps/CustomerStep.tsx` | New customer name input |
+
+### Adding a new touch-aware input
+1. Import `useSettingsStore` from `@pos/core`
+2. Read `const { settings } = useSettingsStore()` and check `settings.touchMode`
+3. **Touch ON**: Render a tappable element + `<OnScreenKeyboard>` from `@/components/ui/on-screen-keyboard`
+4. **Touch OFF**: Render a standard `<input>` or `<textarea>`
+5. On-screen keyboard components: `OnScreenKeyboard` (modal), `KeyboardRow` + layouts (inline)
 
 ## Current Status
 

@@ -14,7 +14,7 @@ import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
 
 // Types
-import type { DiningTable, Order, Category, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot } from './types'
+import type { DiningTable, Order, Category, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot, InlineConfigState } from './types'
 
 // --- Helpers to reduce repetition ---
 
@@ -74,6 +74,7 @@ import { printKOT } from './utils/printUtils'
 // Views
 import { TablesView } from './views/TablesView'
 import { CreateOrderView } from './views/CreateOrderView'
+import { VariantSelectionView } from './views/VariantSelectionView'
 
 // Panels
 import { TableDetailsPanel } from './panels/TableDetailsPanel'
@@ -83,7 +84,6 @@ import { CartPanel } from './panels/CartPanel'
 import { CancelOrderDialog } from './dialogs/CancelOrderDialog'
 import { EditOrderDialog } from './dialogs/EditOrderDialog'
 import { ProductOptionsDialog } from './dialogs/ProductOptionsDialog'
-import { ComboConfigDialog } from './dialogs/ComboConfigDialog'
 
 // Overlays
 import { PaymentOverlay } from './PaymentOverlay'
@@ -167,10 +167,8 @@ export function CounterInterface() {
   const [configOptionGroups, setConfigOptionGroups] = useState<ProductOptionGroup[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
 
-  // Combo config dialog state (for combo products)
-  const [comboProduct, setComboProduct] = useState<Product | null>(null)
-  const [comboSlots, setComboSlots] = useState<ComboSlot[]>([])
-  const [isLoadingCombo, setIsLoadingCombo] = useState(false)
+  // Inline config state (replaces product grid for variation/combo products)
+  const [inlineConfig, setInlineConfig] = useState<InlineConfigState | null>(null)
 
   // Print workflow state
   const [pendingPrintCart, setPendingPrintCart] = useState<typeof cart.cart>([])
@@ -585,22 +583,38 @@ export function CounterInterface() {
     }
   }
 
-  // Handle configurable/combo product: fetch data, then open appropriate dialog
+  // Handle configurable/combo product: inline grid for variations & combos, dialog for regular options
   const handleConfigureProduct = async (product: Product) => {
     const isCombo = product.product_type === 'combo'
-    if (isCombo) { setComboProduct(product); setIsLoadingCombo(true) }
-    else { setConfigProduct(product); setIsLoadingOptions(true) }
+    const isVariation = product.min_variation_price != null
+
+    // Variations & combos → inline step-by-step grid
+    if (isVariation || isCombo) {
+      setInlineConfig({ product, mode: isCombo ? 'combo' : 'variation', currentStep: 0, totalSteps: 0, selections: {}, comboNestedOptions: {}, isLoading: true })
+      try {
+        const response = await (isCombo ? apiClient.getComboSlots(product.id) : apiClient.getOptionGroups(product.id))
+        const data = Array.isArray(response.data) ? response.data : []
+        if (isCombo) {
+          setInlineConfig(prev => prev ? { ...prev, comboSlots: data as ComboSlot[], totalSteps: data.length, isLoading: false } : null)
+        } else {
+          setInlineConfig(prev => prev ? { ...prev, optionGroups: data as ProductOptionGroup[], totalSteps: data.length, isLoading: false } : null)
+        }
+      } catch {
+        setInlineConfig(null)
+      }
+      return
+    }
+
+    // Regular configurable (toppings, extras) → existing dialog
+    setConfigProduct(product)
+    setIsLoadingOptions(true)
     try {
-      const response = await (isCombo ? apiClient.getComboSlots(product.id) : apiClient.getOptionGroups(product.id))
-      const data = Array.isArray(response.data) ? response.data : []
-      if (isCombo) setComboSlots(data as ComboSlot[])
-      else setConfigOptionGroups(data as ProductOptionGroup[])
+      const response = await apiClient.getOptionGroups(product.id)
+      setConfigOptionGroups(Array.isArray(response.data) ? response.data : [])
     } catch {
-      if (isCombo) setComboSlots([])
-      else setConfigOptionGroups([])
+      setConfigOptionGroups([])
     } finally {
-      if (isCombo) setIsLoadingCombo(false)
-      else setIsLoadingOptions(false)
+      setIsLoadingOptions(false)
     }
   }
 
@@ -611,12 +625,117 @@ export function CounterInterface() {
     setConfigOptionGroups([])
   }
 
-  // Handle adding combo product to cart
-  const handleAddComboProduct = (product: Product, _selectedOptions: SelectedOption[], quantity: number, selectedComboChoices: SelectedComboChoice[]) => {
-    cart.addToCart(product, [], quantity, selectedComboChoices)
-    setComboProduct(null)
-    setComboSlots([])
+  // ── Inline config handlers ──────────────────────────────────────────────
+
+  const handleInlineSelect = (stepIndex: number, itemId: string) => {
+    if (!inlineConfig) return
+    const stepKey = inlineConfig.mode === 'variation'
+      ? inlineConfig.optionGroups?.[stepIndex]?.id
+      : inlineConfig.comboSlots?.[stepIndex]?.id
+    if (!stepKey) return
+
+    const group = inlineConfig.mode === 'variation' ? inlineConfig.optionGroups?.[stepIndex] : null
+    const isMulti = group?.selection_type === 'multiple'
+
+    const current = inlineConfig.selections[stepKey] || []
+    let updated: string[]
+
+    if (isMulti) {
+      updated = current.includes(itemId) ? current.filter(id => id !== itemId) : [...current, itemId]
+    } else {
+      updated = [itemId]
+    }
+
+    const next = { ...inlineConfig, selections: { ...inlineConfig.selections, [stepKey]: updated } }
+
+    // Combo: single screen, no auto-advance — just update selection
+    if (inlineConfig.mode === 'combo') {
+      setInlineConfig(next)
+      return
+    }
+
+    // Variation single-select: auto-advance or auto-complete
+    if (!isMulti) {
+      if (next.currentStep < next.totalSteps - 1) {
+        setInlineConfig({ ...next, currentStep: next.currentStep + 1 })
+      } else {
+        handleInlineComplete(next)
+      }
+      return
+    }
+
+    setInlineConfig(next)
   }
+
+  const handleInlineContinue = () => {
+    if (!inlineConfig) return
+    if (inlineConfig.currentStep < inlineConfig.totalSteps - 1) {
+      setInlineConfig(prev => prev ? { ...prev, currentStep: prev.currentStep + 1 } : null)
+    } else {
+      handleInlineComplete(inlineConfig)
+    }
+  }
+
+  const handleInlineBack = () => {
+    if (!inlineConfig) return
+    // Combo is single-screen — back always exits
+    if (inlineConfig.mode === 'combo') {
+      setInlineConfig(null)
+      return
+    }
+    if (inlineConfig.currentStep > 0) {
+      setInlineConfig(prev => prev ? { ...prev, currentStep: prev.currentStep - 1 } : null)
+    } else {
+      setInlineConfig(null)
+    }
+  }
+
+  const handleInlineComplete = (config: InlineConfigState) => {
+    if (config.mode === 'variation') {
+      // Build SelectedOption[] from variation selections
+      const selectedOptions: SelectedOption[] = []
+      const groups = config.optionGroups || []
+      for (const group of groups) {
+        const selectedIds = config.selections[group.id] || []
+        for (const itemId of selectedIds) {
+          const item = group.items.find((i: { id: string }) => i.id === itemId)
+          if (item) {
+            selectedOptions.push({
+              groupId: group.id,
+              groupName: group.name,
+              itemId: item.id,
+              itemName: item.name,
+              priceAdjustment: item.price_adjustment,
+            })
+          }
+        }
+      }
+      cart.addToCart(config.product, selectedOptions, 1)
+    } else {
+      // Build SelectedComboChoice[] from combo selections
+      const selectedComboChoices: SelectedComboChoice[] = []
+      const slots = config.comboSlots || []
+      for (const slot of slots) {
+        const selectedIds = config.selections[slot.id] || []
+        const choiceId = selectedIds[0]
+        if (choiceId) {
+          const choice = (slot.choices || []).find((c: { id: string }) => c.id === choiceId)
+          if (choice?.product) {
+            selectedComboChoices.push({
+              slotName: slot.name,
+              productId: choice.product.id,
+              productName: choice.product.name,
+              priceAdjustment: choice.price_override ?? 0,
+              selectedOptions: config.comboNestedOptions[slot.id] || [],
+            })
+          }
+        }
+      }
+      cart.addToCart(config.product, [], 1, selectedComboChoices)
+    }
+    setInlineConfig(null)
+  }
+
 
   const isCreating = createOrderMutation.isPending || addItemsMutation.isPending || isCreatingOffline
   const isUpdatingItem = updateOrderItemMutation.isPending || removeOrderItemMutation.isPending
@@ -655,77 +774,138 @@ export function CounterInterface() {
             </div>
           </div>
         )}
-        {/* Header - product selection */}
+        {/* Header - product selection / inline config */}
         {activeTab === 'create' && (
           <div className="p-4 bg-zinc-900 border-b border-zinc-800">
             <div className="flex items-center gap-3 flex-1">
-              {(orderType === 'dine_in' || enabledOrderTypes.length > 1) && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => {
-                    if (orderType === 'dine_in') {
-                      navigateTo('tables')
-                    } else {
-                      navigateTo('order-type')
-                      setSelectedTable(null)
-                    }
-                  }}
-                  className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-                >
-                  <ArrowLeft className="w-6 h-6" />
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  if (inlineConfig) {
+                    handleInlineBack()
+                  } else if (orderType === 'dine_in') {
+                    navigateTo('tables')
+                  } else if (enabledOrderTypes.length > 1) {
+                    navigateTo('order-type')
+                    setSelectedTable(null)
+                  }
+                }}
+                className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
               <div className="flex items-center gap-3 flex-1">
-                <div className="flex items-center gap-3">
-                  <OrderTypeTitle orderType={orderType} tableLabel={orderType === 'dine_in' && selectedTable ? `Table ${selectedTable.table_number}` : undefined} />
-                  <OrderTypeBadge orderType={orderType} />
-                </div>
-                {/* Search */}
-                <div className="flex items-center gap-2 ml-auto flex-1 justify-end">
-                  {showSearchKeyboard || searchTerm ? (
-                    <div
-                      onClick={() => setShowSearchKeyboard(true)}
-                      className="flex items-center gap-2 h-12 px-4 rounded-md border-2 border-amber-500 bg-zinc-900 cursor-pointer flex-1"
-                    >
-                      <Search className="w-5 h-5 text-zinc-500 flex-shrink-0" />
-                      <span className="text-lg flex-1">
-                        {searchTerm || <span className="text-zinc-500">Search...</span>}
-                      </span>
-                      <span className="inline-block w-0.5 h-5 bg-amber-500 animate-pulse flex-shrink-0" />
-                    </div>
-                  ) : null}
-                  {showSearchKeyboard || searchTerm ? (
-                    <Button
-                      variant="ghost"
-                      size="lg"
-                      onClick={() => {
-                        setSearchTerm('')
-                        setShowSearchKeyboard(false)
-                      }}
-                      className="h-12 w-12 p-0 flex-shrink-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                    >
-                      <X className="w-6 h-6" />
-                    </Button>
-                  ) : (
+                {inlineConfig ? (
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-black tracking-tight">{inlineConfig.product.name}</h1>
+                    {inlineConfig.mode === 'variation' && (
+                      <Badge className="bg-zinc-800 text-zinc-400 border-zinc-700 px-3 py-1 text-sm">
+                        Step {inlineConfig.currentStep + 1} of {inlineConfig.totalSteps}
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <OrderTypeTitle orderType={orderType} tableLabel={orderType === 'dine_in' && selectedTable ? `Table ${selectedTable.table_number}` : undefined} />
+                    <OrderTypeBadge orderType={orderType} />
+                  </div>
+                )}
+                {/* Search - hidden during inline config */}
+                {!inlineConfig && (
+                  <div className="flex items-center gap-2 ml-auto flex-1 justify-end">
+                    {settings.touchMode ? (
+                      <>
+                        {showSearchKeyboard || searchTerm ? (
+                          <div
+                            onClick={() => setShowSearchKeyboard(true)}
+                            className="flex items-center gap-2 h-12 px-4 rounded-md border-2 border-amber-500 bg-zinc-900 cursor-pointer flex-1"
+                          >
+                            <Search className="w-5 h-5 text-zinc-500 flex-shrink-0" />
+                            <span className="text-lg flex-1">
+                              {searchTerm || <span className="text-zinc-500">Search...</span>}
+                            </span>
+                            <span className="inline-block w-0.5 h-5 bg-amber-500 animate-pulse flex-shrink-0" />
+                          </div>
+                        ) : null}
+                        {showSearchKeyboard || searchTerm ? (
+                          <Button
+                            variant="ghost"
+                            size="lg"
+                            onClick={() => {
+                              setSearchTerm('')
+                              setShowSearchKeyboard(false)
+                            }}
+                            className="h-12 w-12 p-0 flex-shrink-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                          >
+                            <X className="w-6 h-6" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            onClick={() => setShowSearchKeyboard(true)}
+                            className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            <Search className="w-6 h-6" />
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {showSearchKeyboard || searchTerm ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                              <input
+                                type="text"
+                                autoFocus
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') {
+                                    setSearchTerm('')
+                                    setShowSearchKeyboard(false)
+                                  }
+                                }}
+                                placeholder="Search products..."
+                                className="w-full h-12 pl-10 pr-4 rounded-md border-2 border-amber-500 bg-zinc-900 text-lg text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+                              />
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="lg"
+                              onClick={() => {
+                                setSearchTerm('')
+                                setShowSearchKeyboard(false)
+                              }}
+                              className="h-12 w-12 p-0 flex-shrink-0 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                            >
+                              <X className="w-6 h-6" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            onClick={() => setShowSearchKeyboard(true)}
+                            className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            <Search className="w-6 h-6" />
+                          </Button>
+                        )}
+                      </>
+                    )}
                     <Button
                       variant="outline"
                       size="lg"
-                      onClick={() => setShowSearchKeyboard(true)}
+                      onClick={invalidateQueries}
                       className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
                     >
-                      <Search className="w-6 h-6" />
+                      <RefreshCw className="w-5 h-5" />
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={invalidateQueries}
-                    className="h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                  </Button>
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -800,15 +980,25 @@ export function CounterInterface() {
             />
           </>)}
           {activeTab === 'create' && (
-            <CreateOrderView
-              products={filteredProducts}
-              categories={safeCategories}
-              cart={cart.cart}
-              onAddToCart={cart.addToCart}
-              onRemoveFromCart={cart.removeFromCart}
-              onConfigureProduct={handleConfigureProduct}
-              formatCurrency={format}
-            />
+            inlineConfig && !inlineConfig.isLoading ? (
+              <VariantSelectionView
+                config={inlineConfig}
+                formatCurrency={format}
+                onSelect={handleInlineSelect}
+                onContinue={handleInlineContinue}
+                onComplete={() => inlineConfig && handleInlineComplete(inlineConfig)}
+              />
+            ) : (
+              <CreateOrderView
+                products={filteredProducts}
+                categories={safeCategories}
+                cart={cart.cart}
+                onAddToCart={cart.addToCart}
+                onRemoveFromCart={cart.removeFromCart}
+                onConfigureProduct={handleConfigureProduct}
+                formatCurrency={format}
+              />
+            )
           )}
         </div>
 
@@ -917,17 +1107,7 @@ export function CounterInterface() {
         />
       )}
 
-      {/* Combo Config Dialog (combo products) */}
-      {comboProduct && !isLoadingCombo && (
-        <ComboConfigDialog
-          product={comboProduct}
-          comboSlots={comboSlots}
-          open={true}
-          onClose={() => { setComboProduct(null); setComboSlots([]) }}
-          onAddToCart={handleAddComboProduct}
-          formatCurrency={format}
-        />
-      )}
+
 
       {/* Dialogs */}
       <CancelOrderDialog
@@ -949,8 +1129,8 @@ export function CounterInterface() {
         />
       )}
 
-      {/* Inline Keyboard for Product Search - slides in from bottom */}
-      {showSearchKeyboard && (
+      {/* Inline Keyboard for Product Search - touch mode only */}
+      {settings.touchMode && showSearchKeyboard && (
         <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4 animate-in slide-in-from-bottom duration-300 z-50">
           <div className="space-y-2 max-w-4xl mx-auto">
             {QWERTY_LAYOUT.rows.map((row, index) => (

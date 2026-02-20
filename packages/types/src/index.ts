@@ -808,6 +808,9 @@ export interface StoreSettings {
   backupFrequency: 'hourly' | 'daily' | 'weekly' | 'manual';
   notificationEmail?: string;
 
+  // Device
+  touchMode: boolean;
+
   // Mode
   industryMode: 'restaurant' | 'retail';
 

@@ -28,6 +28,7 @@ const defaultSettings: StoreSettings = {
   language: 'en',
   backupFrequency: 'daily',
   notificationEmail: '',
+  touchMode: false,
   industryMode: 'restaurant',
   productDisplay: {
     showImage: true,
@@ -117,6 +118,7 @@ const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
     language: apiData.language || defaultSettings.language,
     backupFrequency: (apiData.backup_frequency as StoreSettings['backupFrequency']) || defaultSettings.backupFrequency,
     notificationEmail: apiData.notification_email || '',
+    touchMode: apiData.touch_mode === 'true' || defaultSettings.touchMode,
     industryMode: (apiData.industry_mode as StoreSettings['industryMode']) || defaultSettings.industryMode,
     productDisplay: parseProductDisplay(apiData.product_display),
     cartSettings: parseCartSettings(apiData.cart_settings),
@@ -140,6 +142,7 @@ const storeToApiSettings = (settings: Partial<StoreSettings>): Record<string, st
   if (settings.language !== undefined) result.language = settings.language;
   if (settings.backupFrequency !== undefined) result.backup_frequency = settings.backupFrequency;
   if (settings.notificationEmail !== undefined) result.notification_email = settings.notificationEmail;
+  if (settings.touchMode !== undefined) result.touch_mode = settings.touchMode.toString();
   if (settings.industryMode !== undefined) result.industry_mode = settings.industryMode;
   if (settings.productDisplay !== undefined) result.product_display = JSON.stringify(settings.productDisplay);
   if (settings.cartSettings !== undefined) result.cart_settings = JSON.stringify(settings.cartSettings);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Settings, Loader2 } from 'lucide-react'
+import { Settings, Loader2, MonitorSmartphone } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
@@ -19,6 +20,7 @@ function SystemSettingsPage() {
     theme: settings.theme,
     backupFrequency: settings.backupFrequency,
     notificationEmail: settings.notificationEmail,
+    touchMode: settings.touchMode,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +31,7 @@ function SystemSettingsPage() {
       theme: settings.theme,
       backupFrequency: settings.backupFrequency,
       notificationEmail: settings.notificationEmail,
+      touchMode: settings.touchMode,
     })
   }, [settings])
 
@@ -36,7 +39,8 @@ function SystemSettingsPage() {
     const changed =
       localSettings.theme !== settings.theme ||
       localSettings.backupFrequency !== settings.backupFrequency ||
-      localSettings.notificationEmail !== settings.notificationEmail
+      localSettings.notificationEmail !== settings.notificationEmail ||
+      localSettings.touchMode !== settings.touchMode
     setHasChanges(changed)
   }, [localSettings, settings])
 
@@ -59,6 +63,7 @@ function SystemSettingsPage() {
       theme: settings.theme,
       backupFrequency: settings.backupFrequency,
       notificationEmail: settings.notificationEmail,
+      touchMode: settings.touchMode,
     })
     toastHelpers.info('Changes discarded', 'Settings reset to last saved values.')
   }
@@ -119,6 +124,36 @@ function SystemSettingsPage() {
           </select>
           <p className="text-xs text-zinc-500">How often to automatically backup data</p>
         </div>
+      </div>
+
+      {/* Device */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <button
+          onClick={() => setLocalSettings({ ...localSettings, touchMode: !localSettings.touchMode })}
+          className={cn(
+            'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+            localSettings.touchMode
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <MonitorSmartphone className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Touch Screen Mode</span>
+              <span className="block text-xs text-zinc-500">Enable on-screen keyboard for touch devices without a physical keyboard</span>
+            </div>
+          </div>
+          <div className={cn(
+            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+            localSettings.touchMode ? 'bg-emerald-500' : 'bg-zinc-700'
+          )}>
+            <div className={cn(
+              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+              localSettings.touchMode ? 'translate-x-5' : 'translate-x-1'
+            )} />
+          </div>
+        </button>
       </div>
 
       {/* Notifications */}

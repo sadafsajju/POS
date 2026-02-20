@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { DiningTable, Order, CartItem, OrderType, BillSummary } from '../types'
 import type { CartSettings } from '@pos/types'
+import { useSettingsStore } from '@pos/core'
 import { consolidateItems, getTableOrders } from '../utils/orderUtils'
 
 // Minimal product interface that works with both Product and CartItem.product
@@ -93,6 +94,8 @@ export function CartPanel({
   const [keyboardForItem, setKeyboardForItem] = useState<{ productId: string; cartItemId?: string } | null>(null)
   const [keyboardValue, setKeyboardValue] = useState('')
   const [showOrderNotesKeyboard, setShowOrderNotesKeyboard] = useState(false)
+  const { settings } = useSettingsStore()
+  const touchMode = settings.touchMode
 
   // Helper: get unit price including option + combo adjustments
   const getItemUnitPrice = (item: CartItem) => {
@@ -488,8 +491,19 @@ export function CartPanel({
                       variant="ghost"
                       size="lg"
                       onClick={() => {
-                        setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
-                        setKeyboardValue(item.special_instructions || '')
+                        if (touchMode) {
+                          setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
+                          setKeyboardValue(item.special_instructions || '')
+                        } else {
+                          // Toggle inline edit via keyboardForItem state (reused for both modes)
+                          const isEditing = keyboardForItem?.productId === item.product.id && keyboardForItem?.cartItemId === item.cartItemId
+                          if (isEditing) {
+                            setKeyboardForItem(null)
+                          } else {
+                            setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
+                            setKeyboardValue(item.special_instructions || '')
+                          }
+                        }
                       }}
                       className={`h-12 w-12 p-0 flex-shrink-0 ${item.special_instructions ? 'text-amber-400' : 'text-zinc-500'}`}
                       title="Add note"
@@ -521,17 +535,53 @@ export function CartPanel({
                       </Button>
                     </div>
                   </div>
-                  {cartSettings?.showSpecialInstructions !== false && item.special_instructions && (
-                    <div
-                      className="px-4 pb-3 pt-0 text-sm text-zinc-500 cursor-pointer hover:text-zinc-300"
-                      onClick={() => {
-                        setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
-                        setKeyboardValue(item.special_instructions || '')
-                      }}
-                    >
-                      <span className="italic">Note: {item.special_instructions}</span>
-                    </div>
-                  )}
+                  {cartSettings?.showSpecialInstructions !== false && (() => {
+                    const isEditingThis = !touchMode && keyboardForItem?.productId === item.product.id && keyboardForItem?.cartItemId === item.cartItemId
+                    return (
+                      <>
+                        {isEditingThis && (
+                          <div className="px-4 pb-3 pt-1">
+                            <input
+                              type="text"
+                              autoFocus
+                              value={keyboardValue}
+                              onChange={(e) => setKeyboardValue(e.target.value)}
+                              onBlur={() => {
+                                onUpdateSpecialInstructions(item.product.id, keyboardValue, item.cartItemId)
+                                setKeyboardForItem(null)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  onUpdateSpecialInstructions(item.product.id, keyboardValue, item.cartItemId)
+                                  setKeyboardForItem(null)
+                                } else if (e.key === 'Escape') {
+                                  setKeyboardForItem(null)
+                                }
+                              }}
+                              placeholder="e.g., no onions, extra spicy..."
+                              className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/50"
+                            />
+                          </div>
+                        )}
+                        {!isEditingThis && item.special_instructions && (
+                          <div
+                            className="px-4 pb-3 pt-0 text-sm text-zinc-500 cursor-pointer hover:text-zinc-300"
+                            onClick={() => {
+                              if (touchMode) {
+                                setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
+                                setKeyboardValue(item.special_instructions || '')
+                              } else {
+                                setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
+                                setKeyboardValue(item.special_instructions || '')
+                              }
+                            }}
+                          >
+                            <span className="italic">Note: {item.special_instructions}</span>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
                 )
               })}
@@ -540,16 +590,26 @@ export function CartPanel({
             {cartSettings?.showOrderNotes !== false && (
             <div className="mt-4">
               <label className="text-sm font-medium text-zinc-300">Order Notes</label>
-              <div
-                onClick={() => setShowOrderNotesKeyboard(true)}
-                className="mt-1 flex min-h-[44px] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 active:bg-zinc-600 text-zinc-100"
-              >
-                {orderNotes ? (
-                  <span>{orderNotes}</span>
-                ) : (
-                  <span className="text-zinc-500">Special requests or notes...</span>
-                )}
-              </div>
+              {touchMode ? (
+                <div
+                  onClick={() => setShowOrderNotesKeyboard(true)}
+                  className="mt-1 flex min-h-[44px] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 active:bg-zinc-600 text-zinc-100"
+                >
+                  {orderNotes ? (
+                    <span>{orderNotes}</span>
+                  ) : (
+                    <span className="text-zinc-500">Special requests or notes...</span>
+                  )}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={orderNotes}
+                  onChange={(e) => onOrderNotesChange(e.target.value)}
+                  placeholder="Special requests or notes..."
+                  className="mt-1 w-full h-11 px-3 rounded-md border border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/50"
+                />
+              )}
             </div>
             )}
           </div>
@@ -744,39 +804,42 @@ export function CartPanel({
       )}
     </div>
 
-    {/* On-Screen Keyboard for Item Notes */}
-    <OnScreenKeyboard
-      open={keyboardForItem !== null}
-      onOpenChange={(open) => {
-        if (!open) setKeyboardForItem(null)
-      }}
-      value={keyboardValue}
-      onValueChange={setKeyboardValue}
-      onSubmit={(value) => {
-        if (keyboardForItem) {
-          onUpdateSpecialInstructions(keyboardForItem.productId, value, keyboardForItem.cartItemId)
-        }
-        setKeyboardForItem(null)
-      }}
-      title="Add Item Note"
-      placeholder="e.g., no onions, extra spicy..."
-      maxLength={200}
-    />
+    {/* On-Screen Keyboards (touch mode only) */}
+    {touchMode && (
+      <>
+        <OnScreenKeyboard
+          open={keyboardForItem !== null}
+          onOpenChange={(open) => {
+            if (!open) setKeyboardForItem(null)
+          }}
+          value={keyboardValue}
+          onValueChange={setKeyboardValue}
+          onSubmit={(value) => {
+            if (keyboardForItem) {
+              onUpdateSpecialInstructions(keyboardForItem.productId, value, keyboardForItem.cartItemId)
+            }
+            setKeyboardForItem(null)
+          }}
+          title="Add Item Note"
+          placeholder="e.g., no onions, extra spicy..."
+          maxLength={200}
+        />
 
-    {/* On-Screen Keyboard for Order Notes */}
-    <OnScreenKeyboard
-      open={showOrderNotesKeyboard}
-      onOpenChange={setShowOrderNotesKeyboard}
-      value={orderNotes}
-      onValueChange={onOrderNotesChange}
-      onSubmit={(value) => {
-        onOrderNotesChange(value)
-        setShowOrderNotesKeyboard(false)
-      }}
-      title="Order Notes"
-      placeholder="Special requests or notes for the entire order..."
-      maxLength={500}
-    />
+        <OnScreenKeyboard
+          open={showOrderNotesKeyboard}
+          onOpenChange={setShowOrderNotesKeyboard}
+          value={orderNotes}
+          onValueChange={onOrderNotesChange}
+          onSubmit={(value) => {
+            onOrderNotesChange(value)
+            setShowOrderNotesKeyboard(false)
+          }}
+          title="Order Notes"
+          placeholder="Special requests or notes for the entire order..."
+          maxLength={500}
+        />
+      </>
+    )}
     </>
   )
 }

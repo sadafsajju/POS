@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { NumberPad } from '@/components/ui/number-pad'
 import { OnScreenKeyboard } from '@/components/ui/on-screen-keyboard'
 import apiClient from '@/api/client'
+import { useSettingsStore } from '@pos/core'
 import {
   Phone,
   Search,
@@ -25,6 +26,8 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
   const [customerNotFound, setCustomerNotFound] = useState(false)
   const [newCustomerName, setNewCustomerName] = useState('')
   const [showNameKeyboard, setShowNameKeyboard] = useState(false)
+  const { settings } = useSettingsStore()
+  const touchMode = settings.touchMode
 
   const handlePhoneLookup = async () => {
     if (!phoneNumber || isLookingUp) return
@@ -166,15 +169,25 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
           {customerNotFound && (
             <div className="border border-zinc-700 rounded-lg p-5 space-y-4">
               <p className="text-base text-zinc-400">Create a new customer record.</p>
-              <button
-                type="button"
-                onClick={() => setShowNameKeyboard(true)}
-                className="w-full h-14 px-5 rounded-lg border-2 border-zinc-700 bg-zinc-900 flex items-center gap-3 text-left hover:border-amber-500 active:scale-[0.98] transition-all"
-              >
-                <span className={`text-lg flex-1 ${newCustomerName ? 'text-zinc-100' : 'text-zinc-500'}`}>
-                  {newCustomerName || 'Customer name'}
-                </span>
-              </button>
+              {touchMode ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNameKeyboard(true)}
+                  className="w-full h-14 px-5 rounded-lg border-2 border-zinc-700 bg-zinc-900 flex items-center gap-3 text-left hover:border-amber-500 active:scale-[0.98] transition-all"
+                >
+                  <span className={`text-lg flex-1 ${newCustomerName ? 'text-zinc-100' : 'text-zinc-500'}`}>
+                    {newCustomerName || 'Customer name'}
+                  </span>
+                </button>
+              ) : (
+                <input
+                  type="text"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  placeholder="Customer name"
+                  className="w-full h-14 px-5 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-lg text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-amber-500 transition-all"
+                />
+              )}
               <Button
                 className="w-full h-14 text-lg active:scale-[0.98] transition-all"
                 size="lg"
@@ -196,16 +209,18 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
         </>
       )}
 
-      {/* Name keyboard */}
-      <OnScreenKeyboard
-        open={showNameKeyboard}
-        onOpenChange={setShowNameKeyboard}
-        value={newCustomerName}
-        onValueChange={setNewCustomerName}
-        title="Customer Name"
-        placeholder="Enter customer name..."
-        maxLength={100}
-      />
+      {/* Name keyboard (touch mode only) */}
+      {touchMode && (
+        <OnScreenKeyboard
+          open={showNameKeyboard}
+          onOpenChange={setShowNameKeyboard}
+          value={newCustomerName}
+          onValueChange={setNewCustomerName}
+          title="Customer Name"
+          placeholder="Enter customer name..."
+          maxLength={100}
+        />
+      )}
     </div>
   )
 }

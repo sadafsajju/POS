@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,14 +21,28 @@ export function OnScreenKeyboard({
   const [currentLayout, setCurrentLayout] =
     useState<KeyboardLayout>(QWERTY_LAYOUT);
   const [localValue, setLocalValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setLocalValue(value);
       setCurrentLayout(QWERTY_LAYOUT);
       setIsShifted(false);
+      // Focus the hidden input so physical keyboard works
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, value]);
+
+  // Keep input focused when interacting with on-screen keys
+  const refocusInput = useCallback(() => {
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+
+  const handleDone = useCallback(() => {
+    onValueChange(localValue);
+    onSubmit?.(localValue);
+    onOpenChange(false);
+  }, [localValue, onValueChange, onSubmit, onOpenChange]);
 
   const handleKeyPress = useCallback(
     (config: KeyConfig) => {
@@ -58,7 +72,6 @@ export function OnScreenKeyboard({
           break;
 
         case 'symbols':
-          // Check button id to determine which layout to switch to
           if (config.id === 'numbers' || config.id === '123') {
             setCurrentLayout(NUMBERS_LAYOUT);
           } else if (config.id === 'abc' || config.id === 'ABC') {
@@ -73,13 +86,12 @@ export function OnScreenKeyboard({
           break;
 
         case 'enter':
-          onValueChange(localValue);
-          onSubmit?.(localValue);
-          onOpenChange(false);
+          handleDone();
           break;
       }
+      refocusInput();
     },
-    [localValue, isShifted, maxLength, onValueChange, onSubmit, onOpenChange]
+    [localValue, isShifted, maxLength, handleDone, refocusInput]
   );
 
   const handleCancel = useCallback(() => {
@@ -87,16 +99,52 @@ export function OnScreenKeyboard({
     onOpenChange(false);
   }, [value, onOpenChange]);
 
+  // Save value and close, but don't trigger onSubmit (no field chaining)
+  const handleDismiss = useCallback(() => {
+    onValueChange(localValue);
+    onOpenChange(false);
+  }, [localValue, onValueChange, onOpenChange]);
+
   const handleClear = useCallback(() => {
     setLocalValue('');
-  }, []);
+    refocusInput();
+  }, [refocusInput]);
+
+  // Handle physical keyboard input via the hidden input
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVal = e.target.value;
+      if (newVal.length <= maxLength) {
+        setLocalValue(newVal);
+      }
+    },
+    [maxLength]
+  );
+
+  const handleInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleDone();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancel();
+      }
+    },
+    [handleDone, handleCancel]
+  );
 
   if (!open) return null;
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 flex flex-col z-[9999]">
-      {/* Input Dialog - Floating at top */}
-      <div className="flex-1 flex items-start justify-center pt-8 px-4">
+      {/* Backdrop - tap to close */}
+      <div
+        className="flex-1 flex items-start justify-center pt-8 px-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) handleDismiss();
+        }}
+      >
         <Card className="w-full max-w-2xl p-4 animate-in fade-in slide-in-from-top-4 duration-200 bg-zinc-900 border-zinc-800 text-zinc-100">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-zinc-100">{title}</h3>
@@ -109,34 +157,54 @@ export function OnScreenKeyboard({
               <X className="w-5 h-5" />
             </Button>
           </div>
-          <div className="relative">
+          <div
+            className="relative cursor-text"
+            onClick={() => inputRef.current?.focus()}
+          >
+            {/* Hidden input for physical/native keyboard */}
+            <input
+              ref={inputRef}
+              value={localValue}
+              onChange={handleInputChange}
+              onKeyDown={handleInputKeyDown}
+              maxLength={maxLength}
+              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
             <div className="w-full min-h-14 px-4 py-3 pr-20 rounded-lg border-2 border-zinc-700 bg-zinc-950 text-lg overflow-x-auto whitespace-pre-wrap break-words flex items-center text-zinc-100">
               {localValue || (
                 <span className="text-zinc-500">{placeholder}</span>
               )}
               <span className="inline-block w-0.5 h-5 bg-amber-500 ml-0.5 animate-pulse" />
             </div>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              {localValue.length > 0 && (
+            {localValue.length > 0 && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleClear}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClear();
+                  }}
                   className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400 hover:bg-zinc-800"
                 >
                   <X className="w-4 h-4" />
                 </Button>
-              )}
-              <span className="text-xs text-zinc-500">
-                {localValue.length}/{maxLength}
-              </span>
-            </div>
+              </div>
+            )}
           </div>
         </Card>
       </div>
 
       {/* Keyboard - Fixed at bottom */}
-      <div className="w-full bg-zinc-900 border-t border-zinc-800 p-6 animate-in slide-in-from-bottom-4 duration-200">
+      <div
+        className="w-full bg-zinc-900 border-t border-zinc-800 p-6 animate-in slide-in-from-bottom-4 duration-200"
+        onMouseDown={(e) => e.preventDefault()}
+        onTouchStart={(e) => e.preventDefault()}
+      >
         <div className="space-y-2">
           {currentLayout.rows.map((row, index) => (
             <KeyboardRow

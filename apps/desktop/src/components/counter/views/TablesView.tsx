@@ -6,6 +6,7 @@ import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, Ut
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT, NUMBERS_LAYOUT, SYMBOLS_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig, KeyboardLayout } from '@/components/ui/on-screen-keyboard/types'
+import { useSettingsStore } from '@pos/core'
 import type { DiningTable, Order, OrderType } from '../types'
 import { formatElapsedTime, formatDuration, getTableOrders, getTableKOTs, calculateTableTotal } from '../utils/orderUtils'
 
@@ -48,6 +49,8 @@ function TakeoutCustomerInput({
 }) {
   const [isShifted, setIsShifted] = useState(false)
   const [currentLayout, setCurrentLayout] = useState<KeyboardLayout>(QWERTY_LAYOUT)
+  const { settings } = useSettingsStore()
+  const touchMode = settings.touchMode
   const maxLength = 100
 
   const handleKeyPress = useCallback(
@@ -101,22 +104,37 @@ function TakeoutCustomerInput({
 
   return (
     <>
-      {/* Centered input area - with padding at bottom for fixed keyboard */}
-      <div className="flex flex-col items-center justify-center px-8 pb-80 min-h-[calc(100vh-200px)]">
+      {/* Centered input area */}
+      <div className={`flex flex-col items-center justify-center px-8 min-h-[calc(100vh-200px)] ${touchMode ? 'pb-80' : 'pb-8'}`}>
         <div className="w-full max-w-2xl text-center">
           <h2 className="text-2xl font-black tracking-tight text-zinc-100 mb-2">
             {orderType === 'takeout' ? 'Takeout Order' : 'Delivery Order'}
           </h2>
           <p className="text-zinc-400 mb-6">Enter customer name (optional)</p>
 
-          {/* Input display */}
+          {/* Input */}
           <div className="relative mb-6">
-            <div className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-2xl flex items-center justify-center text-zinc-100">
-              {customerName || (
-                <span className="text-zinc-500">Customer name...</span>
-              )}
-              <span className="inline-block w-0.5 h-7 bg-amber-500 ml-1 animate-pulse" />
-            </div>
+            {touchMode ? (
+              <div className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-2xl flex items-center justify-center text-zinc-100">
+                {customerName || (
+                  <span className="text-zinc-500">Customer name...</span>
+                )}
+                <span className="inline-block w-0.5 h-7 bg-amber-500 ml-1 animate-pulse" />
+              </div>
+            ) : (
+              <input
+                type="text"
+                autoFocus
+                value={customerName}
+                onChange={(e) => onCustomerNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onProceedToProducts()
+                }}
+                placeholder="Customer name..."
+                maxLength={maxLength}
+                className="w-full min-h-16 px-6 py-4 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-2xl text-center text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            )}
           </div>
 
           {/* Skip button */}
@@ -131,19 +149,21 @@ function TakeoutCustomerInput({
         </div>
       </div>
 
-      {/* Keyboard - Fixed at bottom, slides in */}
-      <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4 animate-in slide-in-from-bottom duration-300 z-50">
-        <div className="space-y-2 max-w-4xl mx-auto">
-          {currentLayout.rows.map((row, index) => (
-            <KeyboardRow
-              key={`row-${index}`}
-              row={row}
-              isShifted={isShifted}
-              onKeyPress={handleKeyPress}
-            />
-          ))}
+      {/* Keyboard - Fixed at bottom, touch mode only */}
+      {touchMode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4 animate-in slide-in-from-bottom duration-300 z-50">
+          <div className="space-y-2 max-w-4xl mx-auto">
+            {currentLayout.rows.map((row, index) => (
+              <KeyboardRow
+                key={`row-${index}`}
+                row={row}
+                isShifted={isShifted}
+                onKeyPress={handleKeyPress}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }
