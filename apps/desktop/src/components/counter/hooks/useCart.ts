@@ -16,6 +16,7 @@ export interface UseCartReturn {
   cart: CartItem[]
   addToCart: (product: AddableProduct, selectedOptions?: SelectedOption[], quantity?: number, selectedComboChoices?: SelectedComboChoice[]) => void
   removeFromCart: (productId: string, cartItemId?: string) => void
+  removeItem: (productId: string, cartItemId?: string) => void
   updateQuantity: (productId: string, quantity: number, cartItemId?: string) => void
   updateSpecialInstructions: (productId: string, instructions: string, cartItemId?: string) => void
   clearCart: () => void
@@ -188,6 +189,15 @@ export function useCart(): UseCartReturn {
     })
   }, [cartKey])
 
+  const removeItem = useCallback((productId: string, cartItemId?: string) => {
+    setAllCarts(prevCarts => {
+      const currentCart = prevCarts[cartKey] || []
+      // Completely remove the item regardless of quantity
+      const newCart = currentCart.filter(item => !matchItem(item, productId, cartItemId))
+      return { ...prevCarts, [cartKey]: newCart }
+    })
+  }, [cartKey])
+
   const updateQuantity = useCallback((productId: string, quantity: number, cartItemId?: string) => {
     setAllCarts(prevCarts => {
       const currentCart = prevCarts[cartKey] || []
@@ -301,6 +311,7 @@ export function useCart(): UseCartReturn {
     cart,
     addToCart,
     removeFromCart,
+    removeItem,
     updateQuantity,
     updateSpecialInstructions,
     clearCart,

@@ -43,6 +43,7 @@ interface CartPanelProps {
   activeBill: BillSummary | null
   cartSettings?: CartSettings
   canProcessPayment?: boolean
+  taxRate?: number
   onOpenPayment?: () => void
   onClearTable?: () => void
   onOrderNotesChange: (notes: string) => void
@@ -73,6 +74,7 @@ export function CartPanel({
   activeBill,
   cartSettings,
   canProcessPayment = true,
+  taxRate = 0,
   onOpenPayment,
   onClearTable,
   onOrderNotesChange,
@@ -94,6 +96,8 @@ export function CartPanel({
   const [keyboardForItem, setKeyboardForItem] = useState<{ productId: string; cartItemId?: string } | null>(null)
   const [keyboardValue, setKeyboardValue] = useState('')
   const [showOrderNotesKeyboard, setShowOrderNotesKeyboard] = useState(false)
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
+  const [longPressItem, setLongPressItem] = useState<{ productId: string; cartItemId?: string } | null>(null)
   const { settings } = useSettingsStore()
   const touchMode = settings.touchMode
 
@@ -131,6 +135,36 @@ export function CartPanel({
   const handleClearCart = () => {
     onClearCart()
     setShowClearConfirm(false)
+  }
+
+  const handleLongPressStart = (productId: string, cartItemId?: string) => {
+    const timer = setTimeout(() => {
+      // Long press triggered - remove the entire item
+      onRemoveItem(productId, cartItemId)
+      setLongPressItem(null)
+    }, 800) // 800ms for long press
+    setLongPressTimer(timer)
+    setLongPressItem({ productId, cartItemId })
+  }
+
+  const handleLongPressEnd = (productId: string, cartItemId?: string) => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+    // If it wasn't a long press, do regular decrease
+    if (longPressItem?.productId === productId && longPressItem?.cartItemId === cartItemId) {
+      onRemoveFromCart(productId, cartItemId)
+    }
+    setLongPressItem(null)
+  }
+
+  const handleLongPressCancel = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+    setLongPressItem(null)
   }
 
   return (
@@ -237,11 +271,11 @@ export function CartPanel({
             kotPaidMap.set(kot.id, runningTotal <= paidAmt + 0.01)
           }
           return (
-          <div className="p-4 space-y-3">
+          <div className="space-y-0">
             {activeKOTs.map((kot: Order) => (
               <div
                 key={kot.id}
-                className="bg-zinc-800 p-3 rounded-lg border border-zinc-700"
+                className="bg-zinc-800 p-3 border-b border-zinc-700"
               >
                 {/* KOT Header: badge + trash icon */}
                 <div className="flex justify-between items-center mb-2">
@@ -310,11 +344,11 @@ export function CartPanel({
 
         {/* Legacy fallback: non-KOT table orders (dine-in only) */}
         {isDineIn && !hasActiveBill && tableOrders.length > 0 && (
-          <div className="p-4 space-y-3">
+          <div className="space-y-0">
             {tableOrders.map(order => (
               <div
                 key={order.id}
-                className="bg-zinc-800 p-3 rounded-lg border border-zinc-700"
+                className="bg-zinc-800 p-3 border-b border-zinc-700"
               >
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
@@ -369,15 +403,11 @@ export function CartPanel({
         )}
 
         {/* New Items header + Clear button */}
-        {hasNewItems && (
-          <div className="flex justify-between items-center px-4 pt-3 pb-1">
-            {hasActiveOrders && isDineIn && (
-              <div className="w-full mb-2 border-t-4 border-amber-500/30" />
-            )}
-          </div>
+        {hasNewItems && hasActiveOrders && isDineIn && (
+          <div className="border-t-4 border-amber-500/30" />
         )}
         {hasNewItems && (
-          <div className="flex justify-between items-center px-4 pb-2">
+          <div className="flex justify-between items-center px-3 py-2 bg-zinc-900 border-b border-zinc-800">
             <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
               {hasActiveOrders && isDineIn ? 'New Items' : 'Order Items'}
             </p>
@@ -401,60 +431,40 @@ export function CartPanel({
 
         {/* New cart items (editable) */}
         {hasNewItems && (
-          <div className="px-4 pb-4">
-            <div className="border-l border-t border-zinc-800">
+          <div>
+            <div>
               {cart.map(item => {
                 const itemKey = item.cartItemId || item.product.id
                 const unitPrice = getItemUnitPrice(item)
                 const hasOptions = item.selectedOptions && item.selectedOptions.length > 0
 
                 return (
-                <div key={itemKey} className="border-r border-b border-zinc-800 bg-zinc-900">
-                  <div className="flex items-center p-4 gap-4 hover:bg-zinc-800 active:bg-zinc-700 touch-manipulation">
-                    <Button
-                      variant="ghost"
-                      size="lg"
-                      onClick={() => onRemoveItem(item.product.id, item.cartItemId)}
-                      className="h-12 w-12 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 flex-shrink-0 rounded-none"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
+                <div key={itemKey} className="border-b border-zinc-800 bg-zinc-900">
+                  <div className="flex items-center p-3 gap-3 hover:bg-zinc-800 active:bg-zinc-700 touch-manipulation">
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-base truncate text-zinc-100">{item.product.name}</div>
-                      {/* Selected options display */}
+                      {/* Selected options - values only */}
                       {hasOptions && (
-                        <div className="text-xs text-zinc-500 mt-0.5 space-y-0.5">
-                          {/* Group options by group name */}
-                          {Object.entries(
-                            item.selectedOptions!.reduce<Record<string, Array<{ name: string; adj: number }>>>((acc, opt) => {
-                              if (!acc[opt.groupName]) acc[opt.groupName] = []
-                              acc[opt.groupName].push({ name: opt.itemName, adj: opt.priceAdjustment })
-                              return acc
-                            }, {})
-                          ).map(([groupName, items]) => (
-                            <div key={groupName}>
-                              <span className="font-medium">{groupName}:</span>{' '}
-                              {items.map((i, idx) => (
-                                <span key={idx}>
-                                  {idx > 0 && ', '}
-                                  {i.name}
-                                  {i.adj !== 0 && (
-                                    <span className={item.product.price === 0 && i.adj > 0 ? 'text-amber-400' : i.adj > 0 ? 'text-orange-500' : 'text-green-500'}>
-                                      {' '}({item.product.price === 0 && i.adj > 0 ? '' : i.adj > 0 ? '+' : ''}{formatCurrency(i.adj)})
-                                    </span>
-                                  )}
+                        <div className="text-xs text-zinc-500 mt-0.5">
+                          {item.selectedOptions!.map((opt, idx) => (
+                            <span key={idx}>
+                              {idx > 0 && ', '}
+                              {opt.itemName}
+                              {opt.priceAdjustment !== 0 && (
+                                <span className={item.product.price === 0 && opt.priceAdjustment > 0 ? 'text-amber-400' : opt.priceAdjustment > 0 ? 'text-orange-500' : 'text-green-500'}>
+                                  {' '}({item.product.price === 0 && opt.priceAdjustment > 0 ? '' : opt.priceAdjustment > 0 ? '+' : ''}{formatCurrency(opt.priceAdjustment)})
                                 </span>
-                              ))}
-                            </div>
+                              )}
+                            </span>
                           ))}
                         </div>
                       )}
-                      {/* Combo choices display */}
+                      {/* Combo choices - values only */}
                       {item.selectedComboChoices && item.selectedComboChoices.length > 0 && (
-                        <div className="text-xs text-zinc-500 mt-0.5 space-y-0.5">
+                        <div className="text-xs text-zinc-500 mt-0.5">
                           {item.selectedComboChoices.map((choice, idx) => (
-                            <div key={idx}>
-                              <span className="font-medium">{choice.slotName}:</span>{' '}
+                            <span key={idx}>
+                              {idx > 0 && ', '}
                               {choice.productName}
                               {choice.priceAdjustment > 0 && (
                                 <span className="text-orange-500">
@@ -478,7 +488,7 @@ export function CartPanel({
                                   ))}
                                 </span>
                               )}
-                            </div>
+                            </span>
                           ))}
                         </div>
                       )}
@@ -511,36 +521,28 @@ export function CartPanel({
                       <MessageSquare className="h-5 w-5" />
                     </Button>
                     )}
-                    <div className="flex items-center">
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={() => onRemoveFromCart(item.product.id, item.cartItemId)}
-                        className="h-12 w-12 p-0 rounded-none border-r-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-                      >
-                        <Minus className="h-5 w-5" />
-                      </Button>
-                      <span className="h-12 w-12 flex items-center justify-center text-lg font-semibold border border-zinc-700 text-zinc-100">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={() =>
-                          item.cartItemId
-                            ? onUpdateQuantity(item.product.id, item.quantity + 1, item.cartItemId)
-                            : onAddToCart(item.product)
-                        }
-                        className="h-12 w-12 p-0 rounded-none border-l-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800"
-                      >
-                        <Plus className="h-5 w-5" />
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onPointerDown={() => handleLongPressStart(item.product.id, item.cartItemId)}
+                      onPointerUp={() => handleLongPressEnd(item.product.id, item.cartItemId)}
+                      onPointerLeave={handleLongPressCancel}
+                      onPointerCancel={handleLongPressCancel}
+                      className={`h-12 w-12 p-0 bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 flex-shrink-0 transition-colors ${
+                        longPressItem?.productId === item.product.id && longPressItem?.cartItemId === item.cartItemId
+                          ? 'bg-red-500/20 border-red-500 text-red-400'
+                          : ''
+                      }`}
+                    >
+                      <Minus className="h-5 w-5" />
+                    </Button>
                   </div>
                   {cartSettings?.showSpecialInstructions !== false && (() => {
                     const isEditingThis = !touchMode && keyboardForItem?.productId === item.product.id && keyboardForItem?.cartItemId === item.cartItemId
                     return (
                       <>
                         {isEditingThis && (
-                          <div className="px-4 pb-3 pt-1">
+                          <div className="px-3 pb-3 pt-1 bg-zinc-900">
                             <input
                               type="text"
                               autoFocus
@@ -559,13 +561,13 @@ export function CartPanel({
                                 }
                               }}
                               placeholder="e.g., no onions, extra spicy..."
-                              className="w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/50"
+                              className="w-full h-10 px-3 bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/50"
                             />
                           </div>
                         )}
                         {!isEditingThis && item.special_instructions && (
                           <div
-                            className="px-4 pb-3 pt-0 text-sm text-zinc-500 cursor-pointer hover:text-zinc-300"
+                            className="px-3 pb-3 pt-0 text-sm text-zinc-500 cursor-pointer hover:text-zinc-300 bg-zinc-900"
                             onClick={() => {
                               if (touchMode) {
                                 setKeyboardForItem({ productId: item.product.id, cartItemId: item.cartItemId })
@@ -588,7 +590,7 @@ export function CartPanel({
             </div>
             {/* Order Notes */}
             {cartSettings?.showOrderNotes !== false && (
-            <div className="mt-4">
+            <div className="px-3 py-3 bg-zinc-900 border-b border-zinc-800">
               <label className="text-sm font-medium text-zinc-300">Order Notes</label>
               {touchMode ? (
                 <div
@@ -629,41 +631,37 @@ export function CartPanel({
       {(hasActiveOrders || hasNewItems) && (
         <div className="border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
           {/* Summary rows */}
-          <div className="border-b border-zinc-800">
-            {hasActiveBill && (() => {
-              const paidAmount = activeBill?.paid_amount || 0
-              const sessionTotal = activeBill?.aggregated_total || 0
-              return (
-                <>
-                  <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
-                    <span>Session ({activeKOTs.length} KOT{activeKOTs.length !== 1 ? 's' : ''}):</span>
-                    <span>{formatCurrency(sessionTotal)}</span>
-                  </div>
-                  {paidAmount > 0 && (
-                    <div className="flex justify-between text-sm text-emerald-400/70 px-4 py-2 border-b border-zinc-800">
-                      <span>Paid:</span>
-                      <span>−{formatCurrency(paidAmount)}</span>
+          {(() => {
+            const subtotal = getTotalAmount()
+            const tax = subtotal * (taxRate / 100)
+            const totalWithTax = getTotalAmount() * (1 + taxRate / 100)
+            const previousBalance = hasActiveBill
+              ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
+              : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+            const grandTotal = totalWithTax + previousBalance
+
+            // Show TOTAL when: there are new items OR there's an unpaid balance
+            const shouldShowTotal = hasNewItems || previousBalance > 0
+
+            if (!shouldShowTotal) return null
+
+            return (
+              <div className="border-b border-zinc-800">
+                <div className="border-b border-zinc-800">
+                  {hasNewItems && taxRate > 0 && (
+                    <div className="flex justify-between text-[10px] text-zinc-600 px-3 pt-2.5 font-mono">
+                      <span>incl. Tax ({taxRate}%)</span>
+                      <span>{formatCurrency(tax)}</span>
                     </div>
                   )}
-                </>
-              )
-            })()}
-            {hasNewItems && (
-              <div className="flex justify-between text-sm text-zinc-400 px-4 py-2 border-b border-zinc-800">
-                <span>New Items:</span>
-                <span>{formatCurrency(getTotalAmount())}</span>
+                  <div className="flex justify-between text-base font-black text-zinc-100 px-3 pb-2.5 font-mono">
+                    <span>TOTAL</span>
+                    <span>{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
               </div>
-            )}
-            <div className="flex justify-between text-lg font-black text-zinc-100 px-4 py-3">
-              <span>Total:</span>
-              <span>{formatCurrency(
-                getTotalAmount() +
-                (hasActiveBill
-                  ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
-                  : tableOrders.reduce((sum, order) => sum + order.total_amount, 0))
-              )}</span>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* Dynamic Action Buttons — layout adapts to count */}
           {(() => {
@@ -673,8 +671,11 @@ export function CartPanel({
             const showSave = (buttons?.showSave !== false) && hasNewItems
             const showKot = (buttons?.showKot !== false) && hasNewItems
             const billIsPaid = activeBill?.bill?.status === 'paid'
-            // Show Pay when: there are new items (even if bill was previously paid), or there are active unpaid orders
-            const showPay = (buttons?.showPay !== false) && (hasNewItems || (hasActiveOrders && !billIsPaid))
+            const unpaidBalance = hasActiveBill
+              ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
+              : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+            // Show Pay when: there are new items, or there's an unpaid balance
+            const showPay = (buttons?.showPay !== false) && (hasNewItems || unpaidBalance > 0)
             const visibleCount = [showSave, showKot, showPay].filter(Boolean).length
 
             // 1 button = full-width blue primary
@@ -765,7 +766,14 @@ export function CartPanel({
           })()}
 
             {/* Bill is paid — show status + Clear Table button */}
-            {!hasNewItems && hasActiveOrders && isDineIn && activeBill?.bill?.status === 'paid' && (() => {
+            {!hasNewItems && hasActiveOrders && isDineIn && (() => {
+              const unpaidBalance = hasActiveBill
+                ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
+                : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+              const isFullyPaid = unpaidBalance === 0
+
+              if (!isFullyPaid) return null
+
               const allKOTsServed = (activeBill?.kots || []).every(
                 (kot: Order) => ['served', 'completed', 'cancelled'].includes(kot.status)
               )

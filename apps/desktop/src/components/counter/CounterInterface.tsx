@@ -995,6 +995,7 @@ export function CounterInterface() {
                 cart={cart.cart}
                 onAddToCart={cart.addToCart}
                 onRemoveFromCart={cart.removeFromCart}
+                onRemoveItem={cart.removeItem}
                 onConfigureProduct={handleConfigureProduct}
                 formatCurrency={format}
               />
@@ -1077,6 +1078,7 @@ export function CounterInterface() {
             activeBill={activeBill}
             cartSettings={settings.cartSettings}
             canProcessPayment={canProcessPayment}
+            taxRate={settings.taxRate || 0}
             onOpenPayment={handleOpenPayment}
             onClearTable={handleClearTable}
             onOrderNotesChange={setOrderNotes}

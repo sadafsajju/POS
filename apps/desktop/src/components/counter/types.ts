@@ -1,4 +1,6 @@
 // Counter-specific types and interfaces
+import type { Product, ProductOptionGroup, ComboSlot } from '@/types'
+
 // Re-export commonly used types for convenience
 export type { Product, Category, DiningTable, Order, OrderItem, BillSummary, ProductOptionGroup, ProductOptionItem, ComboSlot, ComboSlotChoice } from '@/types'
 
@@ -63,6 +65,19 @@ export interface PaymentAmounts {
 
 // Payment method types for split payments
 export type PaymentMethodType = 'cash' | 'card' | 'digital'
+
+// Inline config state for step-by-step variant/combo selection (replaces product grid)
+export interface InlineConfigState {
+  product: Product
+  mode: 'variation' | 'combo'
+  optionGroups?: ProductOptionGroup[]    // for variations
+  comboSlots?: ComboSlot[]              // for combos
+  currentStep: number
+  totalSteps: number
+  selections: Record<string, string[]>   // groupId/slotId → selected itemIds
+  comboNestedOptions: Record<string, SelectedOption[]> // slotId → nested options
+  isLoading: boolean
+}
 
 // Active tab in the counter interface (deprecated - use WizardStep)
 export type ActiveTab = 'order-type' | 'tables' | 'create' | 'payment'

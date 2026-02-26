@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { ImageOff, Clock, Barcode, Settings2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
@@ -18,6 +19,7 @@ interface CreateOrderViewProps {
   cart: CartItem[]
   onAddToCart: (product: Product) => void
   onRemoveFromCart: (productId: string) => void
+  onRemoveItem?: (productId: string) => void
   onConfigureProduct?: (product: Product) => void
   formatCurrency: (amount: number) => string
 }
@@ -31,9 +33,13 @@ export function CreateOrderView({
   categories,
   cart,
   onAddToCart,
+  onRemoveFromCart,
+  onRemoveItem,
   onConfigureProduct,
   formatCurrency
 }: CreateOrderViewProps) {
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
+  const [longPressProductId, setLongPressProductId] = useState<string | null>(null)
   const { settings } = useSettingsStore()
   const displaySettings = settings.productDisplay ?? {
     showImage: true,
@@ -50,9 +56,9 @@ export function CreateOrderView({
   const safeProducts = Array.isArray(products) ? products : []
   const safeCategories = Array.isArray(categories) ? categories : []
 
-  // Get cart item for a product
-  const getCartItem = (productId: string) => {
-    return cart.find(item => item.product.id === productId)
+  // Get total quantity in cart for a product (sums across all variants)
+  const getCartQty = (productId: string) => {
+    return cart.filter(item => item.product.id === productId).reduce((sum, item) => sum + item.quantity, 0)
   }
 
   // Group products by category
@@ -74,8 +80,40 @@ export function CreateOrderView({
     }
   }
 
+  const handleLongPressStart = (productId: string) => {
+    const timer = setTimeout(() => {
+      // Long press triggered - remove the entire item
+      if (onRemoveItem) {
+        onRemoveItem(productId)
+      }
+      setLongPressProductId(null)
+    }, 800) // 800ms for long press
+    setLongPressTimer(timer)
+    setLongPressProductId(productId)
+  }
+
+  const handleLongPressEnd = (product: Product) => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+    // If it wasn't a long press, do regular click
+    if (longPressProductId === product.id) {
+      handleProductClick(product)
+    }
+    setLongPressProductId(null)
+  }
+
+  const handleLongPressCancel = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+    setLongPressProductId(null)
+  }
+
   const renderProductCard = (product: Product) => {
-    const cartItem = getCartItem(product.id)
+    const cartQty = getCartQty(product.id)
     const isUnavailable = !product.is_available
     const hasOptions = !!product.has_option_groups
     const isCombo = product.product_type === 'combo'
@@ -83,7 +121,10 @@ export function CreateOrderView({
     return (
       <div
         key={product.id}
-        onClick={() => !isUnavailable && handleProductClick(product)}
+        onPointerDown={() => !isUnavailable && handleLongPressStart(product.id)}
+        onPointerUp={() => !isUnavailable && handleLongPressEnd(product)}
+        onPointerLeave={handleLongPressCancel}
+        onPointerCancel={handleLongPressCancel}
         className={`
           relative overflow-hidden cursor-pointer transition-all rounded-xl
           ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-zinc-900
@@ -91,7 +132,8 @@ export function CreateOrderView({
             ? 'opacity-50 cursor-not-allowed'
             : 'hover:bg-zinc-800 active:scale-[0.98]'
           }
-          ${cartItem ? 'ring-2 ring-amber-500 z-10' : ''}
+          ${cartQty > 0 ? 'ring-2 ring-amber-500 z-10' : ''}
+          ${longPressProductId === product.id ? 'ring-4 ring-red-500 scale-[0.95]' : ''}
         `}
       >
         {/* Product Image */}
@@ -110,17 +152,17 @@ export function CreateOrderView({
             )}
 
             {/* Top Right: Quantity Badge */}
-            {cartItem && (
-              <div className="absolute top-2 right-2 bg-amber-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-lg">
-                {cartItem.quantity}
+            {cartQty > 0 && (
+              <div className="absolute top-1 sm:top-2 right-1 sm:right-2 bg-amber-500 text-white w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shadow-lg">
+                {cartQty}
               </div>
             )}
 
             {/* Bottom Right: Prep Time */}
             {displaySettings.showPreparationTime && product.preparation_time > 0 && (
-              <div className="absolute bottom-2 right-2">
-                <Badge variant="secondary" className="text-xs bg-black/60 text-white border-0 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
+              <div className="absolute bottom-1 sm:bottom-2 right-1 sm:right-2">
+                <Badge variant="secondary" className="text-[10px] sm:text-xs bg-black/60 text-white border-0 flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5">
+                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   {product.preparation_time}m
                 </Badge>
               </div>
@@ -129,7 +171,7 @@ export function CreateOrderView({
             {/* Unavailable Overlay */}
             {displaySettings.showAvailability && isUnavailable && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-[10px] sm:text-xs">
                   Unavailable
                 </Badge>
               </div>
@@ -138,25 +180,25 @@ export function CreateOrderView({
         )}
 
         {/* Quantity badge when image is hidden */}
-        {!displaySettings.showImage && cartItem && (
-          <div className="absolute top-2 right-2 bg-amber-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
-            {cartItem.quantity}
+        {!displaySettings.showImage && cartQty > 0 && (
+          <div className="absolute top-1 sm:top-2 right-1 sm:right-2 bg-amber-500 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-lg">
+            {cartQty}
           </div>
         )}
 
         {/* Product Info */}
-        <div className={`flex-1 p-2 flex flex-col justify-between ${!displaySettings.showImage ? 'py-3' : ''}`}>
+        <div className={`flex-1 p-1.5 sm:p-2 md:p-2.5 flex flex-col justify-between ${!displaySettings.showImage ? 'py-2 sm:py-3' : ''}`}>
           <div>
-            <h3 className="font-bold text-md leading-tight line-clamp-1 flex items-center gap-1 text-zinc-100">
+            <h3 className="font-bold text-xs sm:text-sm md:text-base lg:text-md leading-tight line-clamp-1 flex items-center gap-0.5 sm:gap-1 text-zinc-100">
               {displaySettings.showDietaryType && product.dietary_type && (
                 <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
+                  className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: dietaryColors[product.dietary_type] || '#888' }}
                 />
               )}
               {product.name}
               {(hasOptions || isCombo) && (
-                <Settings2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                <Settings2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-zinc-500 flex-shrink-0" />
               )}
             </h3>
             {displaySettings.showDescription && product.description && (
@@ -182,9 +224,9 @@ export function CreateOrderView({
               </p>
             )}
           </div>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
             {displaySettings.showPrice && (
-              <span className="text-xl font-normal tabular-nums font-mono">
+              <span className="text-sm sm:text-base md:text-lg lg:text-xl font-normal tabular-nums font-mono">
                 {(() => {
                   const renderPrice = (str: string) => {
                     const match = str.match(/^([^\d]*)(.+)$/)
@@ -216,12 +258,12 @@ export function CreateOrderView({
       {productsByCategory.map(({ category, products: categoryProducts }) => (
         <div key={category.id}>
           {/* Category Header */}
-          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-4 py-3 text-lg font-black tracking-tight text-zinc-100 flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
             <span>{category.name}</span>
-            <span className="text-zinc-500 text-xs">{categoryProducts.length} items</span>
+            <span className="text-zinc-500 text-xs sm:text-sm">{categoryProducts.length} items</span>
           </div>
           {/* Products Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
             {categoryProducts.map(renderProductCard)}
           </div>
         </div>
@@ -230,11 +272,11 @@ export function CreateOrderView({
       {/* Uncategorized Products */}
       {uncategorizedProducts.length > 0 && (
         <div>
-          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-4 py-3 font-black tracking-tight text-zinc-100 text-sm flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
             <span>Other Items</span>
-            <span className="text-zinc-500 text-xs">{uncategorizedProducts.length} items</span>
+            <span className="text-zinc-500 text-xs sm:text-sm">{uncategorizedProducts.length} items</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
             {uncategorizedProducts.map(renderProductCard)}
           </div>
         </div>
