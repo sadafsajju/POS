@@ -187,7 +187,14 @@ function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-lg">#{order.order_number}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-lg">#{order.order_number}</h3>
+              {order.order_source === 'kiosk' && (
+                <Badge variant="outline" className="text-[10px] font-bold bg-cyan-500 text-white border-cyan-500 py-0 px-1.5">
+                  Kiosk
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2 text-sm text-zinc-500 mt-1">
               {order.order_type === 'dine_in' && order.table && (
                 <span className="flex items-center gap-1">

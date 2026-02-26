@@ -523,3 +523,154 @@ func (h *TableHandler) ClearTable(c *gin.Context) {
 	})
 }
 
+// TransferTable moves all active orders from one table to another
+func (h *TableHandler) TransferTable(c *gin.Context) {
+	sourceTableID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid source table ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	var req struct {
+		TargetTableID string `json:"target_table_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "target_table_id is required",
+			Error:   stringPtr("invalid_request"),
+		})
+		return
+	}
+
+	targetTableID, err := uuid.Parse(req.TargetTableID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Invalid target table ID",
+			Error:   stringPtr("invalid_uuid"),
+		})
+		return
+	}
+
+	if sourceTableID == targetTableID {
+		c.JSON(http.StatusBadRequest, models.APIResponse{
+			Success: false,
+			Message: "Source and target tables must be different",
+			Error:   stringPtr("same_table"),
+		})
+		return
+	}
+
+	// Scope to org and location
+	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
+	if !orgLocOk {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{
+			Success: false,
+			Message: "Organization context required",
+			Error:   stringPtr("org_context_required"),
+		})
+		return
+	}
+
+	// Verify both tables belong to this org/location
+	var sourceExists, targetExists bool
+	err = h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM dining_tables WHERE id = $1 AND org_id = $2 AND location_id = $3)`,
+		sourceTableID, orgID, locationID).Scan(&sourceExists)
+	if err != nil || !sourceExists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Source table not found",
+			Error:   stringPtr("source_table_not_found"),
+		})
+		return
+	}
+
+	err = h.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM dining_tables WHERE id = $1 AND org_id = $2 AND location_id = $3)`,
+		targetTableID, orgID, locationID).Scan(&targetExists)
+	if err != nil || !targetExists {
+		c.JSON(http.StatusNotFound, models.APIResponse{
+			Success: false,
+			Message: "Target table not found",
+			Error:   stringPtr("target_table_not_found"),
+		})
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to start transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+	defer tx.Rollback()
+
+	// Move all active orders (parent bills + KOTs) from source to target table
+	_, err = tx.Exec(`
+		UPDATE orders
+		SET table_id = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE table_id = $2
+		  AND org_id = $3 AND location_id = $4
+		  AND status NOT IN ('completed', 'cancelled')
+	`, targetTableID, sourceTableID, orgID, locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to transfer orders",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Mark source table as available
+	_, err = tx.Exec(`
+		UPDATE dining_tables
+		SET is_occupied = false, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND org_id = $2 AND location_id = $3
+	`, sourceTableID, orgID, locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update source table",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	// Mark target table as occupied
+	_, err = tx.Exec(`
+		UPDATE dining_tables
+		SET is_occupied = true, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND org_id = $2 AND location_id = $3
+	`, targetTableID, orgID, locationID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to update target table",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Error:   stringPtr(err.Error()),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{
+		Success: true,
+		Message: "Table transferred successfully",
+	})
+}
+

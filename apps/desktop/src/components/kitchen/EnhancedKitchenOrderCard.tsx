@@ -171,14 +171,16 @@ export function EnhancedKitchenOrderCard({
                 <Badge
                   variant="outline"
                   className={`text-xs font-bold ${
-                    order.order_source === 'swiggy'
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : order.order_source === 'zomato'
-                        ? 'bg-red-500 text-white border-red-500'
-                        : 'bg-gray-500 text-white border-gray-500'
+                    order.order_source === 'kiosk'
+                      ? 'bg-cyan-500 text-white border-cyan-500'
+                      : order.order_source === 'swiggy'
+                        ? 'bg-orange-500 text-white border-orange-500'
+                        : order.order_source === 'zomato'
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-gray-500 text-white border-gray-500'
                   }`}
                 >
-                  {order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
+                  {order.order_source === 'kiosk' ? 'Kiosk' : order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
                 </Badge>
               )}
               {/* Show KOT number prominently if this is a KOT */}
@@ -304,14 +306,16 @@ export function EnhancedKitchenOrderCard({
                 <Badge
                   variant="outline"
                   className={`text-xs font-bold ${
-                    order.order_source === 'swiggy'
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : order.order_source === 'zomato'
-                        ? 'bg-red-500 text-white border-red-500'
-                        : 'bg-gray-500 text-white border-gray-500'
+                    order.order_source === 'kiosk'
+                      ? 'bg-cyan-500 text-white border-cyan-500'
+                      : order.order_source === 'swiggy'
+                        ? 'bg-orange-500 text-white border-orange-500'
+                        : order.order_source === 'zomato'
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-gray-500 text-white border-gray-500'
                   }`}
                 >
-                  {order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
+                  {order.order_source === 'kiosk' ? 'Kiosk' : order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
                 </Badge>
               )}
               {/* Show KOT number prominently if this is a KOT */}

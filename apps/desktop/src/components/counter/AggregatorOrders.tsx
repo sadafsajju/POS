@@ -203,7 +203,8 @@ function CountdownTimer({ deadline }: { deadline: string }) {
 function PlatformBadge({ source }: { source: OrderSource }) {
   if (source === 'pos') return null
 
-  const config = {
+  const config: Record<string, { label: string; bg: string; text: string }> = {
+    kiosk: { label: 'Kiosk', bg: 'bg-cyan-500', text: 'text-white' },
     swiggy: { label: 'Swiggy', bg: 'bg-orange-500', text: 'text-white' },
     zomato: { label: 'Zomato', bg: 'bg-red-500', text: 'text-white' },
   }

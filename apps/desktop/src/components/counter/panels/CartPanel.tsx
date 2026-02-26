@@ -283,6 +283,11 @@ export function CartPanel({
                     <Badge className="bg-orange-500 text-white text-sm px-2 py-0.5">
                       {kot.kot_number || kot.order_number}
                     </Badge>
+                    {kot.order_source === 'kiosk' && (
+                      <Badge className="bg-cyan-500 text-white text-[10px] font-bold px-1.5 py-0">
+                        Kiosk
+                      </Badge>
+                    )}
                     {kot.customer_name && (
                       <span className="text-sm text-zinc-300">
                         {kot.customer_name}
@@ -353,6 +358,11 @@ export function CartPanel({
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-base text-white">#{order.order_number}</span>
+                    {order.order_source === 'kiosk' && (
+                      <Badge className="bg-cyan-500 text-white text-[10px] font-bold px-1.5 py-0">
+                        Kiosk
+                      </Badge>
+                    )}
                     {order.customer_name && (
                       <span className="text-sm text-zinc-300">
                         {order.customer_name}

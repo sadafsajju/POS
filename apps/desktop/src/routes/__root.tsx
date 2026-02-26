@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
 // Gate that checks if initial setup is needed before rendering the app
 function SetupGate({ children }: { children: React.ReactNode }) {
   const pathname = window.location.pathname
-  const isCustomerDisplay = pathname === '/customer-display'
+  const isCustomerDisplay = pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk'
   const { needsSetup, isChecking, error, retry } = useSetupCheck()
 
   useEffect(() => {
@@ -87,7 +87,7 @@ function SettingsInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Skip fetching settings on login, setup, lock, and customer-display pages
     const pathname = window.location.pathname
-    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display') {
+    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk') {
       console.log('SettingsInitializer: On login/setup page, skipping fetch')
       return
     }

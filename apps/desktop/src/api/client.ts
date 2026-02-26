@@ -372,6 +372,24 @@ class APIClient {
     });
   }
 
+  // Transfer table (counter role) - move orders from one table to another
+  async transferCounterTable(sourceTableId: string, targetTableId: string): Promise<APIResponse<void>> {
+    return this.request({
+      method: 'POST',
+      url: `/counter/tables/${sourceTableId}/transfer`,
+      data: { target_table_id: targetTableId },
+    });
+  }
+
+  // Transfer table (admin role) - move orders from one table to another
+  async transferAdminTable(sourceTableId: string, targetTableId: string): Promise<APIResponse<void>> {
+    return this.request({
+      method: 'POST',
+      url: `/admin/tables/${sourceTableId}/transfer`,
+      data: { target_table_id: targetTableId },
+    });
+  }
+
   // Add items to existing order (counter role)
   async addItemsToCounterOrder(orderId: string, items: Array<{ product_id: string; quantity: number; special_instructions?: string; selected_options?: Array<{ option_group_name: string; option_item_name: string; price_adjustment: number }> }>): Promise<APIResponse<Order>> {
     return this.request({

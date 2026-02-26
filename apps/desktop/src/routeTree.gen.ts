@@ -9,10 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TokenDisplayRouteImport } from './routes/token-display'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LockRouteImport } from './routes/lock'
 import { Route as KitchenRouteImport } from './routes/kitchen'
+import { Route as KioskRouteImport } from './routes/kiosk'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -41,6 +43,11 @@ import { Route as AdminSettingsAccountRouteImport } from './routes/admin/setting
 import { Route as AdminSettingsAboutRouteImport } from './routes/admin/settings/about'
 import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/settings/menu/index'
 
+const TokenDisplayRoute = TokenDisplayRouteImport.update({
+  id: '/token-display',
+  path: '/token-display',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
@@ -59,6 +66,11 @@ const LockRoute = LockRouteImport.update({
 const KitchenRoute = KitchenRouteImport.update({
   id: '/kitchen',
   path: '/kitchen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KioskRoute = KioskRouteImport.update({
+  id: '/kiosk',
+  path: '/kiosk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
@@ -201,10 +213,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/customer-display': typeof CustomerDisplayRoute
+  '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -233,10 +247,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -265,10 +281,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/customer-display': typeof CustomerDisplayRoute
+  '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -300,10 +318,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/customer-display'
+    | '/kiosk'
     | '/kitchen'
     | '/lock'
     | '/login'
     | '/setup'
+    | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -332,10 +352,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/customer-display'
+    | '/kiosk'
     | '/kitchen'
     | '/lock'
     | '/login'
     | '/setup'
+    | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -363,10 +385,12 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/customer-display'
+    | '/kiosk'
     | '/kitchen'
     | '/lock'
     | '/login'
     | '/setup'
+    | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -397,14 +421,23 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   CustomerDisplayRoute: typeof CustomerDisplayRoute
+  KioskRoute: typeof KioskRoute
   KitchenRoute: typeof KitchenRoute
   LockRoute: typeof LockRoute
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
+  TokenDisplayRoute: typeof TokenDisplayRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/token-display': {
+      id: '/token-display'
+      path: '/token-display'
+      fullPath: '/token-display'
+      preLoaderRoute: typeof TokenDisplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/setup': {
       id: '/setup'
       path: '/setup'
@@ -431,6 +464,13 @@ declare module '@tanstack/react-router' {
       path: '/kitchen'
       fullPath: '/kitchen'
       preLoaderRoute: typeof KitchenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kiosk': {
+      id: '/kiosk'
+      path: '/kiosk'
+      fullPath: '/kiosk'
+      preLoaderRoute: typeof KioskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customer-display': {
@@ -704,10 +744,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   CustomerDisplayRoute: CustomerDisplayRoute,
+  KioskRoute: KioskRoute,
   KitchenRoute: KitchenRoute,
   LockRoute: LockRoute,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
+  TokenDisplayRoute: TokenDisplayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

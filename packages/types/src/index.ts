@@ -459,6 +459,7 @@ export interface Order {
   parent_order_id?: string;  // For KOTs: references the parent bill
   is_kot: boolean;           // True if this is a Kitchen Order Ticket
   kot_number?: string;       // Sequential KOT number (KOT001, KOT002)
+  token_number?: number;     // Daily sequential token for customer display (1, 2, 3...)
   // Aggregator order fields
   order_source: OrderSource;
   external_order_id?: string;
@@ -479,7 +480,7 @@ export interface Order {
 
 export type OrderType = 'dine_in' | 'takeout' | 'delivery';
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
-export type OrderSource = 'pos' | 'swiggy' | 'zomato';
+export type OrderSource = 'pos' | 'swiggy' | 'zomato' | 'kiosk';
 
 export interface OrderItem {
   id: string;
@@ -623,6 +624,7 @@ export interface KitchenOrder {
   kot_number?: string;
   parent_order_id?: string;
   parent_order_number?: string;
+  token_number?: number;
   // Aggregator fields
   order_source?: OrderSource;
   external_order_id?: string;

@@ -145,6 +145,7 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		counter.DELETE("/orders/:id/items/:item_id", orderHandler.RemoveOrderItem) // Remove item from order
 		counter.POST("/orders/:id/payments", paymentHandler.ProcessPayment)      // Process payments
 		counter.POST("/tables/:id/clear", tableHandler.ClearTable)               // Clear table (customer left)
+		counter.POST("/tables/:id/transfer", tableHandler.TransferTable)         // Move orders to another table
 		counter.DELETE("/orders/:id", deleteOrder(db))                           // Cancel/delete orders
 		// Aggregator order management
 		counter.GET("/aggregator-orders", orderHandler.GetAggregatorOrders)              // List aggregator orders
@@ -232,6 +233,7 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		admin.DELETE("/orders/:id/items/:item_id", orderHandler.RemoveOrderItem) // Remove item from order
 		admin.POST("/orders/:id/payments", paymentHandler.ProcessPayment)      // Admins can process payments
 		admin.POST("/tables/:id/clear", tableHandler.ClearTable)               // Clear table (customer left)
+		admin.POST("/tables/:id/transfer", tableHandler.TransferTable)         // Move orders to another table
 		admin.DELETE("/orders/:id", deleteOrder(db))                           // Delete/void orders
 		// Aggregator order management
 		admin.GET("/aggregator-orders", orderHandler.GetAggregatorOrders)              // List aggregator orders
@@ -491,7 +493,7 @@ func getKitchenOrders(db *sql.DB) gin.HandlerFunc {
 			       p.order_number as parent_order_number,
 			       o.order_source, o.external_order_id,
 			       o.delivery_partner_name, o.delivery_partner_phone,
-			       o.accept_deadline
+			       o.accept_deadline, o.token_number
 			FROM orders o
 			LEFT JOIN dining_tables t ON o.table_id = t.id
 			LEFT JOIN orders p ON o.parent_order_id = p.id
@@ -531,6 +533,7 @@ func getKitchenOrders(db *sql.DB) gin.HandlerFunc {
 			var orderSource sql.NullString
 			var externalOrderID, deliveryPartnerName, deliveryPartnerPhone sql.NullString
 			var acceptDeadline sql.NullTime
+			var tokenNumber sql.NullInt64
 
 			err := rows.Scan(&orderID, &orderNumber, &tableID, &orderType, &orderStatus,
 				&createdAt, &customerName, &notes, &updatedAt,
@@ -538,7 +541,7 @@ func getKitchenOrders(db *sql.DB) gin.HandlerFunc {
 				&tableNumber, &parentOrderNumber,
 				&orderSource, &externalOrderID,
 				&deliveryPartnerName, &deliveryPartnerPhone,
-				&acceptDeadline)
+				&acceptDeadline, &tokenNumber)
 			if err != nil {
 				c.JSON(500, gin.H{
 					"success": false,
@@ -579,6 +582,10 @@ func getKitchenOrders(db *sql.DB) gin.HandlerFunc {
 				"table": map[string]interface{}{
 					"table_number": tableNumber.String,
 				},
+			}
+
+			if tokenNumber.Valid {
+				order["token_number"] = tokenNumber.Int64
 			}
 
 			if acceptDeadline.Valid {

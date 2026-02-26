@@ -205,6 +205,13 @@ export function BillDetailPanel({
         }`}
         onClick={() => setShowPrintConfirm(prev => !prev)}
       >
+        {selectedOrder.token_number && (
+          <div className="text-center mb-2">
+            <span className="text-2xl font-black tracking-widest text-amber-400 tabular-nums">
+              TOKEN: {String(selectedOrder.token_number).padStart(4, '0')}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-semibold flex items-center gap-2 text-zinc-100">
             <Receipt className="w-5 h-5" />

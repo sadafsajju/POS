@@ -93,7 +93,14 @@ export function PaymentView({
                   </button>
                   {getOrderTypeIcon(order.order_type)}
                   <div>
-                    <div className="font-semibold text-zinc-100">Order #{order.order_number}</div>
+                    <div className="flex items-center gap-2 font-semibold text-zinc-100">
+                      Order #{order.order_number}
+                      {order.order_source === 'kiosk' && (
+                        <Badge variant="outline" className="text-[10px] font-bold bg-cyan-500 text-white border-cyan-500 py-0 px-1.5">
+                          Kiosk
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-sm text-zinc-500">
                       {order.customer_name && `${order.customer_name} • `}
                       {order.table?.table_number && `Table ${order.table.table_number} • `}

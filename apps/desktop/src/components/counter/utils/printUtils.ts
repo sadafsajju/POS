@@ -79,7 +79,8 @@ export async function printKOT(
   notes?: string,
   isNewItems: boolean = false,
   onSuccess?: () => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  tokenNumber?: number
 ): Promise<void> {
   try {
     if (isTauriEnvironment()) {
@@ -96,7 +97,8 @@ export async function printKOT(
             special_instructions: item.special_instructions
           })),
           notes: notes,
-          is_new_items: isNewItems
+          is_new_items: isNewItems,
+          token_number: tokenNumber
         }
       })
       console.log('KOT printed successfully!')
@@ -105,7 +107,7 @@ export async function printKOT(
       // Fallback: open browser print dialog for web version
       const printWindow = window.open('', '_blank', 'width=300,height=500')
       if (printWindow) {
-        const kotHtml = generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems)
+        const kotHtml = generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber)
         printWindow.document.write(kotHtml)
         printWindow.document.close()
         printWindow.print()
@@ -151,6 +153,7 @@ export function generateReceiptHtml(
       <style>
         body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; }
         .header { text-align: center; margin-bottom: 10px; }
+        .token { text-align: center; font-size: 28px; font-weight: bold; margin: 8px 0; letter-spacing: 4px; }
         .divider { border-top: 1px dashed #000; margin: 10px 0; }
         table { width: 100%; border-collapse: collapse; }
         td { padding: 2px 0; }
@@ -159,6 +162,7 @@ export function generateReceiptHtml(
       </style>
     </head>
     <body>
+      ${order.token_number ? `<div class="token">TOKEN: ${String(order.token_number).padStart(4, '0')}</div>` : ''}
       <div class="header">
         <strong>POS RECEIPT</strong><br>
         Order #${order.order_number}<br>
@@ -212,7 +216,8 @@ export function generateKOTHtml(
   orderType: string,
   items: KOTItem[],
   notes?: string,
-  isNewItems: boolean = false
+  isNewItems: boolean = false,
+  tokenNumber?: number
 ): string {
   const orderTypeDisplay = {
     dine_in: 'DINE-IN',
@@ -226,6 +231,10 @@ export function generateKOTHtml(
       ${item.special_instructions ? `<div style="font-size: 12px; font-weight: normal; margin-left: 20px; color: #666;">>> ${item.special_instructions}</div>` : ''}
     </div>
   `).join('')
+
+  const tokenDisplay = tokenNumber
+    ? `<div style="text-align: center; font-size: 28px; font-weight: bold; margin: 8px 0; letter-spacing: 4px;">TOKEN: ${String(tokenNumber).padStart(4, '0')}</div>`
+    : ''
 
   return `
     <!DOCTYPE html>
@@ -244,6 +253,7 @@ export function generateKOTHtml(
       </style>
     </head>
     <body>
+      ${tokenDisplay}
       ${isNewItems ? '<div class="new-items">** NEW ITEMS **</div>' : '<div class="header">KITCHEN ORDER</div>'}
       <div class="divider"></div>
       <div class="info"><strong>Order:</strong> ${orderNumber}</div>

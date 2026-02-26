@@ -80,7 +80,12 @@ export function TableDetailsPanel({
                 onClick={() => onEditOrder(order)}
               >
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-zinc-100">Order #{order.order_number}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-zinc-100">Order #{order.order_number}</span>
+                    {order.order_source === 'kiosk' && (
+                      <Badge className="bg-cyan-500 text-white text-[10px] font-bold px-1.5 py-0">Kiosk</Badge>
+                    )}
+                  </div>
                   <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">{order.status}</Badge>
                 </div>
                 {order.items?.map((item, idx) => (

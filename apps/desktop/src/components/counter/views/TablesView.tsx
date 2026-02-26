@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, UtensilsCrossed, CircleCheck, CircleDollarSign, ClipboardList } from 'lucide-react'
+import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, UtensilsCrossed, CircleCheck, CircleDollarSign, ClipboardList, CreditCard, X, CheckCircle2, ArrowRightLeft } from 'lucide-react'
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT, NUMBERS_LAYOUT, SYMBOLS_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig, KeyboardLayout } from '@/components/ui/on-screen-keyboard/types'
@@ -11,26 +11,31 @@ import type { DiningTable, Order, OrderType } from '../types'
 import { formatElapsedTime, formatDuration, getTableOrders, getTableKOTs, calculateTableTotal } from '../utils/orderUtils'
 
 /** Determine the most relevant order status to show on a table card */
-function getTableOrderStatus(tableOrders: Order[], tableKOTs: Order[]) {
-  // Priority: show the most actionable status across all KOTs and parent orders
-  const allStatuses = [...tableKOTs, ...tableOrders].map(o => o.status)
+function getTableOrderStatus(tableOrders: Order[], tableKOTs: Order[]): { status: string; isPaid: boolean } {
+  const parentStatus = tableOrders[0]?.status
+  const isPaid = parentStatus === 'paid'
 
-  if (allStatuses.includes('preparing')) return 'preparing'
-  if (allStatuses.includes('ready')) return 'ready'
-  if (allStatuses.includes('served')) return 'served'
-  if (allStatuses.includes('confirmed')) return 'confirmed'
-  if (allStatuses.includes('paid')) return 'paid'
-  if (allStatuses.includes('pending')) return 'pending'
-  return tableOrders[0]?.status || 'pending'
+  // For kitchen status, look at KOTs first, then fall back to parent
+  const kotStatuses = tableKOTs.map(o => o.status)
+
+  if (kotStatuses.includes('preparing')) return { status: 'preparing', isPaid }
+  if (kotStatuses.includes('ready')) return { status: 'ready', isPaid }
+  if (kotStatuses.includes('served')) return { status: 'served', isPaid }
+  if (kotStatuses.includes('confirmed')) return { status: 'confirmed', isPaid }
+  if (kotStatuses.includes('pending')) return { status: 'pending', isPaid }
+
+  // No KOTs — use parent status (but map 'paid' to 'served' for display)
+  const displayStatus = isPaid ? 'served' : (parentStatus || 'pending')
+  return { status: displayStatus, isPaid }
 }
 
-const orderStatusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string }> = {
-  pending: { label: 'Pending', icon: <ClipboardList className="w-3 h-3" />, bg: 'bg-amber-500' },
-  confirmed: { label: 'Confirmed', icon: <CircleCheck className="w-3 h-3" />, bg: 'bg-blue-500' },
-  preparing: { label: 'Preparing', icon: <ChefHat className="w-3 h-3" />, bg: 'bg-orange-500' },
-  ready: { label: 'Ready', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-emerald-500' },
-  served: { label: 'Served', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-teal-500' },
-  paid: { label: 'Paid', icon: <CircleDollarSign className="w-3 h-3" />, bg: 'bg-green-700' },
+const orderStatusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; cardBg: string }> = {
+  pending: { label: 'Pending', icon: <ClipboardList className="w-3 h-3" />, bg: 'bg-amber-500', cardBg: 'bg-amber-600' },
+  confirmed: { label: 'Confirmed', icon: <CircleCheck className="w-3 h-3" />, bg: 'bg-blue-500', cardBg: 'bg-blue-600' },
+  preparing: { label: 'Preparing', icon: <ChefHat className="w-3 h-3" />, bg: 'bg-orange-500', cardBg: 'bg-orange-600' },
+  ready: { label: 'Ready', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-emerald-500', cardBg: 'bg-emerald-600' },
+  served: { label: 'Served', icon: <UtensilsCrossed className="w-3 h-3" />, bg: 'bg-purple-500', cardBg: 'bg-purple-600' },
+  paid: { label: 'Paid', icon: <CircleDollarSign className="w-3 h-3" />, bg: 'bg-zinc-500', cardBg: 'bg-zinc-600' },
 }
 
 /**
@@ -183,6 +188,11 @@ interface TablesViewProps {
   hasCartItems?: (tableId: string) => boolean
   /** If true, details panel is expanded (show fewer columns) */
   detailsExpanded?: boolean
+  /** Long-press actions */
+  onTablePay?: (table: DiningTable) => void
+  onTableCancel?: (table: DiningTable) => void
+  onTableClear?: (table: DiningTable) => void
+  onTableMove?: (sourceTable: DiningTable, targetTable: DiningTable) => void
 }
 
 /**
@@ -201,8 +211,59 @@ export function TablesView({
   onProceedToProducts,
   hasCartItems,
   detailsExpanded = false,
+  onTablePay,
+  onTableCancel,
+  onTableClear,
+  onTableMove,
 }: TablesViewProps) {
   const safeTables = Array.isArray(tables) ? tables : []
+
+  // Long-press context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    table: DiningTable
+    x: number
+    y: number
+    hasOrders: boolean
+    isPaid: boolean
+  } | null>(null)
+  // Move table picker state
+  const [moveSource, setMoveSource] = useState<DiningTable | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
+
+  const handlePointerDown = useCallback((e: React.PointerEvent, table: DiningTable, hasOrders: boolean, isPaid: boolean) => {
+    if (!hasOrders) return
+    didLongPress.current = false
+    const x = e.clientX
+    const y = e.clientY
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true
+      setContextMenu({ table, x, y, hasOrders, isPaid })
+    }, 600)
+  }, [])
+
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handlePointerCancel = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    didLongPress.current = false
+  }, [])
+
+  const handleCardClick = useCallback((table: DiningTable) => {
+    if (didLongPress.current) {
+      didLongPress.current = false
+      return
+    }
+    onTableSelect(table)
+  }, [onTableSelect])
 
   // Group tables by floor
   const tablesByFloor = safeTables.reduce<Record<string, DiningTable[]>>((acc, table) => {
@@ -238,16 +299,28 @@ export function TablesView({
       ) : (
         <>
           {/* Legend */}
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-4 text-sm text-zinc-400">
-              <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-blue-700 border border-blue-700"></span> Available
+          <div className="flex items-center justify-end flex-wrap">
+            <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-zinc-900"></span> Available
               </span>
-              <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-green-600"></span> Occupied
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-amber-600"></span> Pending
               </span>
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full bg-orange-500 flex items-center justify-center">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-blue-600"></span> Confirmed
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-orange-600"></span> Preparing
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-emerald-600"></span> Ready
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-purple-600"></span> Served
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center">
                   <ShoppingCart className="w-2.5 h-2.5 text-white" />
                 </span> Cart
               </span>
@@ -259,54 +332,63 @@ export function TablesView({
             {floors.map(floor => (
               <div key={floor}>
                 <h4 className="text-md font-bold mb-3 text-zinc-400">{floor}</h4>
-                <div className={`grid gap-1 ${detailsExpanded ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6' : 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8'}`}>
+                <div className={`grid gap-2 ${detailsExpanded ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8'}`}>
                   {tablesByFloor[floor].map(table => {
                     const tableOrders = getTableOrders(allOrders, table.id)
                     const tableKOTs = getTableKOTs(allOrders, table.id)
                     const hasOrders = tableOrders.length > 0
                     const tableTotal = calculateTableTotal(tableOrders)
                     const tableHasCartItems = hasCartItems?.(table.id) || false
-                    const currentStatus = hasOrders ? getTableOrderStatus(tableOrders, tableKOTs) : null
+                    const orderStatus = hasOrders ? getTableOrderStatus(tableOrders, tableKOTs) : null
+                    const currentStatus = orderStatus?.status || null
+                    const isPaid = orderStatus?.isPaid || false
                     const statusConf = currentStatus ? orderStatusConfig[currentStatus] : null
 
                     return (
                       <Card
                         key={table.id}
-                        className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-none aspect-square ${
-                          selectedTable?.id === table.id ? 'ring-2 ring-amber-500' : ''
+                        className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-2xl aspect-square overflow-hidden select-none ${
+                          ''
                         } ${hasOrders
-                          ? 'bg-green-600'
+                          ? (statusConf?.cardBg || 'bg-green-600')
                           : 'bg-zinc-900'}`}
-                        onClick={() => onTableSelect(table)}
+                        onClick={() => handleCardClick(table)}
+                        onPointerDown={(e) => handlePointerDown(e, table, hasOrders, isPaid)}
+                        onPointerUp={handlePointerUp}
+                        onPointerLeave={handlePointerCancel}
+                        onPointerCancel={handlePointerCancel}
                       >
+                        {/* Paid stamp seal - top right inside card */}
+                        {isPaid && (
+                          <div className="absolute -top-2 -right-2 z-10 pointer-events-none">
+                            <svg width="56" height="56" viewBox="0 0 56 56" className="rotate-[-20deg]">
+                              <circle cx="28" cy="28" r="25" fill="none" stroke="white" strokeWidth="2.5" strokeDasharray="4 2" />
+                              <circle cx="28" cy="28" r="20" fill="none" stroke="white" strokeWidth="2" />
+                              <text x="28" y="32" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="sans-serif" letterSpacing="1.5">PAID</text>
+                            </svg>
+                          </div>
+                        )}
                         {/* Cart indicator for tables with pending items */}
-                        {tableHasCartItems && (
+                        {tableHasCartItems && !isPaid && (
                           <div className="absolute -top-2 -right-2 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center shadow-lg z-10">
                             <ShoppingCart className="w-4 h-4 text-white" />
                           </div>
                         )}
-                        <CardContent className="p-4 h-full flex items-center justify-center">
-                          <div className="text-center">
+                        <CardContent className="p-4 h-full flex flex-col items-center justify-between">
+                          <div className="flex-1 flex flex-col items-center justify-center text-center">
                             <div className={`text-2xl font-bold mb-1 ${hasOrders
                               ? 'text-white'
                               : 'text-blue-400'}`}>
                               {table.table_number}
                             </div>
-                            <div className={`text-xs mb-2 ${hasOrders
+                            <div className={`text-xs ${hasOrders
                               ? 'text-white/80'
                               : 'text-blue-400'}`}>
                               {table.seating_capacity} seats
                             </div>
-                            {hasOrders ? (
-                              <div className="space-y-1">
-                                {/* Order status badge */}
-                                {statusConf && (
-                                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${statusConf.bg}`}>
-                                    {statusConf.icon}
-                                    {statusConf.label}
-                                  </div>
-                                )}
-                                <div className="text-sm font-semibold text-white">
+                            {hasOrders && (
+                              <>
+                                <div className="text-sm font-semibold text-white mt-1">
                                   {formatCurrency(tableTotal)}
                                 </div>
                                 {/* Dual timers: Order time | Served time */}
@@ -315,14 +397,12 @@ export function TablesView({
                                   const servedAt = firstOrder.served_at
                                   return (
                                     <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-white/80">
-                                      {/* Order timer: stops at served_at if served, otherwise live */}
                                       <div className="flex items-center gap-0.5" title="Order time">
                                         <Clock className="w-2.5 h-2.5" />
                                         {servedAt
                                           ? formatDuration(firstOrder.created_at, servedAt)
                                           : formatElapsedTime(firstOrder.created_at)}
                                       </div>
-                                      {/* Served timer: live counter since served */}
                                       {servedAt && (
                                         <>
                                           <span className="text-white/50">|</span>
@@ -335,7 +415,18 @@ export function TablesView({
                                     </div>
                                   )
                                 })()}
-                              </div>
+                              </>
+                            )}
+                          </div>
+                          {/* Status badge pinned to bottom */}
+                          <div className="mt-auto pt-1">
+                            {hasOrders ? (
+                              statusConf && (
+                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${statusConf.bg}`}>
+                                  {statusConf.icon}
+                                  {statusConf.label}
+                                </div>
+                              )
                             ) : (
                               <Badge className="bg-zinc-950 text-white text-xs">
                                 Available
@@ -360,6 +451,110 @@ export function TablesView({
             </div>
           )}
         </>
+      )}
+
+      {/* Move table picker overlay */}
+      {moveSource && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center" onClick={() => setMoveSource(null)}>
+          <div
+            className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-2xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-zinc-100 mb-1">Move Table {moveSource.table_number}</h3>
+            <p className="text-sm text-zinc-400 mb-4">Select a table to move the order to</p>
+            <div className="grid grid-cols-4 gap-2">
+              {safeTables
+                .filter(t => {
+                  if (t.id === moveSource.id) return false
+                  const orders = getTableOrders(allOrders, t.id)
+                  return orders.length === 0 // only show available tables
+                })
+                .map(t => (
+                  <button
+                    key={t.id}
+                    className="flex flex-col items-center justify-center p-3 rounded-xl bg-zinc-800 hover:bg-blue-600 transition-colors text-zinc-100 border border-zinc-700 hover:border-blue-500"
+                    onClick={() => {
+                      onTableMove?.(moveSource, t)
+                      setMoveSource(null)
+                    }}
+                  >
+                    <span className="text-lg font-bold">{t.table_number}</span>
+                    <span className="text-[10px] text-zinc-400">{t.seating_capacity} seats</span>
+                  </button>
+                ))}
+            </div>
+            {safeTables.filter(t => t.id !== moveSource.id && getTableOrders(allOrders, t.id).length === 0).length === 0 && (
+              <p className="text-center text-zinc-500 py-4">No available tables to move to</p>
+            )}
+            <button
+              className="mt-4 w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm transition-colors"
+              onClick={() => setMoveSource(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Long-press context menu */}
+      {contextMenu && (
+        <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)}>
+          <div
+            className="absolute bg-zinc-800 rounded-xl shadow-2xl border border-zinc-700 py-2 min-w-[160px] animate-in fade-in zoom-in-95 duration-150"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 180),
+              top: Math.min(contextMenu.y, window.innerHeight - 120),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contextMenu.isPaid ? (
+              <>
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-zinc-700/50 transition-colors"
+                  onClick={() => {
+                    onTableCancel?.(contextMenu.table)
+                    setContextMenu(null)
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                  Cancel Order
+                </button>
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-emerald-400 hover:bg-zinc-700/50 transition-colors"
+                  onClick={() => {
+                    onTableClear?.(contextMenu.table)
+                    setContextMenu(null)
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Clear Table
+                </button>
+              </>
+            ) : (
+              <button
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-400 hover:bg-zinc-700/50 transition-colors"
+                onClick={() => {
+                  onTablePay?.(contextMenu.table)
+                  setContextMenu(null)
+                }}
+              >
+                <CreditCard className="w-4 h-4" />
+                Pay
+              </button>
+            )}
+            {/* Move table - always available for occupied tables */}
+            <button
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-blue-400 hover:bg-zinc-700/50 transition-colors"
+              onClick={() => {
+                setMoveSource(contextMenu.table)
+                setContextMenu(null)
+              }}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Move Table
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

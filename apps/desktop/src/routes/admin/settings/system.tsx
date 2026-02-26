@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Settings, Loader2, MonitorSmartphone } from 'lucide-react'
+import { Settings, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useSettingsStore } from '@pos/core'
+import { useSettingsStore, useCustomerDisplayStore, useTokenDisplayStore, useKioskDisplayStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
 import type { StoreSettings } from '@pos/types'
@@ -16,6 +16,9 @@ const inputClass = 'w-full h-10 px-3 rounded-lg bg-zinc-800 border border-zinc-7
 
 function SystemSettingsPage() {
   const { settings, isLoading, saveSettings } = useSettingsStore()
+  const { isOpen: isDisplayOpen, openWindow: openDisplay, closeWindow: closeDisplay } = useCustomerDisplayStore()
+  const { isOpen: isTokenDisplayOpen, openWindow: openTokenDisplay, closeWindow: closeTokenDisplay } = useTokenDisplayStore()
+  const { isOpen: isKioskOpen, openWindow: openKiosk, closeWindow: closeKiosk } = useKioskDisplayStore()
   const [localSettings, setLocalSettings] = useState<Partial<StoreSettings>>({
     theme: settings.theme,
     backupFrequency: settings.backupFrequency,
@@ -151,6 +154,90 @@ function SystemSettingsPage() {
             <div className={cn(
               'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
               localSettings.touchMode ? 'translate-x-5' : 'translate-x-1'
+            )} />
+          </div>
+        </button>
+      </div>
+
+      {/* Displays */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
+        <button
+          onClick={isDisplayOpen ? closeDisplay : openDisplay}
+          className={cn(
+            'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+            isDisplayOpen
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <Monitor className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Customer Display</span>
+              <span className="block text-xs text-zinc-500">Open a customer-facing display window showing order details and promotions</span>
+            </div>
+          </div>
+          <div className={cn(
+            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+            isDisplayOpen ? 'bg-emerald-500' : 'bg-zinc-700'
+          )}>
+            <div className={cn(
+              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+              isDisplayOpen ? 'translate-x-5' : 'translate-x-1'
+            )} />
+          </div>
+        </button>
+
+        <button
+          onClick={isTokenDisplayOpen ? closeTokenDisplay : openTokenDisplay}
+          className={cn(
+            'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+            isTokenDisplayOpen
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <Hash className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Token Display</span>
+              <span className="block text-xs text-zinc-500">Open a display window showing order token numbers and their status</span>
+            </div>
+          </div>
+          <div className={cn(
+            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+            isTokenDisplayOpen ? 'bg-emerald-500' : 'bg-zinc-700'
+          )}>
+            <div className={cn(
+              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+              isTokenDisplayOpen ? 'translate-x-5' : 'translate-x-1'
+            )} />
+          </div>
+        </button>
+
+        <button
+          onClick={isKioskOpen ? closeKiosk : openKiosk}
+          className={cn(
+            'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+            isKioskOpen
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <TabletSmartphone className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Kiosk Mode</span>
+              <span className="block text-xs text-zinc-500">Open a self-service kiosk window for customers to place orders</span>
+            </div>
+          </div>
+          <div className={cn(
+            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+            isKioskOpen ? 'bg-emerald-500' : 'bg-zinc-700'
+          )}>
+            <div className={cn(
+              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+              isKioskOpen ? 'translate-x-5' : 'translate-x-1'
             )} />
           </div>
         </button>

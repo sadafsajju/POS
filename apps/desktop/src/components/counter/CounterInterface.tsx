@@ -365,7 +365,10 @@ export function CounterInterface() {
           variables.order_type,
           cartToKotItems(pendingPrintCart),
           variables.notes,
-          false
+          false,
+          undefined,
+          undefined,
+          createdOrder.token_number
         )
       }
       clearAfterOrder()
@@ -395,7 +398,10 @@ export function CounterInterface() {
           orderType,
           cartToKotItems(pendingPrintCart),
           orderNotes,
-          true
+          true,
+          undefined,
+          undefined,
+          variables.existingOrder.token_number
         )
       }
       clearAfterOrder()
@@ -565,8 +571,12 @@ export function CounterInterface() {
   const handlePaymentComplete = () => {
     setShowPaymentOverlay(false)
     setTakeawayBill(null)
-    if (orderType === 'dine_in') setSelectedTable(null)
-    navigateTo('order-type')
+    if (orderType === 'dine_in') {
+      setSelectedTable(null)
+      navigateTo('tables')
+    } else {
+      navigateTo('order-type')
+    }
     showSuccess('Payment processed successfully!')
   }
 
@@ -575,7 +585,7 @@ export function CounterInterface() {
     try {
       await (isAdmin ? apiClient.clearAdminTable(selectedTable.id) : apiClient.clearCounterTable(selectedTable.id))
       setSelectedTable(null)
-      navigateTo('order-type')
+      navigateTo('tables')
       showSuccess('Table cleared successfully!')
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to clear table')
@@ -977,6 +987,43 @@ export function CounterInterface() {
               onCustomerNameChange={setCustomerName}
               onProceedToProducts={() => navigateTo('create')}
               hasCartItems={(tableId) => cart.hasItemsInCart(tableId, 'dine_in')}
+              onTablePay={(table) => {
+                setSelectedTable(table)
+                // Trigger payment after activeBill query loads for this table
+                setTimeout(() => setShowPaymentOverlay(true), 300)
+              }}
+              onTableCancel={(table) => {
+                const tableOrders = getTableOrders(safeAllOrders, table.id)
+                if (tableOrders.length > 0) {
+                  setSelectedTable(table)
+                  setOrderToCancel(tableOrders[0])
+                }
+              }}
+              onTableClear={(table) => {
+                setSelectedTable(table)
+                // Small delay so selectedTable is set before handleClearTable reads it
+                setTimeout(async () => {
+                  try {
+                    await (isAdmin ? apiClient.clearAdminTable(table.id) : apiClient.clearCounterTable(table.id))
+                    setSelectedTable(null)
+                    showSuccess('Table cleared successfully!')
+                  } catch (error: any) {
+                    setErrorMessage(error.message || 'Failed to clear table')
+                    setTimeout(() => setErrorMessage(null), 3000)
+                  }
+                }, 0)
+              }}
+              onTableMove={async (sourceTable, targetTable) => {
+                try {
+                  await (isAdmin
+                    ? apiClient.transferAdminTable(sourceTable.id, targetTable.id)
+                    : apiClient.transferCounterTable(sourceTable.id, targetTable.id))
+                  showSuccess(`Moved table ${sourceTable.table_number} → ${targetTable.table_number}`)
+                } catch (error: any) {
+                  setErrorMessage(error.message || 'Failed to move table')
+                  setTimeout(() => setErrorMessage(null), 3000)
+                }
+              }}
             />
           </>)}
           {activeTab === 'create' && (

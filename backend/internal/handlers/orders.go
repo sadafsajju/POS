@@ -52,7 +52,7 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 		       o.order_type, o.status, o.subtotal, o.tax_amount, o.discount_amount,
 		       o.total_amount, o.notes, o.created_at, o.updated_at, o.served_at, o.completed_at,
 		       o.confirmed_at, o.preparing_at, o.ready_at, o.paid_at, o.cleared_at,
-		       o.is_kot, o.parent_order_id,
+		       o.is_kot, o.parent_order_id, o.token_number,
 		       t.table_number, t.location,
 		       u.username, u.first_name, u.last_name
 		FROM orders o
@@ -141,13 +141,14 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 		var order models.Order
 		var tableNumber, tableLocation sql.NullString
 		var username, firstName, lastName sql.NullString
+		var scanTokenNumber sql.NullInt64
 
 		err := rows.Scan(
 			&order.ID, &order.OrderNumber, &order.TableID, &order.UserID, &order.CustomerName,
 			&order.OrderType, &order.Status, &order.Subtotal, &order.TaxAmount, &order.DiscountAmount,
 			&order.TotalAmount, &order.Notes, &order.CreatedAt, &order.UpdatedAt, &order.ServedAt, &order.CompletedAt,
 			&order.ConfirmedAt, &order.PreparingAt, &order.ReadyAt, &order.PaidAt, &order.ClearedAt,
-			&order.IsKOT, &order.ParentOrderID,
+			&order.IsKOT, &order.ParentOrderID, &scanTokenNumber,
 			&tableNumber, &tableLocation,
 			&username, &firstName, &lastName,
 		)
@@ -158,6 +159,11 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 				Error:   stringPtr(err.Error()),
 			})
 			return
+		}
+
+		if scanTokenNumber.Valid {
+			tn := int(scanTokenNumber.Int64)
+			order.TokenNumber = &tn
 		}
 
 		// Add table info if available
@@ -457,6 +463,15 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Default order_source to 'pos' if not provided
+	if req.OrderSource == "" {
+		req.OrderSource = "pos"
+	}
+	validSources := map[string]bool{"pos": true, "kiosk": true, "swiggy": true, "zomato": true}
+	if !validSources[req.OrderSource] {
+		req.OrderSource = "pos"
+	}
+
 	// Get org/location context
 	orgID, locationID, orgLocOk := middleware.GetOrgLocationFromContext(c)
 	if !orgLocOk {
@@ -570,14 +585,20 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			billID := uuid.New()
 			billNumber := h.generateBillNumber()
 
+			// Generate daily token number for customer display
+			billTokenNumber, tokenErr := h.generateTokenNumber(tx, orgID, locationID)
+			if tokenErr != nil {
+				billTokenNumber = 1
+			}
+
 			billQuery := `
 				INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
 				                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id,
-				                   org_id, location_id)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, 0, 0, 0, $8, false, NULL, $9, $10)
+				                   org_id, location_id, token_number)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 0, 0, 0, 0, $8, false, NULL, $9, $10, $11)
 			`
 			_, err = tx.Exec(billQuery, billID, billNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-				req.OrderType, req.Notes, orgID, locationID)
+				req.OrderType, req.Notes, orgID, locationID, billTokenNumber)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, models.APIResponse{
 					Success: false,
@@ -602,14 +623,21 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 		// Create KOT order
 		orderID = uuid.New()
+
+		// Generate daily token number for KOT
+		kotTokenNumber, tokenErr := h.generateTokenNumber(tx, orgID, locationID)
+		if tokenErr != nil {
+			kotTokenNumber = 1
+		}
+
 		kotQuery := `
 			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
 			                   subtotal, tax_amount, discount_amount, total_amount, notes, is_kot, parent_order_id, kot_number,
-			                   org_id, location_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', $8, $9, 0, $10, $11, true, $12, $13, $14, $15)
+			                   org_id, location_id, token_number, order_source)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed', $8, $9, 0, $10, $11, true, $12, $13, $14, $15, $16, $17)
 		`
 		_, err = tx.Exec(kotQuery, orderID, kotNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-			req.OrderType, subtotal, taxAmount, totalAmount, req.Notes, parentOrderID, kotNumber, orgID, locationID)
+			req.OrderType, subtotal, taxAmount, totalAmount, req.Notes, parentOrderID, kotNumber, orgID, locationID, kotTokenNumber, req.OrderSource)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -643,6 +671,12 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		orderID = uuid.New()
 		orderNumber := h.generateOrderNumber()
 
+		// Generate daily token number for customer display
+		tokenNumber, tokenErr := h.generateTokenNumber(tx, orgID, locationID)
+		if tokenErr != nil {
+			tokenNumber = 1
+		}
+
 		// Determine initial status
 		initialStatus := "confirmed"
 		if req.Status != nil && *req.Status != "" {
@@ -663,11 +697,11 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		orderQuery := `
 			INSERT INTO orders (id, order_number, table_id, user_id, customer_id, customer_name, order_type, status,
 			                   subtotal, tax_amount, discount_amount, total_amount, notes, completed_at, is_kot, parent_order_id,
-			                   org_id, location_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, false, NULL, $14, $15)
+			                   org_id, location_id, token_number, order_source)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 0, $11, $12, $13, false, NULL, $14, $15, $16, $17)
 		`
 		_, err = tx.Exec(orderQuery, orderID, orderNumber, req.TableID, userID, req.CustomerID, req.CustomerName,
-			req.OrderType, initialStatus, subtotal, taxAmount, totalAmount, req.Notes, completedAt, orgID, locationID)
+			req.OrderType, initialStatus, subtotal, taxAmount, totalAmount, req.Notes, completedAt, orgID, locationID, tokenNumber, req.OrderSource)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, models.APIResponse{
 				Success: false,
@@ -1062,6 +1096,7 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 	var deliveryPartnerName, deliveryPartnerPhone sql.NullString
 	var aggregatorConfirmedAt sql.NullTime
 	var acceptDeadline sql.NullTime
+	var tokenNumber sql.NullInt64
 
 	query := `
 		SELECT o.id, o.order_number, o.table_id, o.user_id, o.customer_id, o.customer_name,
@@ -1072,6 +1107,7 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 		       o.order_source, o.external_order_id, o.external_data,
 		       o.delivery_partner_name, o.delivery_partner_phone,
 		       o.aggregator_confirmed_at, o.accept_deadline,
+		       o.token_number,
 		       t.table_number, t.location,
 		       u.username, u.first_name, u.last_name,
 		       c.phone, c.name, c.email, c.total_orders, c.total_spent
@@ -1091,6 +1127,7 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 		&orderSource, &externalOrderID, &externalData,
 		&deliveryPartnerName, &deliveryPartnerPhone,
 		&aggregatorConfirmedAt, &acceptDeadline,
+		&tokenNumber,
 		&tableNumber, &tableLocation,
 		&username, &firstName, &lastName,
 		&customerPhone, &customerName, &customerEmail, &customerTotalOrders, &customerTotalSpent,
@@ -1107,6 +1144,10 @@ func (h *OrderHandler) getOrderByID(orderID uuid.UUID) (*models.Order, error) {
 	}
 	if kotNumber.Valid {
 		order.KOTNumber = &kotNumber.String
+	}
+	if tokenNumber.Valid {
+		tn := int(tokenNumber.Int64)
+		order.TokenNumber = &tn
 	}
 
 	// Set aggregator fields
@@ -1741,6 +1782,21 @@ func (h *OrderHandler) GetAggregatorOrders(c *gin.Context) {
 		Message: "Aggregator orders retrieved successfully",
 		Data:    orders,
 	})
+}
+
+// generateTokenNumber generates a daily sequential token number for customer display
+func (h *OrderHandler) generateTokenNumber(tx *sql.Tx, orgID, locationID uuid.UUID) (int, error) {
+	var nextToken int
+	err := tx.QueryRow(`
+		SELECT COALESCE(MAX(token_number), 0) + 1
+		FROM orders
+		WHERE DATE(created_at) = CURRENT_DATE
+		  AND org_id = $1 AND location_id = $2
+	`, orgID, locationID).Scan(&nextToken)
+	if err != nil {
+		return 1, err
+	}
+	return nextToken, nil
 }
 
 // generateBillNumber generates a bill number for parent orders

@@ -196,6 +196,7 @@ type Order struct {
 	ParentOrderID *uuid.UUID `json:"parent_order_id"` // For KOTs: references the parent bill
 	IsKOT         bool       `json:"is_kot"`          // True if this is a Kitchen Order Ticket
 	KOTNumber     *string    `json:"kot_number"`      // Sequential KOT number (KOT001, KOT002)
+	TokenNumber   *int       `json:"token_number"`    // Daily sequential token (1, 2, 3...) for customer display
 	// Aggregator order fields
 	OrderSource          string     `json:"order_source"`           // pos, swiggy, zomato
 	ExternalOrderID      *string    `json:"external_order_id"`      // Platform's order ID
@@ -286,6 +287,7 @@ type CreateOrderRequest struct {
 	Notes         *string           `json:"notes"`
 	ParentOrderID *uuid.UUID        `json:"parent_order_id"` // For KOT: link to existing bill
 	CreateAsKOT   bool              `json:"create_as_kot"`   // If true for dine_in, creates bill + KOT structure
+	OrderSource   string            `json:"order_source"`    // Order origin: pos, kiosk, swiggy, zomato
 }
 
 // CreateCustomerRequest represents the request to create a customer

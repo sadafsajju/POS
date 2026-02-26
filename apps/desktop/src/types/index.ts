@@ -308,7 +308,7 @@ export interface Order {
   user_id?: string;
   customer_name?: string;
   order_type: 'dine_in' | 'takeout' | 'delivery';
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
   subtotal: number;
   tax_amount: number;
   discount_amount: number;
@@ -322,6 +322,8 @@ export interface Order {
   parent_order_id?: string;  // For KOTs: references the parent bill
   is_kot?: boolean;          // True if this is a Kitchen Order Ticket
   kot_number?: string;       // Sequential KOT number (KOT001, KOT002)
+  token_number?: number;     // Daily sequential token for customer display (1, 2, 3...)
+  order_source?: string;     // Order origin: pos, kiosk, swiggy, zomato
   // Relations
   table?: DiningTable;
   user?: User;
@@ -354,6 +356,7 @@ export interface CreateOrderRequest {
   order_type: 'dine_in' | 'takeout' | 'delivery';
   items: CreateOrderItem[];
   notes?: string;
+  order_source?: string;
 }
 
 export interface CreateOptionGroupRequest {
@@ -388,7 +391,7 @@ export interface CreateOrderItem {
 }
 
 export interface UpdateOrderStatusRequest {
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
   notes?: string;
 }
 
