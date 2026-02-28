@@ -468,6 +468,8 @@ export interface Order {
   delivery_partner_phone?: string;
   aggregator_confirmed_at?: string;
   accept_deadline?: string;
+  // Customer app order fields
+  session_id?: string;
   // Relations
   table?: Table;
   user?: User;
@@ -480,7 +482,7 @@ export interface Order {
 
 export type OrderType = 'dine_in' | 'takeout' | 'delivery';
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
-export type OrderSource = 'pos' | 'swiggy' | 'zomato' | 'kiosk';
+export type OrderSource = 'pos' | 'swiggy' | 'zomato' | 'kiosk' | 'customer_app';
 
 export interface OrderItem {
   id: string;
@@ -980,4 +982,93 @@ export interface PluginMenuItem {
   icon?: string;
   path: string;
   parent?: string;
+}
+
+// ============================================
+// Customer Ordering (QR Code / PWA)
+// ============================================
+export interface CustomerSession {
+  id: string;
+  table_id: string;
+  session_token: string;
+  started_at: string;
+  expires_at: string;
+  last_activity_at: string;
+  is_active: boolean;
+  customer_name?: string;
+  customer_phone?: string;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  table?: Table;
+}
+
+export interface TableQRCode {
+  id: string;
+  table_id: string;
+  qr_token: string;
+  qr_data: string;
+  is_active: boolean;
+  generated_at: string;
+  last_scanned_at?: string;
+  scan_count: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  table?: Table;
+}
+
+export interface CustomerSessionResponse {
+  session: CustomerSession;
+  table: Table;
+  restaurant_info: {
+    name: string;
+    logo_url?: string;
+  };
+}
+
+export interface CreateCustomerSessionRequest {
+  qr_token: string;
+  customer_name?: string;
+  customer_phone?: string;
+}
+
+export interface CustomerOrderRequest {
+  items: CreateOrderItem[];
+  notes?: string;
+  customer_name?: string;
+  customer_phone?: string;
+}
+
+export interface GenerateQRCodeRequest {
+  table_id: string;
+  wifi_ssid?: string;
+  wifi_password?: string;
+  pos_hostname?: string;
+  pos_port?: string;
+}
+
+export interface QRCodeData {
+  qr_token: string;
+  table_id: string;
+  table_name: string;
+  qr_data: string; // Full QR code content (Wi-Fi config)
+  url: string; // Direct URL for web browsers
+  wifi_config?: {
+    ssid: string;
+    password: string;
+    security: 'WPA' | 'WEP' | 'nopass';
+  };
+}
+
+export interface CustomerOrderingSettings {
+  enabled: boolean;
+  session_timeout_minutes: number;
+  wifi_ssid: string;
+  wifi_password: string;
+  pos_hostname: string;
+  pos_port: string;
+  allow_modifications: boolean;
+  require_phone: boolean;
 }

@@ -35,6 +35,51 @@ import type {
 } from '@pos/types';
 
 // ============================================
+// Tenant Registration Types
+// ============================================
+export interface RegisterTenantRequest {
+  business_name: string;
+  subdomain: string;
+  admin_email: string;
+  admin_name: string;
+  password: string;
+  phone?: string;
+  city: string;
+  state?: string;
+  country?: string;
+}
+
+export interface RegisterTenantResponse {
+  tenant_id: string;
+  subdomain: string;
+  login_url: string;
+  username: string;
+  trial_ends: string;
+  trial_days: number;
+  plan: string;
+  max_users: number;
+  max_products: number;
+}
+
+export interface SubdomainCheckResponse {
+  available: boolean;
+  subdomain?: string;
+  preview_url?: string;
+  reason?: string;
+}
+
+export interface TenantInfo {
+  id: string;
+  business_name: string;
+  subdomain: string;
+  plan: string;
+  subscription_status: string;
+  is_active: boolean;
+  onboarding_completed: boolean;
+  trial_ends_at?: string;
+}
+
+// ============================================
 // Promo Types
 // ============================================
 export interface PromoItem {
@@ -413,6 +458,13 @@ export const adminApi = {
 
   deleteMedia: (id: string) =>
     getApiClient().delete(`/admin/media/${id}`),
+
+  // QR Code Management
+  generateQRCode: (data: { table_id: string; wifi_ssid?: string; wifi_password?: string; pos_hostname?: string; pos_port?: string }) =>
+    getApiClient().post<{ id: string; table_id: string; table_name: string; qr_data: string; url: string }>('/admin/qr-codes/generate', data),
+
+  getQRCodes: (tableId?: string) =>
+    getApiClient().get<Array<{ id: string; table_id: string; table_name: string; qr_data: string; is_active: boolean; scan_count: number; last_scanned_at: string | null }>>('/admin/qr-codes', tableId ? { table_id: tableId } : {}),
 };
 
 // ============================================
@@ -436,4 +488,38 @@ export const customersApi = {
 
   search: (query: string, limit = 10) =>
     getApiClient().get<Customer[]>('/customers/search', { query, limit }),
+};
+
+// ============================================
+// Customer Ordering Endpoints (Public - No JWT)
+// ============================================
+export const customerOrderingApi = {
+  initSession: (data: { qr_token: string; customer_name?: string; customer_phone?: string }) =>
+    getApiClient().post<{ session_token: string; table_id: string; table_number: string; expires_at: string }>('/customer/session', data),
+
+  getMenu: () =>
+    getApiClient().get<any[]>('/customer/menu'),
+
+  placeOrder: (data: { items: Array<{ product_id: string; quantity: number; special_instructions?: string }> }) =>
+    getApiClient().post<any>('/customer/order', data),
+
+  getMyOrders: () =>
+    getApiClient().get<any[]>('/customer/orders'),
+};
+
+// ============================================
+// Tenant Registration Endpoints (Public - No JWT)
+// ============================================
+export const tenantApi = {
+  // Register new tenant (public endpoint)
+  register: (data: RegisterTenantRequest) =>
+    getApiClient().post<RegisterTenantResponse>('/register', data),
+
+  // Check subdomain availability (public endpoint)
+  checkSubdomain: (subdomain: string) =>
+    getApiClient().get<SubdomainCheckResponse>('/check-subdomain', { subdomain }),
+
+  // Get tenant info by subdomain (public endpoint)
+  getTenantBySubdomain: (subdomain: string) =>
+    getApiClient().get<TenantInfo>(`/tenant/${subdomain}`),
 };

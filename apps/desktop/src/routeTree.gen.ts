@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TokenDisplayRouteImport } from './routes/token-display'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LockRouteImport } from './routes/lock'
+import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KitchenRouteImport } from './routes/kitchen'
 import { Route as KioskRouteImport } from './routes/kiosk'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
@@ -30,6 +32,7 @@ import { Route as AdminSettingsTablesRouteImport } from './routes/admin/settings
 import { Route as AdminSettingsSystemRouteImport } from './routes/admin/settings/system'
 import { Route as AdminSettingsStaffRouteImport } from './routes/admin/settings/staff'
 import { Route as AdminSettingsReceiptsRouteImport } from './routes/admin/settings/receipts'
+import { Route as AdminSettingsQrCodesRouteImport } from './routes/admin/settings/qr-codes'
 import { Route as AdminSettingsPromosRouteImport } from './routes/admin/settings/promos'
 import { Route as AdminSettingsProductsRouteImport } from './routes/admin/settings/products'
 import { Route as AdminSettingsPlatformsRouteImport } from './routes/admin/settings/platforms'
@@ -53,6 +56,11 @@ const SetupRoute = SetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -61,6 +69,11 @@ const LoginRoute = LoginRouteImport.update({
 const LockRoute = LockRouteImport.update({
   id: '/lock',
   path: '/lock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KitchenRoute = KitchenRouteImport.update({
@@ -148,6 +161,11 @@ const AdminSettingsReceiptsRoute = AdminSettingsReceiptsRouteImport.update({
   path: '/receipts',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsQrCodesRoute = AdminSettingsQrCodesRouteImport.update({
+  id: '/qr-codes',
+  path: '/qr-codes',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsPromosRoute = AdminSettingsPromosRouteImport.update({
   id: '/promos',
   path: '/promos',
@@ -215,8 +233,10 @@ export interface FileRoutesByFullPath {
   '/customer-display': typeof CustomerDisplayRoute
   '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
+  '/landing': typeof LandingRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -237,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
   '/admin/settings/promos': typeof AdminSettingsPromosRoute
+  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
@@ -249,8 +270,10 @@ export interface FileRoutesByTo {
   '/customer-display': typeof CustomerDisplayRoute
   '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
+  '/landing': typeof LandingRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -269,6 +292,7 @@ export interface FileRoutesByTo {
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
   '/admin/settings/promos': typeof AdminSettingsPromosRoute
+  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
@@ -283,8 +307,10 @@ export interface FileRoutesById {
   '/customer-display': typeof CustomerDisplayRoute
   '/kiosk': typeof KioskRoute
   '/kitchen': typeof KitchenRoute
+  '/landing': typeof LandingRoute
   '/lock': typeof LockRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
@@ -305,6 +331,7 @@ export interface FileRoutesById {
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
   '/admin/settings/products': typeof AdminSettingsProductsRoute
   '/admin/settings/promos': typeof AdminSettingsPromosRoute
+  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
   '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
   '/admin/settings/staff': typeof AdminSettingsStaffRoute
   '/admin/settings/system': typeof AdminSettingsSystemRoute
@@ -320,8 +347,10 @@ export interface FileRouteTypes {
     | '/customer-display'
     | '/kiosk'
     | '/kitchen'
+    | '/landing'
     | '/lock'
     | '/login'
+    | '/register'
     | '/setup'
     | '/token-display'
     | '/admin/bills'
@@ -342,6 +371,7 @@ export interface FileRouteTypes {
     | '/admin/settings/platforms'
     | '/admin/settings/products'
     | '/admin/settings/promos'
+    | '/admin/settings/qr-codes'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
@@ -354,8 +384,10 @@ export interface FileRouteTypes {
     | '/customer-display'
     | '/kiosk'
     | '/kitchen'
+    | '/landing'
     | '/lock'
     | '/login'
+    | '/register'
     | '/setup'
     | '/token-display'
     | '/admin/bills'
@@ -374,6 +406,7 @@ export interface FileRouteTypes {
     | '/admin/settings/platforms'
     | '/admin/settings/products'
     | '/admin/settings/promos'
+    | '/admin/settings/qr-codes'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
@@ -387,8 +420,10 @@ export interface FileRouteTypes {
     | '/customer-display'
     | '/kiosk'
     | '/kitchen'
+    | '/landing'
     | '/lock'
     | '/login'
+    | '/register'
     | '/setup'
     | '/token-display'
     | '/admin/bills'
@@ -409,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/settings/platforms'
     | '/admin/settings/products'
     | '/admin/settings/promos'
+    | '/admin/settings/qr-codes'
     | '/admin/settings/receipts'
     | '/admin/settings/staff'
     | '/admin/settings/system'
@@ -423,8 +459,10 @@ export interface RootRouteChildren {
   CustomerDisplayRoute: typeof CustomerDisplayRoute
   KioskRoute: typeof KioskRoute
   KitchenRoute: typeof KitchenRoute
+  LandingRoute: typeof LandingRoute
   LockRoute: typeof LockRoute
   LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
   SetupRoute: typeof SetupRoute
   TokenDisplayRoute: typeof TokenDisplayRoute
 }
@@ -445,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -457,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/lock'
       fullPath: '/lock'
       preLoaderRoute: typeof LockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kitchen': {
@@ -578,6 +630,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsReceiptsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/qr-codes': {
+      id: '/admin/settings/qr-codes'
+      path: '/qr-codes'
+      fullPath: '/admin/settings/qr-codes'
+      preLoaderRoute: typeof AdminSettingsQrCodesRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/promos': {
       id: '/admin/settings/promos'
       path: '/promos'
@@ -688,6 +747,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsPlatformsRoute: typeof AdminSettingsPlatformsRoute
   AdminSettingsProductsRoute: typeof AdminSettingsProductsRoute
   AdminSettingsPromosRoute: typeof AdminSettingsPromosRoute
+  AdminSettingsQrCodesRoute: typeof AdminSettingsQrCodesRoute
   AdminSettingsReceiptsRoute: typeof AdminSettingsReceiptsRoute
   AdminSettingsStaffRoute: typeof AdminSettingsStaffRoute
   AdminSettingsSystemRoute: typeof AdminSettingsSystemRoute
@@ -707,6 +767,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsPlatformsRoute: AdminSettingsPlatformsRoute,
   AdminSettingsProductsRoute: AdminSettingsProductsRoute,
   AdminSettingsPromosRoute: AdminSettingsPromosRoute,
+  AdminSettingsQrCodesRoute: AdminSettingsQrCodesRoute,
   AdminSettingsReceiptsRoute: AdminSettingsReceiptsRoute,
   AdminSettingsStaffRoute: AdminSettingsStaffRoute,
   AdminSettingsSystemRoute: AdminSettingsSystemRoute,
@@ -746,8 +807,10 @@ const rootRouteChildren: RootRouteChildren = {
   CustomerDisplayRoute: CustomerDisplayRoute,
   KioskRoute: KioskRoute,
   KitchenRoute: KitchenRoute,
+  LandingRoute: LandingRoute,
   LockRoute: LockRoute,
   LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
   SetupRoute: SetupRoute,
   TokenDisplayRoute: TokenDisplayRoute,
 }

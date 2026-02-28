@@ -9,9 +9,11 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:desktop": "turbo run dev --filter=@pos/desktop",
+    "dev:customer": "turbo run dev --filter=@pos/customer-web",
     "dev:web": "turbo run dev --filter=@pos/web",
     "build": "turbo run build",
     "build:desktop": "turbo run build --filter=@pos/desktop",
+    "build:customer": "turbo run build --filter=@pos/customer-web",
     "build:mac": "cd apps/desktop && npm run tauri build -- --target universal-apple-darwin",
     "build:win": "cd apps/desktop && npm run tauri build -- --target x86_64-pc-windows-msvc",
     "lint": "turbo run lint",

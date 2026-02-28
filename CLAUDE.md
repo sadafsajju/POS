@@ -35,6 +35,13 @@ npm run lint                     # ESLint across all packages
 
 # Backend tests (inside Docker, Go not local)
 docker exec pos-backend go test ./...
+
+# Railway Deployment
+railway up --service backend --path-as-root ./backend   # Deploy Go backend
+railway up --service frontend                           # Deploy frontend (Nixpacks)
+railway service status --all                            # Check all service statuses
+railway logs --service backend                          # View backend deploy logs
+railway logs --service frontend                         # View frontend deploy logs
 ```
 
 ## Architecture
@@ -176,6 +183,39 @@ Frontend env (apps/desktop/.env): `VITE_API_URL=http://localhost:8080/api/v1`
 
 Default admin login: `admin` / `admin123`
 
+## Railway Deployment (Production)
+
+Project: **zealous-miracle** | Railway CLI linked at project root.
+
+### Live URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend | `https://frontend-production-b5819.up.railway.app` |
+| Backend API | `https://backend-production-3d327.up.railway.app` |
+| Postgres | Internal (`postgres.railway.internal:5432`, DB: `railway`) |
+| Redis | Internal (`redis.railway.internal:6379`) |
+
+### Deployment Details
+
+- **Backend**: Deployed via `railway up --service backend --path-as-root ./backend`. Uses `backend/Dockerfile` (Go multi-stage build). Environment variables (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `REDIS_HOST`, `JWT_SECRET`, `PORT`) are set in Railway service settings.
+- **Frontend**: Deployed via `railway up --service frontend` from monorepo root. Uses **Nixpacks** builder (configured via `nixpacks.toml`). `VITE_API_URL` is set as a Railway variable pointing to the backend URL. Served with `npx serve`.
+- **Do NOT create a `railway.json`** at the project root — it overrides per-service build settings and breaks multi-service deployments.
+- The `nixpacks.toml` at the project root configures the frontend build only. Backend uses its own `Dockerfile` via `--path-as-root`.
+
+### Redeploying
+
+```bash
+# Backend (from monorepo root)
+railway up --service backend --path-as-root ./backend
+
+# Frontend (from monorepo root)
+railway up --service frontend
+
+# Check status
+railway service status --all
+```
+
 ## Aggregator Integration (Swiggy/Zomato)
 
 ### Webhook Endpoints (HMAC auth, no JWT)
@@ -231,4 +271,4 @@ Controlled by `touchMode: boolean` in `StoreSettings`. Stored as `touch_mode` in
 
 ## Current Status
 
-See `PROGRESS.md` for detailed phase tracking. As of Phase 9: monorepo setup, Tauri desktop shell, kitchen display, shared packages, API client integration, offline order creation, first-time onboarding, and aggregator order integration (Phase 1 - local POS infrastructure) are complete. Next priorities: cloud relay server, full offline sync testing, hardware integration, and installers.
+See `PROGRESS.md` for detailed phase tracking. As of Phase 9: monorepo setup, Tauri desktop shell, kitchen display, shared packages, API client integration, offline order creation, first-time onboarding, and aggregator order integration (Phase 1 - local POS infrastructure) are complete. Production deployment on Railway is live. Next priorities: cloud relay server, full offline sync testing, hardware integration, and installers.

@@ -139,17 +139,23 @@ function GlobalPinDialog() {
 }
 
 export const Route = createRootRoute({
-  component: () => (
-    <QueryClientProvider client={queryClient}>
-      <SetupGate>
-        <SettingsInitializer>
-          <div className="h-screen overflow-hidden bg-background">
-            <Outlet />
-          </div>
-        </SettingsInitializer>
-      </SetupGate>
-      <GlobalPinDialog />
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
-  ),
+  component: () => {
+    const pathname = window.location.pathname
+    // Landing, register, and login pages need scrolling
+    const needsScrolling = pathname === '/landing' || pathname === '/register' || pathname === '/login'
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        <SetupGate>
+          <SettingsInitializer>
+            <div className={needsScrolling ? "min-h-screen bg-background" : "h-screen overflow-hidden bg-background"}>
+              <Outlet />
+            </div>
+          </SettingsInitializer>
+        </SetupGate>
+        <GlobalPinDialog />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    )
+  },
 })

@@ -16,6 +16,7 @@ import {
   MapPin,
   Image,
   ImagePlus,
+  QrCode,
 } from 'lucide-react'
 
 const settingsSections = [
@@ -171,6 +172,16 @@ const managementSections = [
     accent: 'bg-orange-500',
     activeText: 'text-orange-400',
     activeBg: 'bg-orange-500/10',
+  },
+  {
+    id: 'qr-codes',
+    label: 'QR Codes',
+    icon: <QrCode className="w-4 h-4" />,
+    description: 'Customer self-service ordering',
+    href: '/admin/settings/qr-codes',
+    accent: 'bg-blue-500',
+    activeText: 'text-blue-400',
+    activeBg: 'bg-blue-500/10',
   },
 ]
 

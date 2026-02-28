@@ -37,6 +37,9 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 	promoHandler := handlers.NewPromoHandler(db)
 	variationHandler := handlers.NewVariationHandler(db)
 	mediaHandler := handlers.NewMediaHandler(db)
+	qrCodeHandler := handlers.NewQRCodeHandler(db)
+	customerOrderingHandler := handlers.NewCustomerOrderingHandler(db)
+	tenantHandler := handlers.NewTenantHandler(db)
 
 	// Public routes (no authentication required)
 	public := router.Group("/")
@@ -46,12 +49,29 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		public.POST("/auth/logout", authHandler.Logout)
 		public.GET("/auth/staff", getStaffForPinLogin(db))
 
+		// Tenant registration (public signup)
+		public.POST("/register", tenantHandler.RegisterTenant)
+		public.GET("/check-subdomain", tenantHandler.CheckSubdomainAvailability)
+		public.GET("/tenant/:subdomain", tenantHandler.GetTenantBySubdomain)
+
 		// Setup routes (first-time installation)
 		public.GET("/setup/check", checkSetupStatus(db))
 		public.POST("/setup/admin", createInitialAdmin(db))
 
 		// Public promos (for customer display, no auth)
 		public.GET("/promos", promoHandler.ListPublicPromos)
+	}
+
+	// Customer ordering routes (public, session-based authentication)
+	customerRoutes := router.Group("/customer")
+	{
+		// Session management
+		customerRoutes.POST("/session", customerOrderingHandler.InitSession)
+
+		// Menu and ordering (requires session token in header)
+		customerRoutes.GET("/menu", customerOrderingHandler.GetMenu)
+		customerRoutes.POST("/order", customerOrderingHandler.PlaceOrder)
+		customerRoutes.GET("/orders", customerOrderingHandler.GetMyOrders)
 	}
 
 	// Webhook routes (authenticated via HMAC signature, not JWT)
@@ -258,6 +278,13 @@ func SetupRoutes(router *gin.RouterGroup, db *sql.DB, authMiddleware gin.Handler
 		admin.GET("/platform-configs/:platform", settingsHandler.GetPlatformConfig)
 		admin.PUT("/platform-configs", settingsHandler.UpsertPlatformConfig)
 		admin.DELETE("/platform-configs/:platform", settingsHandler.DeletePlatformConfig)
+
+		// QR code and customer session management
+		admin.POST("/qr-codes/generate", qrCodeHandler.GenerateQRCode)
+		admin.GET("/qr-codes", qrCodeHandler.GetQRCodes)
+		admin.PUT("/qr-codes/:id/deactivate", qrCodeHandler.DeactivateQRCode)
+		admin.GET("/customer-sessions", qrCodeHandler.GetCustomerSessions)
+		admin.PUT("/customer-sessions/:id/end", qrCodeHandler.EndSession)
 	}
 
 	// Kitchen routes (kitchen staff access)
