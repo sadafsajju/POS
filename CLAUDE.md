@@ -98,6 +98,8 @@ All endpoints return: `{ success: bool, message: string, data?: T, error?: strin
 - **Go is not installed locally** — always use Docker for backend operations.
 - **Offline-first is critical** — consider what happens without internet. Orders must work offline with local queue and sync.
 - **Touch mode is toggled via `settings.touchMode`** — All text inputs that support on-screen keyboard must check this setting. When OFF, use regular `<input>` elements. When ON, use tappable fields that open `OnScreenKeyboard` or inline `KeyboardRow`. Toggle lives in Admin > Settings > System. See "Touch Mode" section below.
+- **Authentication uses dual-mode system** — Supports both Clerk (SaaS with Organizations) and internal JWT auth (self-hosted). Clerk staff invitations send automatic emails. See "Authentication & Logout" section below.
+- **Role-based navigation hides admin UI for staff** — Staff members (server/counter/kitchen) don't see admin navigation (bottom nav hidden). Only admins/managers see full nav. Staff redirected to their specific interface on login. See "Role-Based Navigation" section below.
 
 ## Adding New Features
 
@@ -243,6 +245,145 @@ railway service status --all
 - **Cloud Relay Server** — Separate Go service receiving webhooks from Swiggy/Zomato and relaying to local POS via WebSocket
 - **Zomato API Integration** — Requires vendor approval as POS partner
 - **Swiggy API Integration** — Requires partner program enrollment
+
+## Authentication & Logout
+
+The app supports **dual authentication modes**: Clerk (SaaS/cloud) and internal JWT (self-hosted/offline).
+
+### Auth Providers
+
+- **Clerk** (`authProvider: 'clerk'`): Enabled when `VITE_CLERK_PUBLISHABLE_KEY` is set. Uses Clerk Organizations for multi-tenant SaaS. Staff are invited as organization members and receive automatic invitation emails. No JWT token stored locally; Clerk manages sessions via cookies.
+- **Internal** (`authProvider: 'internal'`): Traditional JWT-based auth. Token stored in Zustand + localStorage. Used for offline/self-hosted deployments.
+
+### Clerk Organizations (Multi-Tenant SaaS)
+
+When Clerk is enabled, the system uses **Clerk Organizations** for multi-tenancy. Each admin creates their own organization and invites staff members.
+
+**Staff Creation Flow:**
+1. Admin creates staff member at `/admin/settings/staff`
+2. Backend calls `CreateOrganizationInvitation()` with role mapping:
+   - `admin`/`manager` → `org:admin` (Clerk role)
+   - `server`/`counter`/`kitchen` → `org:member` (Clerk role)
+3. Clerk sends invitation email automatically
+4. Staff accepts invitation and sets password in Clerk
+5. On first login, webhook syncs `clerk_id` to existing user record (no duplicates)
+6. Staff redirected based on role (see Role-Based Navigation below)
+
+**Key Implementation Files:**
+- `backend/internal/services/clerk.go` - `CreateOrganizationInvitation()` with role mapping
+- `backend/internal/handlers/clerk_webhooks.go` - Webhook handler that syncs `clerk_id` by email, `needsSetup` logic
+- `backend/internal/handlers/users.go` - Staff creation endpoint
+
+**Environment Variables:**
+- `CLERK_SECRET_KEY` - Clerk API secret key
+- `CLERK_WEBHOOK_SECRET` - Webhook signature verification secret
+
+**Important Behaviors:**
+- Setup wizard only shown to admin/manager roles (staff skip it)
+- Staff members sync `clerk_id` to existing user record (prevents duplicates)
+- Role-based redirects after login (server/counter → `/admin/pos`, kitchen → `/admin/kitchen`)
+- Staff members don't see admin navigation (bottom nav hidden for non-admin roles)
+
+### Logout Flow (CRITICAL)
+
+When implementing logout, you **MUST** handle both auth providers correctly:
+
+```typescript
+const { logout, authProvider } = useAuthStore()
+const clerk = useClerk() // May be null if Clerk not available
+
+const handleLogout = () => {
+  if (authProvider === 'clerk') {
+    // 1. Set logout flag to prevent re-authentication during logout
+    sessionStorage.setItem('pos-logging-out', '1')
+
+    // 2. Clear BOTH localStorage AND Zustand state immediately
+    localStorage.removeItem('pos-auth')
+    logout() // Must call this! Clears in-memory state
+
+    // 3. Sign out from Clerk and redirect
+    if (clerk) {
+      clerk.signOut().finally(() => {
+        window.location.href = '/landing'
+      })
+    } else {
+      window.location.href = '/landing'
+    }
+  } else {
+    // Internal auth - clear state and go to login
+    logout()
+    apiClient.clearAuth()
+    window.location.href = '/login'
+  }
+}
+```
+
+**Key Points:**
+- **ALWAYS call `logout()`** to clear Zustand in-memory state, not just localStorage
+- **Set `pos-logging-out` flag** before logout to prevent race conditions
+- **Redirect to `/landing`** for Clerk, `/login`** for internal auth
+- **Check the flag in AdminLayout** to prevent redirect loops during logout
+- Logout is implemented in **two locations**: `UserMenu` component and `AdminTopBar` component — keep them in sync!
+
+### Files with Logout Handlers
+
+| File | Component | Notes |
+|------|-----------|-------|
+| `components/ui/user-menu.tsx` | `UserMenu` | Used in sidebar layouts |
+| `components/admin/AdminSidebar.tsx` | `AdminTopBar` | Used in admin top bar |
+
+### Auth State Management
+
+- **Zustand Store**: `@pos/core` → `useAuthStore`
+- **Persisted**: `localStorage` key `pos-auth` (Zustand persist middleware)
+- **Session Flag**: `sessionStorage` key `pos-logging-out` (temporary logout indicator)
+- **API Client**: Auto-injects token via `getToken()` and `asyncGetToken()` functions
+- **Clerk Session Sync**: `routes/admin.tsx` syncs Clerk session to Zustand on mount (skips if `pos-logging-out` flag is set)
+
+### Role-Based Navigation & Access Control
+
+The app uses role-based access control to restrict routes and hide navigation for staff members.
+
+**Route Access Control** (`routes/admin.tsx`):
+```typescript
+const allowedRoutes = {
+  admin: ['/admin'], // Full admin access
+  manager: ['/admin'], // Full admin access
+  server: ['/admin/pos'], // POS interface only
+  counter: ['/admin/pos'], // POS interface only
+  kitchen: ['/admin/kitchen'], // Kitchen display only
+}
+```
+
+**Login Redirects** (`routes/login.tsx`):
+- `server`/`counter` → `/admin/pos`
+- `kitchen` → `/admin/kitchen`
+- `admin`/`manager` → `/admin`
+
+**Navigation Visibility** (`routes/admin.tsx`):
+- **Admin/Manager**: See full admin navigation (bottom nav with POS, Bills, Kitchen, Customers, Reports, Settings)
+- **Server/Counter/Kitchen**: No admin navigation shown (clean interface with only their specific view)
+
+**Implementation:**
+```typescript
+// In routes/admin.tsx
+const showAdminNav = user.role === 'admin' || user.role === 'manager'
+
+return (
+  <div className="h-screen flex flex-col overflow-hidden">
+    {!isFullScreen && <AdminTopBar user={user} />}
+    <main className="flex-1 min-h-0 overflow-hidden bg-background">
+      <Outlet />
+    </main>
+    {!isFullScreen && showAdminNav && <AdminBottomNav />}
+  </div>
+)
+```
+
+**Key Files:**
+- `routes/admin.tsx` - Access control, navigation visibility, already-authenticated redirects
+- `routes/login.tsx` - Role-based login redirects
+- `components/admin/AdminSidebar.tsx` - AdminBottomNav component (6 nav items)
 
 ## Touch Mode (On-Screen Keyboard)
 
