@@ -44,6 +44,7 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
     : {
         username: '',
         email: '',
+        email_confirmation: '',
         password: '',
         first_name: '',
         last_name: '',
@@ -60,9 +61,13 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
   // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: CreateUserData) => apiClient.createUser(data),
-    onSuccess: () => {
+    onSuccess: (_response: any) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      toastHelpers.userCreated(`${form.getValues('first_name')} ${form.getValues('last_name')}`)
+
+      const name = `${form.getValues('first_name')} ${form.getValues('last_name')}`
+
+      toastHelpers.userCreated(name)
+
       form.reset()
       onSuccess?.()
     },
@@ -96,12 +101,17 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
       }
       updateMutation.mutate(updateData)
     } else {
-      // Filter out empty pin for creates
+      // Filter out empty password, empty pin, and remove email_confirmation for creates
       const createData = { ...data } as CreateUserData
+      if (!createData.password || createData.password.trim() === '') {
+        delete createData.password
+      }
       if (!createData.pin || createData.pin.trim() === '') {
         delete createData.pin
       }
-      createMutation.mutate(createData)
+      // Remove email_confirmation before sending to API (only used for validation)
+      const { email_confirmation, ...dataToSend } = createData as any
+      createMutation.mutate(dataToSend as CreateUserData)
     }
   }
 
@@ -145,30 +155,46 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
                 <h3 className="text-sm font-semibold text-zinc-300">Account Information</h3>
               </div>
               <div className="p-5 space-y-4">
-                <TextInputField
-                  control={form.control}
-                  name="username"
-                  label="Username"
-                  placeholder="Enter username"
-                  autoComplete="username"
-                  description="Used for logging into the system"
-                />
-                <TextInputField
-                  control={form.control}
-                  name="email"
-                  label="Email Address"
-                  type="email"
-                  placeholder="Enter email address"
-                  autoComplete="email"
-                />
+                {/* Show helpful note about email login */}
+                {!isEditing && (
+                  <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
+                    <p className="text-sm text-blue-400">
+                      <span className="font-semibold">Email Login: </span>
+                      Staff will receive an invitation email to set up their account and login with their email address.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <TextInputField
+                    control={form.control}
+                    name="email"
+                    label="Email Address"
+                    type="email"
+                    placeholder="Enter email address"
+                    autoComplete="email"
+                    description="Staff will use this email to login"
+                  />
+                  {!isEditing && (
+                    <TextInputField
+                      control={form.control}
+                      name="email_confirmation"
+                      label="Confirm Email Address"
+                      type="email"
+                      placeholder="Re-enter email address"
+                      autoComplete="email"
+                      description="Must match the email address above"
+                    />
+                  )}
+                </div>
                 <TextInputField
                   control={form.control}
                   name="password"
-                  label={isEditing ? "New Password (leave blank to keep current)" : "Password"}
+                  label={isEditing ? "New Password (leave blank to keep current)" : "Password (Optional)"}
                   type="password"
-                  placeholder={isEditing ? "Enter new password or leave blank" : "Enter password"}
+                  placeholder={isEditing ? "Enter new password or leave blank" : "Leave blank - staff will set their own"}
                   autoComplete={isEditing ? "new-password" : "new-password"}
-                  description={isEditing ? "Leave blank to keep the current password" : "Minimum 6 characters"}
+                  description={isEditing ? "Leave blank to keep the current password" : "Optional: Staff will set their own password via invitation email"}
                 />
               </div>
             </section>

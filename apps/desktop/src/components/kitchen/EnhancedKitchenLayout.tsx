@@ -5,14 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  Settings, 
-  RefreshCw, 
-  Volume2, 
-  VolumeX, 
-  Clock,
+  Settings,
+  RefreshCw,
+  Volume2,
+  VolumeX,
   ChefHat,
   Package,
-  CheckCircle,
   AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,7 +19,7 @@ import { TakeawayBoard } from './TakeawayBoard';
 import { SoundSettings } from './SoundSettings';
 import { kitchenSoundService } from '@/services/soundService';
 import apiClient from '@/api/client';
-import type { User, Order } from '@/types';
+import type { User, Order, OrderStatus } from '@/types';
 
 interface EnhancedKitchenLayoutProps {
   user: User;
@@ -50,31 +48,28 @@ export function EnhancedKitchenLayout({ user }: EnhancedKitchenLayoutProps) {
     queryKey: ['enhancedKitchenOrders'],
     queryFn: () => apiClient.getKitchenOrders('all'),
     refetchInterval: autoRefresh ? 3000 : false, // 3-second refresh for balance
-    select: (data) => data.data || [],
-    onSuccess: (data) => {
-      setLastRefresh(new Date());
-      
-      // Check for new orders and play sound
-      const currentOrders = data || [];
-      const currentOrderIds = new Set(currentOrders.map((order: Order) => order.id));
-      const newOrderIds = currentOrders
-        .filter((order: Order) => !previousOrderIds.has(order.id) && order.status === 'confirmed')
-        .map((order: Order) => order.id);
-      
-      // Play sound for new orders
-      newOrderIds.forEach(async (orderId) => {
-        try {
-          await kitchenSoundService.playNewOrderSound(orderId);
-        } catch (error) {
-          console.error('Failed to play new order sound:', error);
-        }
-      });
-      
-      setPreviousOrderIds(currentOrderIds);
-    },
+    select: (data: any) => (Array.isArray(data?.data) ? data.data : []) as Order[],
   });
 
-  const orders = ordersResponse || [];
+  const orders: Order[] = ordersResponse || [];
+
+  // Track new orders for sound notifications
+  useEffect(() => {
+    if (!orders.length) return;
+    setLastRefresh(new Date());
+    const currentOrderIds = new Set<string>(orders.map((order: Order) => order.id));
+    const newOrderIds = orders
+      .filter((order: Order) => !previousOrderIds.has(order.id) && order.status === 'confirmed')
+      .map((order: Order) => order.id);
+    newOrderIds.forEach(async (orderId: string) => {
+      try {
+        await kitchenSoundService.playNewOrderSound(orderId);
+      } catch (error) {
+        console.error('Failed to play new order sound:', error);
+      }
+    });
+    setPreviousOrderIds(currentOrderIds);
+  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Group orders by status for better organization
   const ordersByStatus = {
@@ -100,7 +95,7 @@ export function EnhancedKitchenLayout({ user }: EnhancedKitchenLayoutProps) {
   // Handle order status updates
   const handleOrderStatusUpdate = useCallback(async (orderId: string, newStatus: string) => {
     try {
-      await apiClient.updateOrderStatus(orderId, newStatus);
+      await apiClient.updateOrderStatus(orderId, newStatus as OrderStatus);
       refetch();
     } catch (error) {
       console.error('Failed to update order status:', error);

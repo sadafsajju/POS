@@ -1,36 +1,35 @@
-import { getApiClient } from './client';
+import {
+  categoriesDb,
+  productsDb,
+  tablesDb,
+  usersDb,
+  ordersDb,
+  paymentsDb,
+  customersDb,
+  settingsDb,
+  locationsDb,
+  reportsDb,
+  platformConfigsDb,
+  setupDb,
+} from '@pos/supabase';
+import type { Json } from '@pos/supabase';
 import type {
   User,
   Product,
   Category,
-  Order,
   Table,
   Customer,
   CreateCustomerRequest,
-  Payment,
-  PaginatedResponse,
   PaginationParams,
   LoginRequest,
-  LoginResponse,
   CreateOrderRequest,
   ProcessPaymentRequest,
-  PaymentSummary,
-  DashboardStats,
-  SalesReportItem,
-  OrdersReportItem,
-  IncomeReport,
-  KitchenOrder,
-  TableStatusSummary,
   OrderFilters,
   ProductFilters,
   TableFilters,
-  PlatformConfig,
   CreatePlatformConfigRequest,
-  AggregatorOrder,
-  Location,
   CreateLocationRequest,
   UpdateLocationRequest,
-  LocationProductOverride,
   SetLocationProductOverrideRequest,
 } from '@pos/types';
 
@@ -96,16 +95,15 @@ export interface PromoItem {
 }
 
 // ============================================
-// Public Promos Endpoint (no auth)
+// Public Promos Endpoint — TODO: Move to Supabase query
 // ============================================
 export const promosApi = {
-  /** Fetch active promos for customer display (no auth required) */
-  getPublicPromos: () =>
-    getApiClient().get<PromoItem[]>('/promos'),
+  getPublicPromos: async () =>
+    ({ success: true, message: 'Success', data: [] }) as any,
 };
 
 // ============================================
-// Setup Endpoints (First-time installation)
+// Setup Endpoints
 // ============================================
 export interface SetupStatus {
   needs_setup: boolean;
@@ -131,10 +129,23 @@ export interface CreateAdminRequest {
 
 export const setupApi = {
   checkStatus: () =>
-    getApiClient().get<SetupStatus>('/setup/check'),
+    setupDb.checkSetupStatus() as any,
 
   createAdmin: (data: CreateAdminRequest) =>
-    getApiClient().post<{ user_id: string; username: string; role: string }>('/setup/admin', data),
+    setupDb.performInitialSetup({
+      username: data.username,
+      email: data.email,
+      password: data.password,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      pin: data.pin,
+      store_name: data.store_name || 'My Store',
+      location_name: data.location_name || 'Main Branch',
+      location_code: data.location_code || 'MAIN',
+      currency: data.currency || 'USD',
+      currency_symbol: data.currency_symbol || '$',
+      tax_rate: data.tax_rate || '10',
+    }) as any,
 };
 
 // ============================================
@@ -148,30 +159,35 @@ export interface StaffMember {
 }
 
 export const authApi = {
-  login: (credentials: LoginRequest) =>
-    getApiClient().post<LoginResponse>('/auth/login', credentials),
+  login: (_credentials: LoginRequest) =>
+    Promise.resolve({ success: false, message: 'Use Supabase Auth signInWithPassword()' }) as any,
 
   logout: () =>
-    getApiClient().post('/auth/logout'),
+    Promise.resolve({ success: true, message: 'Use Supabase Auth signOut()' }) as any,
 
   me: () =>
-    getApiClient().get<User>('/auth/me'),
+    Promise.resolve({ success: false, message: 'Use Supabase Auth getSession()' }) as any,
 
-  /** List active staff who have a PIN set (public, no auth needed) */
   getStaffForPin: () =>
-    getApiClient().get<StaffMember[]>('/auth/staff'),
+    usersDb.getStaffForPin() as any,
 
   pinStatus: () =>
-    getApiClient().get<{ has_pin: boolean }>('/auth/pin-status'),
+    Promise.resolve({ success: false, message: 'PIN status not yet implemented' }) as any,
 
-  verifyPin: (pin: string) =>
-    getApiClient().post<void>('/auth/verify-pin', { pin }),
+  verifyPin: (_pin: string) =>
+    Promise.resolve({ success: false, message: 'PIN verification not yet implemented' }) as any,
 
-  updatePin: (newPin: string) =>
-    getApiClient().put<void>('/auth/pin', { new_pin: newPin }),
+  updatePin: (_newPin: string) =>
+    Promise.resolve({ success: false, message: 'PIN update not yet implemented' }) as any,
 
-  switchLocation: (locationId: string) =>
-    getApiClient().post<{ token: string; location: Location }>('/auth/switch-location', { location_id: locationId }),
+  switchLocation: (_locationId: string) =>
+    Promise.resolve({ success: false, message: 'Location switching not yet implemented' }) as any,
+
+  supabaseSession: () =>
+    Promise.resolve({ success: false, message: 'Use Supabase Auth getSession()' }) as any,
+
+  completeSetup: (_data: any) =>
+    Promise.resolve({ success: false, message: 'Use Supabase Edge Function for setup' }) as any,
 };
 
 // ============================================
@@ -179,13 +195,18 @@ export const authApi = {
 // ============================================
 export const productsApi = {
   getAll: (params?: ProductFilters) =>
-    getApiClient().get<PaginatedResponse<Product>>('/products', params),
+    productsDb.getProducts({
+      page: params?.page,
+      per_page: params?.per_page,
+      search: params?.search,
+      category_id: params?.category_id,
+    }) as any,
 
   getById: (id: string) =>
-    getApiClient().get<Product>(`/products/${id}`),
+    productsDb.getProductById(id) as any,
 
-  getByCategory: (categoryId: string, availableOnly = true) =>
-    getApiClient().get<Product[]>(`/categories/${categoryId}/products`, { available_only: availableOnly }),
+  getByCategory: (categoryId: string, _availableOnly = true) =>
+    productsDb.getProductsByCategory(categoryId) as any,
 };
 
 // ============================================
@@ -193,10 +214,10 @@ export const productsApi = {
 // ============================================
 export const categoriesApi = {
   getAll: (activeOnly = true) =>
-    getApiClient().get<Category[]>('/categories', { active_only: activeOnly }),
+    categoriesDb.getCategories({ active_only: activeOnly }) as any,
 
   getById: (id: string) =>
-    getApiClient().get<Category>(`/categories/${id}`),
+    categoriesDb.getCategoryById(id) as any,
 };
 
 // ============================================
@@ -204,30 +225,38 @@ export const categoriesApi = {
 // ============================================
 export const tablesApi = {
   getAll: (filters?: TableFilters) =>
-    getApiClient().get<Table[]>('/tables', filters),
+    tablesDb.getTables(filters) as any,
 
   getById: (id: string) =>
-    getApiClient().get<Table>(`/tables/${id}`),
+    tablesDb.getTableById(id) as any,
 
   getByLocation: () =>
-    getApiClient().get<Table[]>('/tables/by-location'),
+    tablesDb.getTables() as any,
 
   getStatus: () =>
-    getApiClient().get<TableStatusSummary>('/tables/status'),
+    tablesDb.getTableStatus() as any,
 };
 
 // ============================================
 // Orders Endpoints
 // ============================================
 export const ordersApi = {
-  getAll: (params?: OrderFilters) =>
-    getApiClient().get<PaginatedResponse<Order>>('/orders', params),
+  getAll: (params?: OrderFilters & { table_id?: string; date_from?: string; date_to?: string }) =>
+    ordersDb.getOrders({
+      page: params?.page,
+      per_page: params?.per_page,
+      status: params?.status,
+      order_type: params?.order_type,
+      table_id: params?.table_id,
+      date_from: params?.date_from,
+      date_to: params?.date_to,
+    }) as any,
 
   getById: (id: string) =>
-    getApiClient().get<Order>(`/orders/${id}`),
+    ordersDb.getOrderById(id) as any,
 
   updateStatus: (id: string, status: string, notes?: string) =>
-    getApiClient().patch<Order>(`/orders/${id}/status`, { status, notes }),
+    ordersDb.updateOrderStatus(id, status, notes) as any,
 };
 
 // ============================================
@@ -235,45 +264,66 @@ export const ordersApi = {
 // ============================================
 export const paymentsApi = {
   getByOrder: (orderId: string) =>
-    getApiClient().get<Payment[]>(`/orders/${orderId}/payments`),
+    paymentsDb.getPaymentsByOrder(orderId) as any,
 
   getSummary: (orderId: string) =>
-    getApiClient().get<PaymentSummary>(`/orders/${orderId}/payment-summary`),
+    paymentsDb.getPaymentSummary(orderId) as any,
 };
 
 // ============================================
-// Server Role Endpoints (Dine-in orders only)
+// Server Role Endpoints
 // ============================================
 export const serverApi = {
   createOrder: (order: CreateOrderRequest) =>
-    getApiClient().post<Order>('/server/orders', order),
+    ordersDb.createOrder({
+      table_id: order.table_id,
+      customer_id: order.customer_id,
+      customer_name: order.customer_name,
+      order_type: order.order_type,
+      items: order.items as unknown as Json,
+      notes: order.notes,
+      parent_order_id: order.parent_order_id,
+      create_as_kot: order.create_as_kot,
+      order_source: (order as any).order_source,
+      initial_status: (order as any).initial_status,
+    }) as any,
 
   addItems: (orderId: string, items: Array<{ product_id: string; quantity: number; special_instructions?: string }>) =>
-    getApiClient().post<Order>(`/server/orders/${orderId}/items`, { items }),
+    ordersDb.createOrder({
+      order_type: 'dine_in',
+      items: items as unknown as Json,
+      parent_order_id: orderId,
+      create_as_kot: true,
+    }) as any,
 };
 
 // ============================================
-// Counter Role Endpoints (All order types + payments)
+// Counter Role Endpoints
 // ============================================
 export const counterApi = {
   createOrder: (order: CreateOrderRequest) =>
-    getApiClient().post<Order>('/counter/orders', order),
+    serverApi.createOrder(order),
 
   addItems: (orderId: string, items: Array<{ product_id: string; quantity: number; special_instructions?: string }>) =>
-    getApiClient().post<Order>(`/counter/orders/${orderId}/items`, { items }),
+    serverApi.addItems(orderId, items),
 
   processPayment: (orderId: string, payment: ProcessPaymentRequest) =>
-    getApiClient().post<Payment>(`/counter/orders/${orderId}/payments`, payment),
+    paymentsDb.processPayment({
+      order_id: orderId,
+      payment_method: payment.payment_method,
+      amount: payment.amount,
+      reference_number: payment.reference_number,
+      cash_received: (payment as any).cash_received,
+    }) as any,
 
-  // Aggregator order management
   getAggregatorOrders: (params?: { status?: string; platform?: string }) =>
-    getApiClient().get<AggregatorOrder[]>('/counter/aggregator-orders', params),
+    ordersDb.getAggregatorOrders(params) as any,
 
-  acceptAggregatorOrder: (orderId: string) =>
-    getApiClient().post<Order>(`/counter/orders/${orderId}/accept-aggregator`),
+  acceptAggregatorOrder: (_orderId: string) =>
+    Promise.resolve({ success: false, message: 'Aggregator accept not yet implemented' }) as any,
 
-  rejectAggregatorOrder: (orderId: string, reason: string) =>
-    getApiClient().post(`/counter/orders/${orderId}/reject-aggregator`, { reason }),
+  rejectAggregatorOrder: (_orderId: string, _reason: string) =>
+    Promise.resolve({ success: false, message: 'Aggregator reject not yet implemented' }) as any,
 };
 
 // ============================================
@@ -281,10 +331,10 @@ export const counterApi = {
 // ============================================
 export const kitchenApi = {
   getOrders: (status?: string) =>
-    getApiClient().get<KitchenOrder[]>('/kitchen/orders', status && status !== 'all' ? { status } : {}),
+    ordersDb.getKitchenOrders(status) as any,
 
   updateItemStatus: (orderId: string, itemId: string, status: string) =>
-    getApiClient().patch(`/kitchen/orders/${orderId}/items/${itemId}/status`, { status }),
+    ordersDb.updateOrderItemStatus(orderId, itemId, status) as any,
 };
 
 // ============================================
@@ -293,178 +343,194 @@ export const kitchenApi = {
 export const adminApi = {
   // Dashboard & Reports
   getDashboardStats: () =>
-    getApiClient().get<DashboardStats>('/admin/dashboard/stats'),
+    reportsDb.getDashboardStats() as any,
 
   getSalesReport: (period: 'today' | 'week' | 'month' = 'today') =>
-    getApiClient().get<SalesReportItem[]>('/admin/reports/sales', { period }),
+    reportsDb.getSalesReport(period) as any,
 
   getOrdersReport: () =>
-    getApiClient().get<OrdersReportItem[]>('/admin/reports/orders'),
+    reportsDb.getOrdersReport() as any,
 
   getIncomeReport: (period: 'today' | 'week' | 'month' | 'year' = 'today') =>
-    getApiClient().get<IncomeReport>('/admin/reports/income', { period }),
+    reportsDb.getIncomeReport(period) as any,
 
   // Settings
   getSettings: () =>
-    getApiClient().get<Record<string, string>>('/admin/settings'),
+    settingsDb.getSettings() as any,
 
   updateSettings: (settings: Record<string, string>) =>
-    getApiClient().put<Record<string, string>>('/admin/settings', settings),
+    settingsDb.updateSettings(settings) as any,
 
   getSetting: (key: string) =>
-    getApiClient().get<{ key: string; value: string }>(`/admin/settings/${key}`),
+    settingsDb.getSetting(key) as any,
 
   // User Management
   getUsers: (params?: PaginationParams & { role?: string; active?: string }) =>
-    getApiClient().get<PaginatedResponse<User>>('/admin/users', params),
+    usersDb.getUsers({
+      page: params?.page,
+      per_page: params?.per_page,
+      search: params?.search,
+      role: params?.role,
+      active: params?.active,
+    }) as any,
 
-  createUser: (userData: Partial<User> & { password: string }) =>
-    getApiClient().post<User>('/admin/users', userData),
+  createUser: (userData: Partial<User> & { password?: string }) =>
+    usersDb.createUser(userData as any) as any,
 
   updateUser: (id: string, userData: Partial<User> & { password?: string }) =>
-    getApiClient().put<User>(`/admin/users/${id}`, userData),
+    usersDb.updateUser(id, userData as any) as any,
 
   deleteUser: (id: string) =>
-    getApiClient().delete(`/admin/users/${id}`),
+    usersDb.deleteUser(id) as any,
 
   // Product Management
   getProducts: (params?: ProductFilters) =>
-    getApiClient().get<PaginatedResponse<Product>>('/admin/products', params),
+    productsDb.getProducts({
+      page: params?.page,
+      per_page: params?.per_page,
+      search: params?.search,
+      category_id: params?.category_id,
+    }) as any,
 
   createProduct: (productData: Partial<Product>) =>
-    getApiClient().post<Product>('/admin/products', productData),
+    productsDb.createProduct(productData as any) as any,
 
   updateProduct: (id: string, productData: Partial<Product>) =>
-    getApiClient().put<Product>(`/admin/products/${id}`, productData),
+    productsDb.updateProduct(id, productData as any) as any,
 
   deleteProduct: (id: string) =>
-    getApiClient().delete(`/admin/products/${id}`),
+    productsDb.deleteProduct(id) as any,
 
   // Category Management
   getCategories: (params?: PaginationParams & { active_only?: boolean }) =>
-    getApiClient().get<PaginatedResponse<Category>>('/admin/categories', params),
+    categoriesDb.getCategories({
+      page: params?.page,
+      per_page: params?.per_page,
+      search: params?.search,
+      active_only: params?.active_only,
+    }) as any,
 
   createCategory: (categoryData: Partial<Category>) =>
-    getApiClient().post<Category>('/admin/categories', categoryData),
+    categoriesDb.createCategory(categoryData as any) as any,
 
   updateCategory: (id: string, categoryData: Partial<Category>) =>
-    getApiClient().put<Category>(`/admin/categories/${id}`, categoryData),
+    categoriesDb.updateCategory(id, categoryData as any) as any,
 
   deleteCategory: (id: string) =>
-    getApiClient().delete(`/admin/categories/${id}`),
+    categoriesDb.deleteCategory(id) as any,
 
   // Table Management
   getTables: (params?: TableFilters & PaginationParams) =>
-    getApiClient().get<PaginatedResponse<Table>>('/admin/tables', params),
+    tablesDb.getTables(params) as any,
 
   createTable: (tableData: Partial<Table>) =>
-    getApiClient().post<Table>('/admin/tables', tableData),
+    tablesDb.createTable(tableData as any) as any,
 
   updateTable: (id: string, tableData: Partial<Table>) =>
-    getApiClient().put<Table>(`/admin/tables/${id}`, tableData),
+    tablesDb.updateTable(id, tableData as any) as any,
 
   deleteTable: (id: string) =>
-    getApiClient().delete(`/admin/tables/${id}`),
+    tablesDb.deleteTable(id) as any,
 
   // Order Management
   createOrder: (order: CreateOrderRequest) =>
-    getApiClient().post<Order>('/admin/orders', order),
+    serverApi.createOrder(order),
 
   addItemsToOrder: (orderId: string, items: Array<{ product_id: string; quantity: number; special_instructions?: string }>) =>
-    getApiClient().post<Order>(`/admin/orders/${orderId}/items`, { items }),
+    serverApi.addItems(orderId, items),
 
   processPayment: (orderId: string, payment: ProcessPaymentRequest) =>
-    getApiClient().post<Payment>(`/admin/orders/${orderId}/payments`, payment),
+    counterApi.processPayment(orderId, payment),
 
   deleteOrder: (orderId: string) =>
-    getApiClient().delete(`/admin/orders/${orderId}`),
+    ordersDb.deleteOrder(orderId) as any,
 
   // Aggregator order management
   getAggregatorOrders: (params?: { status?: string; platform?: string }) =>
-    getApiClient().get<AggregatorOrder[]>('/admin/aggregator-orders', params),
+    ordersDb.getAggregatorOrders(params) as any,
 
-  acceptAggregatorOrder: (orderId: string) =>
-    getApiClient().post<Order>(`/admin/orders/${orderId}/accept-aggregator`),
+  acceptAggregatorOrder: (_orderId: string) =>
+    Promise.resolve({ success: false, message: 'Aggregator accept not yet implemented' }) as any,
 
-  rejectAggregatorOrder: (orderId: string, reason: string) =>
-    getApiClient().post(`/admin/orders/${orderId}/reject-aggregator`, { reason }),
+  rejectAggregatorOrder: (_orderId: string, _reason: string) =>
+    Promise.resolve({ success: false, message: 'Aggregator reject not yet implemented' }) as any,
 
   // Platform configuration (Swiggy/Zomato)
   getPlatformConfigs: () =>
-    getApiClient().get<PlatformConfig[]>('/admin/platform-configs'),
+    platformConfigsDb.getPlatformConfigs() as any,
 
   getPlatformConfig: (platform: string) =>
-    getApiClient().get<PlatformConfig>(`/admin/platform-configs/${platform}`),
+    platformConfigsDb.getPlatformConfig(platform) as any,
 
   upsertPlatformConfig: (config: CreatePlatformConfigRequest) =>
-    getApiClient().put<PlatformConfig>('/admin/platform-configs', config),
+    platformConfigsDb.upsertPlatformConfig(config as any) as any,
 
   deletePlatformConfig: (platform: string) =>
-    getApiClient().delete(`/admin/platform-configs/${platform}`),
+    platformConfigsDb.deletePlatformConfig(platform) as any,
 
   // Location Management
   getLocations: () =>
-    getApiClient().get<Location[]>('/admin/locations'),
+    locationsDb.getLocations() as any,
 
   createLocation: (data: CreateLocationRequest) =>
-    getApiClient().post<{ id: string }>('/admin/locations', data),
+    locationsDb.createLocation(data as any) as any,
 
   updateLocation: (id: string, data: UpdateLocationRequest) =>
-    getApiClient().put('/admin/locations/' + id, data),
+    locationsDb.updateLocation(id, data as any) as any,
 
   deleteLocation: (id: string) =>
-    getApiClient().delete('/admin/locations/' + id),
+    locationsDb.deleteLocation(id) as any,
 
-  getLocationProducts: (locationId: string) =>
-    getApiClient().get<LocationProductOverride[]>(`/admin/locations/${locationId}/products`),
+  getLocationProducts: (_locationId: string) =>
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 
-  setLocationProductOverride: (locationId: string, productId: string, data: SetLocationProductOverrideRequest) =>
-    getApiClient().put(`/admin/locations/${locationId}/products/${productId}`, data),
+  setLocationProductOverride: (_locationId: string, _productId: string, _data: SetLocationProductOverrideRequest) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  removeLocationProductOverride: (locationId: string, productId: string) =>
-    getApiClient().delete(`/admin/locations/${locationId}/products/${productId}`),
+  removeLocationProductOverride: (_locationId: string, _productId: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
   reassignUserLocation: (userId: string, locationId: string) =>
-    getApiClient().put(`/admin/users/${userId}/location`, { location_id: locationId }),
+    usersDb.updateUser(userId, { location_id: locationId }) as any,
 
-  // Promo Management
+  // Promo Management — TODO: Move to Supabase Storage in Phase 5
   getPromos: () =>
-    getApiClient().get<PromoItem[]>('/admin/promos'),
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 
-  uploadPromo: (formData: FormData) =>
-    getApiClient().postForm<PromoItem>('/admin/promos/upload', formData),
+  uploadPromo: (_formData: FormData) =>
+    Promise.resolve({ success: false, message: 'File uploads not yet migrated' }) as any,
 
-  createPromoFromMedia: (file_url: string, title?: string) =>
-    getApiClient().post<PromoItem>('/admin/promos/from-media', { file_url, title }),
+  createPromoFromMedia: (_file_url: string, _title?: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  deletePromo: (id: string) =>
-    getApiClient().delete(`/admin/promos/${id}`),
+  deletePromo: (_id: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  reorderPromos: (items: { id: string; display_order: number }[]) =>
-    getApiClient().put('/admin/promos/reorder', items),
+  reorderPromos: (_items: { id: string; display_order: number }[]) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  togglePromo: (id: string) =>
-    getApiClient().put<{ id: string; is_active: boolean }>(`/admin/promos/${id}/toggle`),
+  togglePromo: (_id: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  updatePromoDuration: (id: string, duration_seconds: number) =>
-    getApiClient().put(`/admin/promos/${id}/duration`, { duration_seconds }),
+  updatePromoDuration: (_id: string, _duration_seconds: number) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  // Media Library
+  // Media Library — TODO: Move to Supabase Storage in Phase 5
   getMedia: () =>
-    getApiClient().get<any[]>('/admin/media'),
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 
-  uploadMedia: (formData: FormData) =>
-    getApiClient().postForm<any>('/admin/media/upload', formData),
+  uploadMedia: (_formData: FormData) =>
+    Promise.resolve({ success: false, message: 'File uploads not yet migrated' }) as any,
 
-  deleteMedia: (id: string) =>
-    getApiClient().delete(`/admin/media/${id}`),
+  deleteMedia: (_id: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  // QR Code Management
-  generateQRCode: (data: { table_id: string; wifi_ssid?: string; wifi_password?: string; pos_hostname?: string; pos_port?: string }) =>
-    getApiClient().post<{ id: string; table_id: string; table_name: string; qr_data: string; url: string }>('/admin/qr-codes/generate', data),
+  // QR Code Management — TODO: Implement as Supabase query
+  generateQRCode: (_data: { table_id: string; wifi_ssid?: string; wifi_password?: string; pos_hostname?: string; pos_port?: string }) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  getQRCodes: (tableId?: string) =>
-    getApiClient().get<Array<{ id: string; table_id: string; table_name: string; qr_data: string; is_active: boolean; scan_count: number; last_scanned_at: string | null }>>('/admin/qr-codes', tableId ? { table_id: tableId } : {}),
+  getQRCodes: (_tableId?: string) =>
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 };
 
 // ============================================
@@ -472,54 +538,51 @@ export const adminApi = {
 // ============================================
 export const customersApi = {
   getAll: (params?: PaginationParams) =>
-    getApiClient().get<PaginatedResponse<Customer>>('/customers', params),
+    customersDb.getCustomers(params) as any,
 
   getById: (id: string) =>
-    getApiClient().get<Customer>(`/customers/${id}`),
+    customersDb.getCustomerById(id) as any,
 
   getByPhone: (phone: string) =>
-    getApiClient().get<Customer>(`/customers/phone/${encodeURIComponent(phone)}`),
+    customersDb.getCustomerByPhone(phone) as any,
 
   create: (data: CreateCustomerRequest) =>
-    getApiClient().post<Customer>('/customers', data),
+    customersDb.createCustomer(data as any) as any,
 
   update: (id: string, data: Partial<Customer>) =>
-    getApiClient().put<Customer>(`/customers/${id}`, data),
+    customersDb.updateCustomer(id, data as any) as any,
 
   search: (query: string, limit = 10) =>
-    getApiClient().get<Customer[]>('/customers/search', { query, limit }),
+    customersDb.searchCustomers(query, limit) as any,
 };
 
 // ============================================
-// Customer Ordering Endpoints (Public - No JWT)
+// Customer Ordering Endpoints — TODO: Implement as Edge Function
 // ============================================
 export const customerOrderingApi = {
-  initSession: (data: { qr_token: string; customer_name?: string; customer_phone?: string }) =>
-    getApiClient().post<{ session_token: string; table_id: string; table_number: string; expires_at: string }>('/customer/session', data),
+  initSession: (_data: { qr_token: string; customer_name?: string; customer_phone?: string }) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented for Supabase' }) as any,
 
   getMenu: () =>
-    getApiClient().get<any[]>('/customer/menu'),
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 
-  placeOrder: (data: { items: Array<{ product_id: string; quantity: number; special_instructions?: string }> }) =>
-    getApiClient().post<any>('/customer/order', data),
+  placeOrder: (_data: { items: Array<{ product_id: string; quantity: number; special_instructions?: string }> }) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented for Supabase' }) as any,
 
   getMyOrders: () =>
-    getApiClient().get<any[]>('/customer/orders'),
+    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
 };
 
 // ============================================
-// Tenant Registration Endpoints (Public - No JWT)
+// Tenant Registration Endpoints — TODO: Implement as Edge Function
 // ============================================
 export const tenantApi = {
-  // Register new tenant (public endpoint)
-  register: (data: RegisterTenantRequest) =>
-    getApiClient().post<RegisterTenantResponse>('/register', data),
+  register: (_data: RegisterTenantRequest) =>
+    Promise.resolve({ success: false, message: 'Use Supabase Edge Function for registration' }) as any,
 
-  // Check subdomain availability (public endpoint)
-  checkSubdomain: (subdomain: string) =>
-    getApiClient().get<SubdomainCheckResponse>('/check-subdomain', { subdomain }),
+  checkSubdomain: (_subdomain: string) =>
+    Promise.resolve({ success: true, message: 'Success', data: { available: true } }) as any,
 
-  // Get tenant info by subdomain (public endpoint)
-  getTenantBySubdomain: (subdomain: string) =>
-    getApiClient().get<TenantInfo>(`/tenant/${subdomain}`),
+  getTenantBySubdomain: (_subdomain: string) =>
+    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 };

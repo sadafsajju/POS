@@ -14,7 +14,7 @@ import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
 
 // Types
-import type { DiningTable, Order, Category, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot, InlineConfigState } from './types'
+import type { DiningTable, Order, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot, InlineConfigState } from './types'
 
 // --- Helpers to reduce repetition ---
 
@@ -127,7 +127,7 @@ export function CounterInterface() {
     navigate({
       to: routerState.location.pathname,
       search: {
-        view: view === 'order-type' ? undefined : view,
+        view: view === 'order-type' ? undefined : view as any,
         type: type ?? (view === 'order-type' ? undefined : orderType),
       },
       replace: true,
@@ -339,12 +339,9 @@ export function CounterInterface() {
         const bill: BillSummary = {
           bill: createdOrder,
           kots: [],
-          total_items: createdOrder.items?.length || 0,
-          aggregated_subtotal: createdOrder.total_amount || 0,
-          aggregated_tax: 0,
-          aggregated_discount: 0,
           aggregated_total: createdOrder.total_amount || 0,
-          is_bill_closed: false,
+          paid_amount: 0,
+          balance_due: createdOrder.total_amount || 0,
         }
         setTakeawayBill(bill)
         cart.clearCart()

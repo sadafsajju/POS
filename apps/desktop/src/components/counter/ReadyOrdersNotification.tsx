@@ -26,7 +26,6 @@ export function ReadyOrdersNotification({
   autoRefresh = true,
   onOrderServed
 }: ReadyOrdersNotificationProps) {
-  const { settings } = useSettingsStore();
   const [previousReadyOrders, setPreviousReadyOrders] = useState<Set<string>>(new Set());
   const [soundPlayed, setSoundPlayed] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(true);
@@ -165,6 +164,7 @@ interface ReadyOrderCardProps {
 }
 
 function ReadyOrderCard({ order, onServed }: ReadyOrderCardProps) {
+  const { settings } = useSettingsStore();
   const getUrgencyLevel = (readyTime: number) => {
     if (readyTime >= 15) return { level: 'critical', color: 'bg-red-500', text: 'Very Urgent' };
     if (readyTime >= 10) return { level: 'high', color: 'bg-orange-500', text: 'Urgent' };

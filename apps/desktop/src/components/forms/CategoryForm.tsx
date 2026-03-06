@@ -54,7 +54,7 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
-      toastHelpers.categoryCreated(form.getValues('name'))
+      toastHelpers.categoryCreated(form.getValues('name') ?? '')
       form.reset()
       onSuccess?.()
     },

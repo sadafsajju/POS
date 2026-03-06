@@ -4,6 +4,15 @@ import { setupApi } from '@pos/api-client'
 // Module-level cache to avoid re-checking on every route navigation
 let cachedResult: { needsSetup: boolean } | null = null
 
+/** Check if offline setup was already completed (stored in localStorage) */
+function isOfflineSetupComplete(): boolean {
+  try {
+    return localStorage.getItem('pos_setup_complete') === 'true'
+  } catch {
+    return false
+  }
+}
+
 export function useSetupCheck() {
   const [isChecking, setIsChecking] = useState(cachedResult === null)
   const [needsSetup, setNeedsSetup] = useState(cachedResult?.needsSetup ?? false)
@@ -12,23 +21,31 @@ export function useSetupCheck() {
   const check = useCallback(async () => {
     setIsChecking(true)
     setError(null)
+
+    // If offline setup was completed, skip the cloud check
+    if (isOfflineSetupComplete()) {
+      cachedResult = { needsSetup: false }
+      setNeedsSetup(false)
+      setIsChecking(false)
+      return
+    }
+
     try {
       const response = await setupApi.checkStatus()
-      // ApiClient.get() returns ApiResponse<SetupStatus> = { success, data, message, error }
-      // It never throws — network errors come back as { success: false }
       if (!response.success) {
-        setError(response.error || response.message || 'Failed to connect to server')
-        cachedResult = null
+        // If Supabase is unreachable but no offline setup exists, show setup
+        // (not an error — the user just hasn't set up yet)
+        cachedResult = { needsSetup: true }
+        setNeedsSetup(true)
       } else {
         const result = response.data?.needs_setup ?? false
         cachedResult = { needsSetup: result }
         setNeedsSetup(result)
       }
     } catch (err: unknown) {
-      // Shouldn't happen with ApiClient, but just in case (e.g. client not initialized)
-      const message = err instanceof Error ? err.message : 'Failed to connect to server'
-      setError(message)
-      cachedResult = null
+      // Can't reach server and no offline setup — needs setup
+      cachedResult = { needsSetup: true }
+      setNeedsSetup(true)
     } finally {
       setIsChecking(false)
     }

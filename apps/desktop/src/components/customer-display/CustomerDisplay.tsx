@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCustomerDisplayReceiver } from '@pos/core'
 import type { CustomerDisplayState, DisplayCartItem } from '@pos/core'
 import { ShoppingBag, Clock, CreditCard, CheckCircle2 } from 'lucide-react'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
-const PROMOS_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/promos`
+import { imageUrl } from '@/lib/utils'
+import { getSupabase } from '@pos/supabase'
 
 interface PublicPromo {
   id: string
@@ -90,7 +89,7 @@ function PromoCarousel({ promos }: { promos: PublicPromo[] }) {
 
   if (!current) return null
 
-  const mediaUrl = `${API_BASE}${current.file_url}`
+  const mediaUrl = imageUrl(current.file_url)
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-black">
@@ -153,10 +152,14 @@ function IdleScreen() {
 
     const fetchPromos = async () => {
       try {
-        const res = await fetch(PROMOS_URL)
-        const json = await res.json()
-        if (!cancelled && json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setPromos(json.data)
+        const sb = getSupabase()
+        const { data, error } = await sb
+          .from('promos')
+          .select('id, title, media_type, file_url, display_order, duration_seconds')
+          .eq('is_active', true)
+          .order('display_order')
+        if (!cancelled && !error && Array.isArray(data) && data.length > 0) {
+          setPromos(data as unknown as PublicPromo[])
         }
       } catch {
         // Silently fail — show fallback

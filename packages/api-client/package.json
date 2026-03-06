@@ -9,6 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@pos/supabase": "*",
     "@pos/types": "*",
     "axios": "^1.7.7"
   },

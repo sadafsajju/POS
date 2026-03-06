@@ -5,6 +5,7 @@ export interface ApiClientConfig {
   baseURL: string;
   timeout?: number;
   getToken?: () => string | null;
+  asyncGetToken?: () => Promise<string | null>;
   onUnauthorized?: () => void;
 }
 
@@ -23,14 +24,23 @@ export class ApiClient {
       },
     });
 
-    // Request interceptor for auth token
+    // Request interceptor for auth token (supports both sync and async getToken)
     this.client.interceptors.request.use(
-      (requestConfig: InternalAxiosRequestConfig) => {
-        if (this.config.getToken) {
-          const token = this.config.getToken();
-          if (token) {
-            requestConfig.headers.Authorization = `Bearer ${token}`;
+      async (requestConfig: InternalAxiosRequestConfig) => {
+        // Try async getToken first (Supabase), then sync getToken (internal JWT)
+        let token: string | null = null;
+        if (this.config.asyncGetToken) {
+          try {
+            token = await this.config.asyncGetToken();
+          } catch {
+            // Fall through to sync getToken
           }
+        }
+        if (!token && this.config.getToken) {
+          token = this.config.getToken();
+        }
+        if (token) {
+          requestConfig.headers.Authorization = `Bearer ${token}`;
         }
         return requestConfig;
       },

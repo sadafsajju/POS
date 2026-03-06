@@ -11,9 +11,9 @@ import {
   Lock,
 } from 'lucide-react'
 import type { User as UserType } from '@/types'
-import apiClient from '@/api/client'
 import { useAuthStore } from '@pos/core'
 import { LocationSwitcher } from '@/components/ui/location-switcher'
+import { signOut as supabaseSignOut } from '@pos/supabase'
 
 // --- Nav items ---
 
@@ -65,9 +65,16 @@ interface AdminTopBarProps {
 export function AdminTopBar({ user }: AdminTopBarProps) {
   const { lock } = useAuthStore()
 
-  const handleLogout = () => {
-    apiClient.clearAuth()
-    window.location.href = '/login'
+  const handleLogout = async () => {
+    // Clear Zustand auth state
+    useAuthStore.getState().logout()
+    localStorage.removeItem('pos-auth')
+
+    // Sign out from Supabase
+    await supabaseSignOut()
+
+    // Redirect to landing
+    window.location.href = '/landing'
   }
 
   const handleLock = () => {

@@ -3,8 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { ImageOff, Clock, Barcode, Settings2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import type { Product, CartItem, Category } from '../types'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import { imageUrl } from '@/lib/utils'
 
 const dietaryColors: Record<string, string> = {
   veg: '#22c55e',
@@ -33,7 +32,7 @@ export function CreateOrderView({
   categories,
   cart,
   onAddToCart,
-  onRemoveFromCart,
+  onRemoveFromCart: _onRemoveFromCart,
   onRemoveItem,
   onConfigureProduct,
   formatCurrency
@@ -141,7 +140,7 @@ export function CreateOrderView({
           <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
             {product.image_url ? (
               <img
-                src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+                src={imageUrl(product.image_url)}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />

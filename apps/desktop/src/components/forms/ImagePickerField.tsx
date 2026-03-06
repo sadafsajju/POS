@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Control, useController } from 'react-hook-form'
 import { adminApi, queryKeys, staleTime } from '@pos/api-client'
 import {
@@ -16,8 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import { imageUrl } from '@/lib/utils'
 
 interface ImagePickerFieldProps {
   control: Control<any>
@@ -70,7 +69,7 @@ export function ImagePickerField({ control, name, label, description }: ImagePic
       {currentUrl ? (
         <div className="relative group w-full rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800">
           <img
-            src={currentUrl.startsWith('/') ? `${API_BASE}${currentUrl}` : currentUrl}
+            src={imageUrl(currentUrl)}
             alt="Product"
             className="w-full h-40 object-cover"
           />
@@ -226,7 +225,7 @@ function MediaLibraryDialog({ open, onClose, onSelect, currentUrl }: MediaLibrar
                     }`}
                   >
                     <img
-                      src={`${API_BASE}${item.file_url}`}
+                      src={imageUrl(item.file_url)}
                       alt={item.original_name || item.filename}
                       className="w-full h-full object-cover"
                     />

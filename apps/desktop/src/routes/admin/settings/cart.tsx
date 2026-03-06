@@ -236,9 +236,6 @@ function CartPreview({
               )
             }
 
-            // Find which button is last (gets primary blue)
-            const isLastBtn = (btn: string) => btns[btns.length - 1] === btn
-
             const renderBtn = (btn: string, isPrimary: boolean) => {
               const cls = isPrimary ? primaryClass : secondaryClass
               if (btn === 'save') return (
@@ -270,7 +267,6 @@ function CartPreview({
             if (count === 2) {
               // Side by side, last one is blue
               const topBtns = btns.filter(b => b === 'save' || b === 'kot')
-              const bottomBtn = btns.find(b => b === 'pay')
               if (topBtns.length === 2) {
                 // Save + KOT, last (KOT) is blue
                 return (

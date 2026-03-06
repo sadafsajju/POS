@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Store,
   Wifi,
@@ -22,6 +23,11 @@ export const Route = createFileRoute('/landing')({
 });
 
 function LandingPage() {
+  // Clean up any stale flags on landing
+  useEffect(() => {
+    sessionStorage.removeItem('pos-logging-out')
+  }, [])
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       {/* Header */}
@@ -39,9 +45,9 @@ function LandingPage() {
                 Login
               </Button>
             </Link>
-            <Link to="/register">
+            <Link to="/setup">
               <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Start Free Trial
+                Get Started
               </Button>
             </Link>
           </div>
@@ -75,7 +81,7 @@ function LandingPage() {
 
               {/* CTAs - Square style: primary + text link */}
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <Link to="/register">
+                <Link to="/setup">
                   <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-6 text-base rounded-lg shadow-lg shadow-blue-600/20">
                     Get started
                   </Button>
@@ -316,7 +322,7 @@ function LandingPage() {
                   <span className="text-zinc-300">All features</span>
                 </li>
               </ul>
-              <Link to="/register" className="block">
+              <Link to="/setup" className="block">
                 <Button className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" variant="outline">Start Free Trial</Button>
               </Link>
             </CardContent>
@@ -350,7 +356,7 @@ function LandingPage() {
                   <span className="text-zinc-300">Basic reports</span>
                 </li>
               </ul>
-              <Link to="/register" className="block">
+              <Link to="/setup" className="block">
                 <Button className="w-full border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" variant="outline">Get Started</Button>
               </Link>
             </CardContent>
@@ -397,7 +403,7 @@ function LandingPage() {
                   <span className="text-zinc-300">Priority support</span>
                 </li>
               </ul>
-              <Link to="/register" className="block">
+              <Link to="/setup" className="block">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">Get Started</Button>
               </Link>
             </CardContent>
@@ -421,7 +427,7 @@ function LandingPage() {
           <p className="text-xl text-zinc-300 mb-8">
             Join hundreds of restaurants already using YourPOS
           </p>
-          <Link to="/register">
+          <Link to="/setup">
             <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-6 shadow-lg shadow-blue-600/20">
               Start Your Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -454,7 +460,7 @@ function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><a href="#features" className="text-zinc-400 hover:text-zinc-100 transition-colors">Features</a></li>
                 <li><a href="#pricing" className="text-zinc-400 hover:text-zinc-100 transition-colors">Pricing</a></li>
-                <li><Link to="/register" className="text-zinc-400 hover:text-zinc-100 transition-colors">Sign Up</Link></li>
+                <li><Link to="/setup" className="text-zinc-400 hover:text-zinc-100 transition-colors">Sign Up</Link></li>
               </ul>
             </div>
 

@@ -68,11 +68,11 @@ export function TableForm({ table, onSuccess, onCancel, mode = 'create', hideChr
   // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: CreateTableData) => apiClient.createTable(data),
-    onSuccess: (response) => {
+    onSuccess: (_response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-tables'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       queryClient.invalidateQueries({ queryKey: ['tables-summary'] })
-      toastHelpers.tableCreated(form.getValues('table_number'))
+      toastHelpers.tableCreated(form.getValues('table_number') ?? '')
       form.reset()
       onSuccess?.()
     },
@@ -84,7 +84,7 @@ export function TableForm({ table, onSuccess, onCancel, mode = 'create', hideChr
   // Update mutation  
   const updateMutation = useMutation({
     mutationFn: (data: UpdateTableData) => apiClient.updateTable(data.id.toString(), data),
-    onSuccess: (response) => {
+    onSuccess: (_response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-tables'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       queryClient.invalidateQueries({ queryKey: ['tables-summary'] })

@@ -20,20 +20,21 @@ const queryClient = new QueryClient({
 function SetupGate({ children }: { children: React.ReactNode }) {
   const pathname = window.location.pathname
   const isCustomerDisplay = pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk'
+  const isPublicRoute = pathname === '/landing' || pathname === '/login' || pathname === '/sign-up' || pathname === '/setup'
   const { needsSetup, isChecking, error, retry } = useSetupCheck()
 
   useEffect(() => {
-    if (isCustomerDisplay || isChecking || error) return
+    if (isCustomerDisplay || isPublicRoute || isChecking || error) return
 
-    if (needsSetup && pathname !== '/setup') {
-      window.location.href = '/setup'
+    if (needsSetup) {
+      window.location.href = '/landing'
     } else if (!needsSetup && pathname === '/setup') {
       window.location.href = '/login'
     }
-  }, [needsSetup, isChecking, error, pathname, isCustomerDisplay])
+  }, [needsSetup, isChecking, error, pathname, isCustomerDisplay, isPublicRoute])
 
-  // Customer display is a standalone read-only window — skip all gates
-  if (isCustomerDisplay) {
+  // Customer display and public routes skip the setup gate
+  if (isCustomerDisplay || isPublicRoute) {
     return <>{children}</>
   }
 
@@ -74,7 +75,7 @@ function SetupGate({ children }: { children: React.ReactNode }) {
   }
 
   // Redirect is in progress — show nothing to avoid flash
-  if (needsSetup && pathname !== '/setup') return null
+  if (needsSetup && pathname !== '/landing') return null
   if (!needsSetup && pathname === '/setup') return null
 
   return <>{children}</>
@@ -82,12 +83,12 @@ function SetupGate({ children }: { children: React.ReactNode }) {
 
 // Component that initializes settings on app load
 function SettingsInitializer({ children }: { children: React.ReactNode }) {
-  const { fetchSettings, isInitialized, settings } = useSettingsStore()
+  const { fetchSettings, settings } = useSettingsStore()
 
   useEffect(() => {
     // Skip fetching settings on login, setup, lock, and customer-display pages
     const pathname = window.location.pathname
-    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk') {
+    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk' || pathname === '/sign-up') {
       console.log('SettingsInitializer: On login/setup page, skipping fetch')
       return
     }
@@ -142,7 +143,7 @@ export const Route = createRootRoute({
   component: () => {
     const pathname = window.location.pathname
     // Landing, register, and login pages need scrolling
-    const needsScrolling = pathname === '/landing' || pathname === '/register' || pathname === '/login'
+    const needsScrolling = pathname === '/landing' || pathname === '/register' || pathname === '/login' || pathname === '/sign-up'
 
     return (
       <QueryClientProvider client={queryClient}>

@@ -14,14 +14,18 @@ export const userRoleSchema = z.enum(userRoles)
 export const pinSchema = z.string().length(4, 'PIN must be exactly 4 digits').regex(/^\d{4}$/, 'PIN must contain only digits').optional().or(z.literal(''))
 
 export const createUserSchema = z.object({
-  username: requiredStringSchema.min(3, 'Username must be at least 3 characters'),
+  username: z.string().min(3, 'Username must be at least 3 characters').optional().or(z.literal('')), // Optional - auto-generated from email
   email: emailSchema,
-  password: passwordSchema,
+  email_confirmation: emailSchema,
+  password: passwordSchema.optional().or(z.literal('')), // Optional when using Supabase Auth
   first_name: requiredStringSchema,
   last_name: requiredStringSchema,
   role: userRoleSchema,
   pin: pinSchema,
   location_ids: z.array(z.string()).optional(),
+}).refine((data) => data.email === data.email_confirmation, {
+  message: "Email addresses don't match",
+  path: ["email_confirmation"],
 })
 
 export const updateUserSchema = z.object({

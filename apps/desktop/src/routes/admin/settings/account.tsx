@@ -104,7 +104,7 @@ function AccountSettingsPage() {
 
   // Check if user has a PIN set via dedicated endpoint
   useEffect(() => {
-    authApi.pinStatus().then((res) => {
+    authApi.pinStatus().then((res: any) => {
       if (res.success && res.data) {
         setHasPin(res.data.has_pin)
       } else {

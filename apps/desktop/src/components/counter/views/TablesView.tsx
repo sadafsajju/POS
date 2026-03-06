@@ -201,11 +201,11 @@ interface TablesViewProps {
 export function TablesView({
   tables,
   allOrders,
-  selectedTable,
+  selectedTable: _selectedTable,
   onTableSelect,
   formatCurrency,
   orderType,
-  onOrderTypeChange,
+  onOrderTypeChange: _onOrderTypeChange,
   customerName,
   onCustomerNameChange,
   onProceedToProducts,

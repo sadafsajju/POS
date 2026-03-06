@@ -1,7 +1,6 @@
 import type { OfflineQueueItem } from '@pos/types';
 
 export interface SyncConfig {
-  apiBaseUrl: string;
   maxRetries: number;
   retryDelayMs: number;
   batchSize: number;
@@ -14,18 +13,32 @@ export interface SyncResult {
   errors: Record<string, string>;
 }
 
+/**
+ * Handler function that processes a single offline queue item.
+ * Must be registered per entity+action before syncing.
+ */
+type SyncHandler = (data: unknown) => Promise<{ success: boolean; message?: string }>;
+
 export class SyncEngine {
   private config: SyncConfig;
   private isSyncing: boolean = false;
+  private handlers: Map<string, SyncHandler> = new Map();
 
   constructor(config: Partial<SyncConfig> = {}) {
     this.config = {
-      apiBaseUrl: '',
       maxRetries: 3,
       retryDelayMs: 1000,
       batchSize: 10,
       ...config,
     };
+  }
+
+  /**
+   * Register a handler for a specific entity+action combination.
+   * e.g., registerHandler('orders', 'create', (data) => ordersDb.createOrder(data))
+   */
+  registerHandler(entity: string, action: string, handler: SyncHandler): void {
+    this.handlers.set(`${entity}:${action}`, handler);
   }
 
   async sync(queue: OfflineQueueItem[]): Promise<SyncResult> {
@@ -47,7 +60,6 @@ export class SyncEngine {
     };
 
     try {
-      // Process in batches
       for (let i = 0; i < queue.length; i += this.config.batchSize) {
         const batch = queue.slice(i, i + this.config.batchSize);
 
@@ -70,50 +82,17 @@ export class SyncEngine {
   }
 
   private async syncItem(item: OfflineQueueItem): Promise<void> {
-    const endpoint = this.getEndpoint(item.entity, item.action);
-    const method = this.getMethod(item.action);
+    const key = `${item.entity}:${item.action}`;
+    const handler = this.handlers.get(key);
 
-    const response = await fetch(`${this.config.apiBaseUrl}${endpoint}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(item.data),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Sync failed: ${response.statusText}`);
+    if (!handler) {
+      throw new Error(`No sync handler registered for ${key}`);
     }
-  }
 
-  private getEndpoint(entity: string, action: string): string {
-    const endpoints: Record<string, Record<string, string>> = {
-      orders: {
-        create: '/api/orders',
-        update: '/api/orders',
-        delete: '/api/orders',
-      },
-      products: {
-        create: '/api/products',
-        update: '/api/products',
-        delete: '/api/products',
-      },
-    };
-
-    return endpoints[entity]?.[action] || `/api/${entity}`;
-  }
-
-  private getMethod(action: string): string {
-    const methods: Record<string, string> = {
-      create: 'POST',
-      update: 'PUT',
-      delete: 'DELETE',
-    };
-    return methods[action] || 'POST';
-  }
-
-  setApiBaseUrl(url: string): void {
-    this.config.apiBaseUrl = url;
+    const result = await handler(item.data);
+    if (!result.success) {
+      throw new Error(result.message || `Sync failed for ${key}`);
+    }
   }
 }
 

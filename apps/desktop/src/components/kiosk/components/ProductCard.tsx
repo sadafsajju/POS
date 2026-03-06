@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { ImageOff, Settings2, Check } from 'lucide-react'
 import type { Product } from '@/types'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import { imageUrl } from '@/lib/utils'
 
 const dietaryColors: Record<string, string> = {
   veg: '#22c55e',
@@ -50,7 +49,7 @@ export function ProductCard({ product, cartQty, onTap, formatCurrency }: Product
       <div className="relative aspect-[4/3] bg-zinc-800 overflow-hidden">
         {product.image_url ? (
           <img
-            src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+            src={imageUrl(product.image_url)}
             alt={product.name}
             className="w-full h-full object-cover"
           />

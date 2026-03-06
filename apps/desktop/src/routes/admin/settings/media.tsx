@@ -11,11 +11,11 @@ import {
   Search,
 } from 'lucide-react'
 
+import { imageUrl } from '@/lib/utils'
+
 export const Route = createFileRoute('/admin/settings/media')({
   component: MediaSettingsPage,
 })
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
@@ -182,7 +182,7 @@ function MediaSettingsPage() {
                   {/* Image */}
                   <div className="aspect-square bg-zinc-800">
                     <img
-                      src={`${API_BASE}${item.file_url}`}
+                      src={imageUrl(item.file_url)}
                       alt={item.original_name || item.filename}
                       className="w-full h-full object-cover"
                       loading="lazy"

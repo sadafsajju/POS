@@ -33,11 +33,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+import { imageUrl } from '@/lib/utils'
+
 export const Route = createFileRoute('/admin/settings/promos')({
   component: PromosSettingsPage,
 })
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
 
 function PromosSettingsPage() {
   const queryClient = useQueryClient()
@@ -280,7 +280,7 @@ function PromoMediaLibraryDialog({
                     }`}
                   >
                     <img
-                      src={`${API_BASE}${item.file_url}`}
+                      src={imageUrl(item.file_url)}
                       alt={item.original_name || item.filename}
                       className="w-full h-full object-cover"
                     />
@@ -322,7 +322,7 @@ function PromoCard({
   onDurationChange: (d: number) => void
 }) {
   const isVideo = promo.media_type === 'video'
-  const mediaUrl = `${API_BASE}${promo.file_url}`
+  const mediaUrl = imageUrl(promo.file_url)
 
   return (
     <div className={`

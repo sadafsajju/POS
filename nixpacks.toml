@@ -1,8 +1,0 @@
-[phases.install]
-cmds = ["npm ci"]
-
-[phases.build]
-cmds = ["npm run build:desktop"]
-
-[start]
-cmd = "npx serve apps/desktop/dist -s -l $PORT"

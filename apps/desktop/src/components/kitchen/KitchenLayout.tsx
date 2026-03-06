@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { KitchenHeader } from './KitchenHeader'
 import { KitchenOrderCard } from './KitchenOrderCard'
 import { OrderFilters } from './OrderFilters'
 import apiClient from '@/api/client'
-import type { User, Order } from '@/types'
+import type { User, Order, OrderStatus } from '@/types'
 
 interface KitchenLayoutProps {
   user: User
@@ -12,7 +12,6 @@ interface KitchenLayoutProps {
 
 export function KitchenLayout({ user }: KitchenLayoutProps) {
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [isTabletOptimized, setIsTabletOptimized] = useState(true) // Kitchen is primarily tablet-focused
   const [searchQuery, setSearchQuery] = useState('')
   const [autoRefresh, setAutoRefresh] = useState(true)
 
@@ -46,7 +45,7 @@ export function KitchenLayout({ user }: KitchenLayoutProps) {
   // Handle order status update
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      await apiClient.updateOrderStatus(orderId, newStatus)
+      await apiClient.updateOrderStatus(orderId, newStatus as OrderStatus)
       refetch() // Refresh the orders list
     } catch (error) {
       console.error('Failed to update order status:', error)

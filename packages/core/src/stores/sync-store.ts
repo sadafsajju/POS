@@ -21,7 +21,7 @@ interface SyncStore extends SyncStatus {
 
 const generateId = () => `sync_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-export const useSyncStore = create<SyncStore>((set, get) => ({
+export const useSyncStore = create<SyncStore>((set) => ({
   isOnline: true,
   lastSyncAt: null,
   pendingChanges: 0,

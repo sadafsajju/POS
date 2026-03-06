@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { resolveImageUrl } from '@pos/supabase'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -113,6 +114,14 @@ export function generateOrderNumber(): string {
   const timestamp = Date.now()
   const random = Math.floor(Math.random() * 1000)
   return `ORD${timestamp}${random}`.slice(-10)
+}
+
+/**
+ * Resolve image URL for display. Handles Supabase storage URLs,
+ * legacy /uploads/ paths, and full URLs.
+ */
+export function imageUrl(url: string | null | undefined): string {
+  return resolveImageUrl(url)
 }
 
 export function debounce<T extends (...args: any[]) => any>(

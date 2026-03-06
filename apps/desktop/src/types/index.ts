@@ -44,19 +44,23 @@ export interface Location {
 }
 
 // User Types
+export type UserRole = 'admin' | 'manager' | 'server' | 'counter' | 'kitchen' | 'cashier';
+
 export interface User {
   id: string;
   username: string;
   email: string;
   first_name: string;
   last_name: string;
-  role: 'admin' | 'manager' | 'cashier' | 'kitchen';
+  role: UserRole;
   org_id: string;
   location_id?: string;
   location_ids?: string[];
+  auth_user_id?: string;
+  auth_provider?: 'internal' | 'supabase';
   is_active: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface LoginRequest {
@@ -72,12 +76,17 @@ export interface LoginResponse {
   locations?: Location[];
 }
 
+export interface SessionResponse extends LoginResponse {
+  needs_setup: boolean;
+}
+
 // Category Types
 export interface Category {
   id: string;
   name: string;
   description?: string;
   color?: string;
+  image_url?: string;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -291,6 +300,8 @@ export interface DiningTable {
   id: string;
   table_number: string;
   seating_capacity: number;
+  capacity?: number;
+  status?: string;
   location?: string;
   floor?: string;
   is_occupied: boolean;
@@ -318,6 +329,8 @@ export interface Order {
   updated_at: string;
   served_at?: string;
   completed_at?: string;
+  paid_at?: string;
+  cleared_at?: string;
   // KOT support fields
   parent_order_id?: string;  // For KOTs: references the parent bill
   is_kot?: boolean;          // True if this is a Kitchen Order Ticket
@@ -511,6 +524,39 @@ export interface TableFilters {
   location?: string;
   occupied_only?: boolean;
   available_only?: boolean;
+}
+
+// Order Status Type
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
+
+// Bill Summary — used in counter payment flow
+export interface BillSummary {
+  bill: Order;
+  kots: Order[];
+  total_items?: number;
+  aggregated_subtotal?: number;
+  aggregated_tax?: number;
+  aggregated_discount?: number;
+  aggregated_total: number;
+  paid_amount?: number;
+  balance_due?: number;
+  is_bill_closed?: boolean;
+  payments?: Payment[];
+}
+
+// Customer Types
+export interface Customer {
+  id: string;
+  org_id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  total_orders?: number;
+  total_spent?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // Media Library

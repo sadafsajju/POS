@@ -154,7 +154,7 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
       case 'counter':
         return <CounterInterface />
       case 'kitchen':
-        return <NewEnhancedKitchenLayout user={user} />
+        return <NewEnhancedKitchenLayout user={user as any} />
       default:
         return <CounterInterface />
     }

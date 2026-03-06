@@ -115,6 +115,8 @@ export interface User {
   org_id: string;
   location_id?: string;
   location_ids?: string[];
+  auth_user_id?: string;
+  auth_provider?: 'internal' | 'supabase';
   created_at: string;
   updated_at?: string;
 }
@@ -128,6 +130,7 @@ export interface AuthState {
   location: Location | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authProvider?: 'internal' | 'supabase';
 }
 
 export interface LoginRequest {
@@ -142,6 +145,10 @@ export interface LoginResponse {
   organization?: Organization;
   location?: Location;
   locations?: Location[];
+}
+
+export interface SessionResponse extends LoginResponse {
+  needs_setup: boolean;
 }
 
 // ============================================

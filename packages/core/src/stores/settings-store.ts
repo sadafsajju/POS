@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { StoreSettings } from '@pos/types';
+import { settingsDb } from '@pos/supabase';
 
 interface SettingsStore {
   settings: StoreSettings;
@@ -56,30 +57,6 @@ const defaultSettings: StoreSettings = {
   },
 };
 
-// API base URL
-const getApiUrl = () => {
-  if (typeof window !== 'undefined' && (window as any).__VITE_API_URL__) {
-    return (window as any).__VITE_API_URL__;
-  }
-  return import.meta.env?.VITE_API_URL || 'http://localhost:8080/api/v1';
-};
-
-// Helper to get auth token from zustand persist store
-const getAuthToken = () => {
-  if (typeof window !== 'undefined') {
-    try {
-      const storedAuth = localStorage.getItem('pos-auth');
-      if (storedAuth) {
-        const parsed = JSON.parse(storedAuth);
-        return parsed.state?.token || null;
-      }
-    } catch (e) {
-      console.error('Failed to parse auth store:', e);
-    }
-  }
-  return null;
-};
-
 // Parse product display settings from JSON string
 const parseProductDisplay = (jsonStr: string | undefined): StoreSettings['productDisplay'] => {
   if (!jsonStr) return defaultSettings.productDisplay;
@@ -105,7 +82,7 @@ const parseCartSettings = (jsonStr: string | undefined): StoreSettings['cartSett
 // Convert API response to StoreSettings
 const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
   return {
-    restaurantName: apiData.restaurant_name || defaultSettings.restaurantName,
+    restaurantName: apiData.restaurant_name || apiData.store_name || defaultSettings.restaurantName,
     storeAddress: apiData.store_address || '',
     storePhone: apiData.store_phone || '',
     currency: apiData.currency || defaultSettings.currency,
@@ -170,52 +147,30 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   },
 
   fetchSettings: async () => {
-    const token = getAuthToken();
-    if (!token) {
-      // Not logged in, use default settings
-      set({ isInitialized: true });
-      return;
-    }
-
     set({ isLoading: true, error: null });
 
     try {
-      // Use public settings endpoint (accessible by all authenticated users)
-      const response = await fetch(`${getApiUrl()}/settings`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await settingsDb.getSettings();
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          const storeSettings = apiToStoreSettings(data.data);
-          set({
-            settings: storeSettings,
-            isInitialized: true,
-            isLoading: false,
-          });
-          return;
-        }
+      if (response.success && response.data) {
+        const storeSettings = apiToStoreSettings(response.data);
+        set({
+          settings: storeSettings,
+          isInitialized: true,
+          isLoading: false,
+        });
+        return;
       }
 
       // If fetch fails, use default settings
       set({ isInitialized: true, isLoading: false });
     } catch (error: any) {
-      console.warn('Failed to fetch settings from API, using defaults:', error.message);
+      console.warn('Failed to fetch settings, using defaults:', error.message);
       set({ isInitialized: true, isLoading: false, error: error.message });
     }
   },
 
   saveSettings: async (newSettings) => {
-    const token = getAuthToken();
-
-    if (!token) {
-      throw new Error('Authentication required to save settings');
-    }
-
     // Optimistically update local state
     const previousSettings = get().settings;
     set((state) => ({
@@ -226,34 +181,20 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
     try {
       const apiSettings = storeToApiSettings(newSettings);
+      const response = await settingsDb.updateSettings(apiSettings);
 
-      const response = await fetch(`${getApiUrl()}/admin/settings`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiSettings),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data) {
-          const storeSettings = apiToStoreSettings(data.data);
-          set({
-            settings: storeSettings,
-            isLoading: false,
-          });
-          return;
-        }
+      if (response.success && response.data) {
+        const storeSettings = apiToStoreSettings(response.data);
+        set({
+          settings: storeSettings,
+          isLoading: false,
+        });
+        return;
       }
 
-      // If save fails, revert to previous settings
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to save settings');
+      throw new Error(response.message || 'Failed to save settings');
     } catch (error: any) {
-      console.error('Failed to save settings to API:', error.message);
-      // Revert to previous settings on error
+      console.error('Failed to save settings:', error.message);
       set({
         settings: previousSettings,
         isLoading: false,

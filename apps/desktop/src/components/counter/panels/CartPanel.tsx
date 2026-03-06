@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { OnScreenKeyboard } from '@/components/ui/on-screen-keyboard'
 import {
   ShoppingCart,
-  Plus,
   Minus,
   ChefHat,
   Printer,
@@ -73,15 +72,15 @@ export function CartPanel({
   isCreating,
   activeBill,
   cartSettings,
-  canProcessPayment = true,
+  canProcessPayment: _canProcessPayment = true,
   taxRate = 0,
   onOpenPayment,
   onClearTable,
   onOrderNotesChange,
-  onAddToCart,
+  onAddToCart: _onAddToCart,
   onRemoveFromCart,
   onRemoveItem,
-  onUpdateQuantity,
+  onUpdateQuantity: _onUpdateQuantity,
   onUpdateSpecialInstructions,
   onClearCart,
   onCreateOrder,
@@ -680,7 +679,6 @@ export function CartPanel({
               : cartSettings?.deliveryButtons
             const showSave = (buttons?.showSave !== false) && hasNewItems
             const showKot = (buttons?.showKot !== false) && hasNewItems
-            const billIsPaid = activeBill?.bill?.status === 'paid'
             const unpaidBalance = hasActiveBill
               ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
               : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)

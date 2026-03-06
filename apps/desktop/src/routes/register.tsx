@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, CheckCircle2, Loader2, Store } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getSupabase } from '@pos/supabase';
 
 export const Route = createFileRoute('/register')({
   component: RegisterPage,
@@ -16,15 +17,9 @@ function RegisterPage() {
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkingSubdomain, setCheckingSubdomain] = useState(false);
-  const [subdomainStatus, setSubdomainStatus] = useState<{
-    available: boolean;
-    message: string;
-  } | null>(null);
 
   const [formData, setFormData] = useState({
     business_name: '',
-    subdomain: '',
     admin_email: '',
     admin_name: '',
     password: '',
@@ -34,50 +29,10 @@ function RegisterPage() {
     state: '',
   });
 
-  const [registrationResult, setRegistrationResult] = useState<any>(null);
-
-  // Debounced subdomain check
-  const checkSubdomain = async (subdomain: string) => {
-    if (subdomain.length < 3) {
-      setSubdomainStatus(null);
-      return;
-    }
-
-    setCheckingSubdomain(true);
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/check-subdomain?subdomain=${encodeURIComponent(subdomain)}`
-      );
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setSubdomainStatus({
-          available: data.data.available,
-          message: data.data.reason || `${subdomain}.yourpos.com is available!`,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to check subdomain:', err);
-    } finally {
-      setCheckingSubdomain(false);
-    }
-  };
-
-  const handleSubdomainChange = (value: string) => {
-    // Auto-format: lowercase, replace spaces with hyphens
-    const formatted = value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    setFormData({ ...formData, subdomain: formatted });
-
-    // Debounce check
-    const timer = setTimeout(() => checkSubdomain(formatted), 500);
-    return () => clearTimeout(timer);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -88,38 +43,34 @@ function RegisterPage() {
       return;
     }
 
-    if (!subdomainStatus?.available) {
-      setError('Please choose an available subdomain');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_name: formData.business_name,
-          subdomain: formData.subdomain,
-          admin_email: formData.admin_email,
-          admin_name: formData.admin_name,
-          password: formData.password,
-          phone: formData.phone,
-          city: formData.city,
-          state: formData.state,
-          country: 'India',
-        }),
+      const sb = getSupabase();
+
+      // Sign up via Supabase Auth
+      const { data: authData, error: authError } = await sb.auth.signUp({
+        email: formData.admin_email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.admin_name,
+            business_name: formData.business_name,
+          },
+        },
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setRegistrationResult(data.data);
-        setStep('success');
-      } else {
-        setError(data.message || 'Registration failed');
+      if (authError) {
+        setError(authError.message);
+        return;
       }
+
+      if (!authData.user) {
+        setError('Registration failed. Please try again.');
+        return;
+      }
+
+      setStep('success');
     } catch (err) {
       setError('Network error. Please try again.');
       console.error('Registration error:', err);
@@ -128,7 +79,7 @@ function RegisterPage() {
     }
   };
 
-  if (step === 'success' && registrationResult) {
+  if (step === 'success') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <Card className="w-full max-w-md">
@@ -136,35 +87,20 @@ function RegisterPage() {
             <div className="mx-auto mb-4 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
               <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
-            <CardTitle className="text-2xl">Registration Successful! 🎉</CardTitle>
+            <CardTitle className="text-2xl">Registration Successful!</CardTitle>
             <CardDescription>
-              Your restaurant <strong>{registrationResult.subdomain}.yourpos.com</strong> is ready!
+              Your account has been created. Check your email for a confirmation link.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-blue-50 p-4 rounded-lg space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Username:</span>
-                <span className="font-mono font-semibold">{registrationResult.username}</span>
+                <span className="text-sm text-gray-600">Email:</span>
+                <span className="font-mono font-semibold">{formData.admin_email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Login URL:</span>
-                <a
-                  href={registrationResult.login_url}
-                  className="text-blue-600 hover:underline text-sm truncate"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {registrationResult.login_url}
-                </a>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Plan:</span>
-                <span className="font-semibold capitalize">{registrationResult.plan}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Trial Ends:</span>
-                <span className="font-semibold">{registrationResult.trial_ends}</span>
+                <span className="text-sm text-gray-600">Business:</span>
+                <span className="font-semibold">{formData.business_name}</span>
               </div>
             </div>
 
@@ -173,27 +109,20 @@ function RegisterPage() {
               <AlertDescription className="text-sm">
                 <strong>Next Steps:</strong>
                 <ol className="list-decimal ml-4 mt-2 space-y-1">
-                  <li>Download the POS desktop app</li>
-                  <li>Login with your username and password</li>
+                  <li>Confirm your email address</li>
+                  <li>Login with your email and password</li>
                   <li>Complete the onboarding wizard</li>
                   <li>Start adding products and taking orders!</li>
                 </ol>
               </AlertDescription>
             </Alert>
           </CardContent>
-          <CardFooter className="flex gap-2">
+          <CardFooter>
             <Button
-              variant="outline"
               onClick={() => navigate({ to: '/login' })}
-              className="flex-1"
+              className="w-full"
             >
               Go to Login
-            </Button>
-            <Button
-              onClick={() => window.open(registrationResult.login_url, '_blank')}
-              className="flex-1"
-            >
-              Open POS
             </Button>
           </CardFooter>
         </Card>
@@ -208,9 +137,9 @@ function RegisterPage() {
           <div className="mx-auto mb-4 w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
             <Store className="w-10 h-10 text-blue-600" />
           </div>
-          <CardTitle className="text-3xl font-bold">Start Your Free Trial</CardTitle>
+          <CardTitle className="text-3xl font-bold">Create Your Account</CardTitle>
           <CardDescription className="text-base">
-            Join hundreds of restaurants using our offline-first POS system. No credit card required.
+            Set up your restaurant POS system. Free to get started.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -222,7 +151,6 @@ function RegisterPage() {
               </Alert>
             )}
 
-            {/* Business Information */}
             <div className="space-y-4">
               <div className="text-lg font-semibold border-b pb-2">Business Information</div>
 
@@ -237,51 +165,14 @@ function RegisterPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subdomain">Choose Your Subdomain *</Label>
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Input
-                      id="subdomain"
-                      placeholder="pizza-palace"
-                      value={formData.subdomain}
-                      onChange={(e) => handleSubdomainChange(e.target.value)}
-                      required
-                      className={
-                        subdomainStatus
-                          ? subdomainStatus.available
-                            ? 'border-green-500'
-                            : 'border-red-500'
-                          : ''
-                      }
-                    />
-                    {checkingSubdomain && (
-                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-gray-400" />
-                    )}
-                  </div>
-                  <span className="text-sm text-gray-600">.yourpos.com</span>
-                </div>
-                {subdomainStatus && (
-                  <p
-                    className={`text-sm ${
-                      subdomainStatus.available ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {subdomainStatus.available ? '✓ ' : '✗ '}
-                    {subdomainStatus.message}
-                  </p>
-                )}
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City *</Label>
+                  <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
                     placeholder="Mumbai"
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -307,7 +198,6 @@ function RegisterPage() {
               </div>
             </div>
 
-            {/* Admin Account */}
             <div className="space-y-4">
               <div className="text-lg font-semibold border-b pb-2">Admin Account</div>
 
@@ -358,29 +248,16 @@ function RegisterPage() {
                 />
               </div>
             </div>
-
-            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <div className="font-semibold text-green-900 mb-2">✓ What's Included (Free Trial)</div>
-              <ul className="text-sm text-green-800 space-y-1">
-                <li>• <strong>14 days</strong> full access</li>
-                <li>• Up to <strong>5 users</strong></li>
-                <li>• <strong>100 products</strong></li>
-                <li>• <strong>1 location</strong></li>
-                <li>• Offline mode support</li>
-                <li>• Kitchen display</li>
-                <li>• Full reporting</li>
-              </ul>
-            </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full" size="lg" disabled={loading || checkingSubdomain}>
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating your restaurant...
+                  Creating your account...
                 </>
               ) : (
-                'Start Free Trial'
+                'Create Account'
               )}
             </Button>
             <p className="text-xs text-center text-gray-600">

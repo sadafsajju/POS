@@ -19,6 +19,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@pos/core": "*",
+    "@pos/supabase": "*",
     "@pos/types": "*",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.1",

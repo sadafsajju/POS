@@ -12,8 +12,7 @@ import apiClient from '@/api/client'
 import type { ComboSlot, Product } from '@/types'
 import { X, Search, Plus, GripVertical, Check, ChevronRight, ImageIcon } from 'lucide-react'
 import type { ProductVariationLinkResponse } from '@/types'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import { imageUrl } from '@/lib/utils'
 
 /** Draft combo slot stored locally before product is saved */
 export interface DraftComboSlot {
@@ -493,7 +492,7 @@ export function ComboSlotsEditor({ productId, draftSlots, onDraftSlotsChange }: 
                         {/* Product image */}
                         {product.image_url ? (
                           <img
-                            src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+                            src={imageUrl(product.image_url)}
                             alt={product.name}
                             className="w-10 h-10 rounded-md object-cover shrink-0 bg-zinc-800"
                           />

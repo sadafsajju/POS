@@ -129,7 +129,7 @@ class KitchenSoundService {
       const time = i / sampleRate;
       let sample = 0;
       
-      freqs.forEach((freq, index) => {
+      freqs.forEach((freq, _index) => {
         const phase = time * freq * 2 * Math.PI;
         const envelope = Math.exp(-time * 3); // Decay envelope
         sample += Math.sin(phase) * envelope * (0.3 / freqs.length);

@@ -89,9 +89,9 @@ export function PaymentOverlay({
         paymentData.customer_name = linkedCustomerName
       }
       if (isAdmin) {
-        await apiClient.processAdminPayment(activeBill.bill.id, paymentData)
+        await apiClient.processAdminPayment(activeBill.bill.id, paymentData as any)
       } else {
-        await apiClient.processCounterPayment(activeBill.bill.id, paymentData)
+        await apiClient.processCounterPayment(activeBill.bill.id, paymentData as any)
       }
       const change = selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined
       setPaidTotal(total) // Lock the amount before activeBill refetches

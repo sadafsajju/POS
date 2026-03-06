@@ -271,7 +271,7 @@ export function OptionGroupsEditor({ productId, draftGroups, onDraftGroupsChange
       <div className="space-y-3">
         {/* Draft mode groups */}
         {isDraftMode && draftGroups?.map((group, index) => {
-          const items = group.items.filter(i => i.name.trim()).map((item, i) => ({
+          const items = group.items.filter(i => i.name.trim()).map((item, _i) => ({
             id: undefined as string | undefined,
             name: item.name,
             priceAdjustment: item.price_adjustment,

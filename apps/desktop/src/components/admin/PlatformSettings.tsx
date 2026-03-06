@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   Save,
   Loader2,
-  ExternalLink,
   Eye,
   EyeOff,
   Power,

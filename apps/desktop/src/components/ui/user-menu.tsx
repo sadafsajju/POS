@@ -1,4 +1,3 @@
-import * as React from "react"
 import { User, Settings, Bell, LogOut, Lock } from "lucide-react"
 import {
   DropdownMenu,
@@ -10,8 +9,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import apiClient from "@/api/client"
 import { useAuthStore } from "@pos/core"
+import { signOut as supabaseSignOut } from "@pos/supabase"
 import type { User as UserType } from "@/types"
 
 interface UserMenuProps {
@@ -25,9 +24,16 @@ export function UserMenu({ user, collapsed = false, size = "md", variant = "defa
   const isDark = variant === "dark"
   const { lock } = useAuthStore()
 
-  const handleLogout = () => {
-    apiClient.clearAuth()
-    window.location.href = '/login'
+  const handleLogout = async () => {
+    // Clear Zustand auth state
+    useAuthStore.getState().logout()
+    localStorage.removeItem('pos-auth')
+
+    // Sign out from Supabase
+    await supabaseSignOut()
+
+    // Redirect to landing
+    window.location.href = '/landing'
   }
 
   const handleLock = () => {

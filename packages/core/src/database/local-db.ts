@@ -32,13 +32,14 @@ export class LocalDatabaseFactory {
   private static async createSqliteDatabase(): Promise<LocalDatabase> {
     // Dynamic import for Tauri environment
     try {
-      const { Database } = await import('@tauri-apps/plugin-sql');
+      const mod = await import('@tauri-apps/plugin-sql');
+      const Database = mod.default;
       const db = await Database.load('sqlite:pos.db');
 
       return {
         async init() {
           // Run migrations
-          await this.execute(`
+          await db.execute(`
             CREATE TABLE IF NOT EXISTS sync_queue (
               id TEXT PRIMARY KEY,
               action TEXT NOT NULL,

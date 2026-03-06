@@ -47,8 +47,8 @@ export function NumberPad({
 
         default: {
           let next = value
-          // Don't allow leading zeros (except "0.")
-          if (next === '0' && key !== '.') {
+          // Don't allow leading zeros
+          if (next === '0') {
             next = key
           } else {
             // Enforce max decimal places

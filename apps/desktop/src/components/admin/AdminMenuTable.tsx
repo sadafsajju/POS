@@ -43,13 +43,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { cn, formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency, imageUrl } from '@/lib/utils'
 import { useSettingsStore } from '@pos/core'
 import { DietaryIndicator } from '@/components/forms/FormComponents'
 import apiClient from '@/api/client'
 import type { Product, Category, Location } from "@/types"
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
 
 interface AdminMenuTableProps {
   data: Product[]
@@ -160,7 +158,7 @@ export function AdminMenuTable({
             <div className="flex-shrink-0">
               {product.image_url ? (
                 <img
-                  src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+                  src={imageUrl(product.image_url)}
                   alt={product.name}
                   className="h-10 w-10 rounded-lg object-cover ring-1 ring-zinc-700"
                 />

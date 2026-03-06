@@ -56,10 +56,10 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
   })
 
   // Create category options for select field
-  const categoryOptions = categories.map(cat => ({
+  const categoryOptions = Array.isArray(categories) ? categories.map(cat => ({
     value: cat.id.toString(),
     label: cat.name
-  }))
+  })) : []
 
   // Choose the appropriate schema and default values
   const schema = isEditing ? updateProductSchema : createProductSchema
@@ -94,9 +94,9 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
         location_ids: undefined,
       }
 
-  const form = useForm<CreateProductData | UpdateProductData>({
+  const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues,
+    defaultValues: defaultValues as any,
   })
 
   // Watch product_type to reactively show combo vs option groups
@@ -183,7 +183,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['categories'] })
-      toastHelpers.productCreated(form.getValues('name'))
+      toastHelpers.productCreated(form.getValues('name') ?? '')
       // Auto-switch to edit mode so editors become fully available
       if (response.data && onCreated) {
         onCreated(response.data)
@@ -244,7 +244,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
 
   return (
     <Form {...form}>
-      <form id="product-form" onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
+      <form id="product-form" onSubmit={form.handleSubmit(onSubmit as any)} className="flex flex-col h-full overflow-hidden">
         {/* Scrollable content area */}
         <div className="flex-1 min-h-0 overflow-auto bg-zinc-950">
           <div className="max-w-5xl mx-auto p-6">
@@ -255,7 +255,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                 <section className="rounded-lg border border-zinc-800 bg-zinc-900">
                   <div className="p-5">
                     <ProductTypeSelector
-                      control={form.control}
+                      control={form.control as any}
                       name="product_type"
                       label="Item type"
                     />
@@ -269,7 +269,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                   </div>
                   <div className="p-5 space-y-4">
                     <TextInputField
-                      control={form.control}
+                      control={form.control as any}
                       name="name"
                       label="Product Name"
                       placeholder="Enter product name"
@@ -277,7 +277,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                     />
 
                     <TextareaField
-                      control={form.control}
+                      control={form.control as any}
                       name="description"
                       label="Description"
                       placeholder="Describe the product..."
@@ -294,7 +294,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                   </div>
                   <div className="p-5">
                     <ImagePickerField
-                      control={form.control}
+                      control={form.control as any}
                       name="image_url"
                       label="Product Image"
                       description="Upload an image or choose from the media library"
@@ -311,7 +311,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {!hasVariations ? (
                         <PriceInputField
-                          control={form.control}
+                          control={form.control as any}
                           name="price"
                           label="Price"
                           currency={settings.currencySymbol || '$'}
@@ -326,7 +326,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                       )}
 
                       <NumberInputField
-                        control={form.control}
+                        control={form.control as any}
                         name="preparation_time"
                         label="Preparation Time (minutes)"
                         min={1}
@@ -345,13 +345,13 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                     </div>
                     <div className="p-5 space-y-4">
                       <DietaryTypeField
-                        control={form.control}
+                        control={form.control as any}
                         name="dietary_type"
                         label="Dietary Type"
                         description="Select the dietary classification for this product"
                       />
                       <NumberInputField
-                        control={form.control}
+                        control={form.control as any}
                         name="calorie_count"
                         label="Calorie Count (kcal)"
                         min={0}
@@ -359,7 +359,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                         description="Calories per serving"
                       />
                       <AllergenMultiSelectField
-                        control={form.control}
+                        control={form.control as any}
                         name="food_allergens"
                         label="Food Allergens"
                         description="Select all allergens present in this product"
@@ -405,7 +405,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                     </div>
                     <div className="p-5 space-y-4">
                       <SelectField
-                        control={form.control}
+                        control={form.control as any}
                         name="category_id"
                         label="Category"
                         options={categoryOptions}
@@ -414,7 +414,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                       />
 
                       <SwitchField
-                        control={form.control}
+                        control={form.control as any}
                         name="is_available"
                         label="Available"
                         description="Available products appear on the menu"
@@ -429,7 +429,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                     </div>
                     <div className="p-5">
                       <LocationMultiSelectField
-                        control={form.control}
+                        control={form.control as any}
                         name="location_ids"
                         label="Available at"
                         description="Leave empty for all locations"

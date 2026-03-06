@@ -4,24 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Offline-first, multi-platform POS system for restaurants and retail. Turborepo monorepo with a Go backend, React+Tauri desktop app, and a standalone kitchen display app. Supports aggregator order integration (Swiggy/Zomato) via cloud relay webhook architecture.
+Offline-first, multi-platform POS system for restaurants and retail. Turborepo monorepo with **Supabase** (Auth + PostgREST + Edge Functions + Realtime + Storage) as the backend and React+Tauri desktop app as the frontend. Deployed on **Vercel** (frontend) + **Supabase Cloud** (backend). Supports aggregator order integration (Swiggy/Zomato).
 
 **Base Boilerplate:** [madebyaris/poinf-of-sales](https://github.com/madebyaris/poinf-of-sales)
 
 ## Commands
 
 ```bash
-# Infrastructure (Docker required)
-npm run db:up                    # Start PostgreSQL + Redis
-npm run db:down                  # Stop infrastructure
-docker-compose up -d backend     # Start Go backend (Go NOT installed locally)
-docker logs pos-backend          # View backend logs
+# Supabase local development
+npm run supabase:start           # Start local Supabase (Docker required)
+npm run supabase:stop            # Stop local Supabase
+npm run supabase:migrate         # Push migrations to Supabase
+npm run supabase:gen-types       # Regenerate TypeScript types from DB schema
+
+# Optional standalone Postgres (if not using Supabase local)
+npm run db:up                    # Start PostgreSQL via Docker
+npm run db:down                  # Stop PostgreSQL
 
 # Frontend development
 npm run dev:desktop              # POS desktop app at http://localhost:3000
 
 # Build
 npm run build                    # Build all apps via Turborepo
+npm run build:desktop            # Build desktop app only
 npm run build:mac                # Mac .dmg (Tauri)
 npm run build:win                # Windows .exe (Tauri)
 
@@ -32,16 +37,6 @@ cd apps/desktop && npm run tauri:build   # Production native build
 # Quality
 npm run type-check               # TypeScript checking across all packages
 npm run lint                     # ESLint across all packages
-
-# Backend tests (inside Docker, Go not local)
-docker exec pos-backend go test ./...
-
-# Railway Deployment
-railway up --service backend --path-as-root ./backend   # Deploy Go backend
-railway up --service frontend                           # Deploy frontend (Nixpacks)
-railway service status --all                            # Check all service statuses
-railway logs --service backend                          # View backend deploy logs
-railway logs --service frontend                         # View frontend deploy logs
 ```
 
 ## Architecture
@@ -50,65 +45,77 @@ railway logs --service frontend                         # View frontend deploy l
 
 - **`apps/desktop/`** — Main POS app. React 18 + TypeScript + TanStack Router + Tailwind/shadcn. Wrapped in Tauri 2.0 for native desktop. Runs as web app in dev.
 - Kitchen display is integrated into the desktop app at `/admin/kitchen` route (no separate app).
-- **`packages/types/`** — All shared TypeScript interfaces. Uses **snake_case** field names to match the Go API directly (no conversion layer).
+- **`packages/types/`** — All shared TypeScript interfaces. Uses **snake_case** field names matching the database directly.
 - **`packages/core/`** — Business logic: Zustand stores (auth, cart, sync, settings), offline sync engine, local DB abstraction (SQLite for Tauri, IndexedDB for web), utility functions.
-- **`packages/api-client/`** — Axios HTTP client with JWT interceptor, all REST endpoints organized by role (`authApi`, `productsApi`, `serverApi`, `counterApi`, `kitchenApi`, `adminApi`, etc.), React Query key factories.
-- **`backend/`** — Go 1.21+ / Gin REST API. Standard Go layout under `internal/` with `handlers/`, `models/`, `middleware/`, `database/`, `api/`. Includes webhook handlers for aggregator platforms and HMAC auth middleware.
-- **`database/init/`** — PostgreSQL schema (`01_schema.sql`), seed data (`02_seed_data.sql`), and aggregator migration (`12_aggregator_orders.sql`). Auto-applied on first `docker-compose up`.
+- **`packages/api-client/`** — Endpoint wrappers organized by domain (`productsApi`, `ordersApi`, `adminApi`, etc.), React Query key factories. Delegates to `@pos/supabase` query modules.
+- **`packages/supabase/`** — Supabase client, typed query modules (PostgREST), auth helpers, realtime subscriptions, storage helpers. All database access goes through this package.
+- **`supabase/migrations/`** — PostgreSQL migrations applied via Supabase CLI. Includes schema, RLS policies, auth hooks, database functions, and storage buckets.
 
 ### Key Data Flow
 
-1. Frontend uses `@pos/api-client` endpoints → Axios with JWT Bearer token
-2. Backend Gin handlers use raw SQL with parameterized queries (no ORM)
-3. Auth middleware extracts JWT claims and enforces role-based access
-4. Offline: orders queue locally via `@pos/core` sync store → auto-sync on reconnect
-5. Aggregator orders: Cloud relay → webhook to `/api/v1/webhooks/:platform/order` (HMAC auth) → order created in DB → appears in counter UI + kitchen display
+1. Frontend uses `@pos/api-client` endpoints → delegates to `@pos/supabase` query modules
+2. `@pos/supabase` uses Supabase PostgREST client for CRUD, `.rpc()` for complex business logic
+3. Auth via Supabase Auth — JWT claims contain `org_id`, `role`, `location_id` in `app_metadata`
+4. RLS policies enforce tenant isolation and role-based access at the database level
+5. Offline: orders queue locally via `@pos/core` sync store → auto-sync on reconnect
+6. Realtime: Supabase Realtime channels for orders, order items, and table changes
 
-### Aggregator Integration Architecture
+### Supabase Backend Architecture
 
-```
-Swiggy/Zomato → Cloud Relay Server → Webhooks → Local POS Backend → Counter UI + Kitchen KDS
-                                                                   ← Accept/Reject → Cloud Relay → Platform API
-```
+- **PostgREST** — All simple CRUD via typed Supabase client (`.from('table').select/insert/update/delete`)
+- **Database Functions** — Complex business logic as PostgreSQL functions called via `.rpc()`:
+  - `create_order()`, `process_payment()`, `update_order_status()`
+  - `get_bill_summary()`, `get_dashboard_stats()`
+  - `get_sales_report()`, `get_orders_report()`, `get_income_report()`
+  - `clear_table()`, `transfer_table()`
+  - `generate_order_number()`, `generate_token_number()`
+  - `register_tenant()`
+- **Edge Functions** — HTTP-level concerns (webhooks, PIN login, tenant registration)
+- **Realtime** — Channel subscriptions for kitchen display, table management, order status
+- **Storage** — Buckets for `products`, `promos`, `media` with public read + authenticated write RLS
+- **Auth** — Supabase Auth with custom access token hook injecting claims into JWT
 
-- **Webhook endpoints** receive orders from cloud relay (HMAC-SHA256 signature verification, not JWT)
-- **Order source** tracked via `order_source` field: `pos`, `swiggy`, `zomato`
-- **Accept deadline** with countdown timer — platforms auto-cancel in ~3-5 min
-- **Platform configs** stored in `platform_configs` table (API keys, webhook secrets, restaurant IDs)
+### Role-Based Access (5 roles)
 
-### Role-Based Access (5 roles + webhook)
-
-Routes are grouped by role in `backend/internal/api/routes.go`:
+RLS policies enforce access at the database level:
 - `admin` / `manager` — Full CRUD, dashboard stats, reports, platform config management
 - `server` — Dine-in order creation only
 - `counter` — All order types + payment processing + aggregator order accept/reject
-- `kitchen` — Kitchen display, item status updates (shows platform badges on aggregator orders)
-- `webhook` — HMAC-authenticated endpoints for cloud relay (no JWT, uses `WebhookAuthMiddleware`)
+- `kitchen` — Kitchen display, item status updates
 
 ### API Response Format
 
-All endpoints return: `{ success: bool, message: string, data?: T, error?: string, meta?: { pagination } }`
+All query modules return: `{ success: bool, message: string, data?: T, error?: string, meta?: { pagination } }`
+
+Wrapper helpers in `packages/supabase/src/helpers.ts`: `wrapOne()`, `wrapMany()`, `wrapRpc()`, `paginationRange()`
 
 ## Critical Patterns
 
-- **Always use `Array.isArray()` checks** before calling `.filter()/.map()` on API responses. The API returns error objects (not arrays) when unauthenticated.
-- **TypeScript types use snake_case** matching the Go API JSON. No camelCase conversion.
+- **Always use `Array.isArray()` checks** before calling `.filter()/.map()` on API responses. Error responses return objects, not arrays.
+- **TypeScript types use snake_case** matching the database. No camelCase conversion.
 - **Packages reference each other via `*` version** in package.json (workspace linking).
 - **Tauri 2.0** (not 1.x) — use Tauri 2 APIs. Hardware stubs in `apps/desktop/src-tauri/src/hardware/`.
-- **Go is not installed locally** — always use Docker for backend operations.
 - **Offline-first is critical** — consider what happens without internet. Orders must work offline with local queue and sync.
-- **Touch mode is toggled via `settings.touchMode`** — All text inputs that support on-screen keyboard must check this setting. When OFF, use regular `<input>` elements. When ON, use tappable fields that open `OnScreenKeyboard` or inline `KeyboardRow`. Toggle lives in Admin > Settings > System. See "Touch Mode" section below.
-- **Authentication uses dual-mode system** — Supports both Clerk (SaaS with Organizations) and internal JWT auth (self-hosted). Clerk staff invitations send automatic emails. See "Authentication & Logout" section below.
-- **Role-based navigation hides admin UI for staff** — Staff members (server/counter/kitchen) don't see admin navigation (bottom nav hidden). Only admins/managers see full nav. Staff redirected to their specific interface on login. See "Role-Based Navigation" section below.
+- **Touch mode is toggled via `settings.touchMode`** — See "Touch Mode" section below.
+- **Authentication uses Supabase Auth** — `signInWithPassword()` for email/password, custom access token hook injects claims. See "Authentication" section below.
+- **Role-based navigation hides admin UI for staff** — Staff members (server/counter/kitchen) don't see admin navigation. See "Role-Based Navigation" section below.
+- **Supabase `.eq()` on union-typed columns** requires `as any` casts when filtering by `string` params (e.g., `.eq('status', status as any)`).
+- **Dual type definitions** — `Product` and other interfaces exist in both `packages/types/src/index.ts` and `apps/desktop/src/types/index.ts`. Both must be updated when adding fields.
 
 ## Adding New Features
 
-### New API endpoint
+### New database query
 1. Add types in `packages/types/src/index.ts`
-2. Add endpoint function in `packages/api-client/src/endpoints.ts`
-3. Add query key in `packages/api-client/src/hooks.ts`
-4. Implement Go handler in `backend/internal/handlers/`
-5. Register route in `backend/internal/api/routes.go`
+2. Add query function in `packages/supabase/src/queries/{module}.ts`
+3. Export from `packages/supabase/src/queries/index.ts` and `packages/supabase/src/index.ts`
+4. Add endpoint wrapper in `packages/api-client/src/endpoints.ts`
+5. Update `apps/desktop/src/api/client.ts` if needed (local API client)
+
+### New database function (complex logic)
+1. Create migration in `supabase/migrations/` with `CREATE OR REPLACE FUNCTION`
+2. Add TypeScript types for params/return in `packages/supabase/src/types.ts` under `Functions`
+3. Call via `supabase.rpc('function_name', params)` in query module
+4. Wrap with `wrapRpc()` helper
 
 ### New frontend component
 1. Create in `apps/desktop/src/components/{feature}/`
@@ -121,37 +128,7 @@ All endpoints return: `{ success: bool, message: string, data?: T, error?: strin
 2. Add to sync queue in `packages/core/src/stores/sync-store.ts`
 3. Handle in `packages/core/src/sync/sync-engine.ts`
 
-## Backend Patterns (Go/Gin)
-
-Handler struct pattern with `*sql.DB` dependency injection:
-```go
-type OrderHandler struct { db *sql.DB }
-func NewOrderHandler(db *sql.DB) *OrderHandler { return &OrderHandler{db: db} }
-```
-
-- Raw SQL with `$1, $2` parameterized queries (no ORM)
-- Transactions via `db.Begin()` / `tx.Commit()` for multi-table ops
-- Error responses use `models.APIResponse{Success: false, Message: "...", Error: stringPtr("error_code")}`
-- Role enforcement: `middleware.RequireRoles([]string{"admin", "manager"})`
-- Webhook auth: `middleware.WebhookAuthMiddleware(db)` — HMAC-SHA256 verification using per-platform `webhook_secret` from `platform_configs` table
-
-### Key Handler Files
-
-| File | Purpose |
-|------|---------|
-| `handlers/orders.go` | Order CRUD + aggregator accept/reject endpoints |
-| `handlers/payments.go` | Payment processing |
-| `handlers/products.go` | Product CRUD |
-| `handlers/tables.go` | Table management |
-| `handlers/settings.go` | App settings + platform config CRUD |
-| `handlers/webhooks.go` | Aggregator webhook receivers (order, status, cancel) |
-| `handlers/combos.go` | Combo product management |
-| `handlers/options.go` | Product option groups |
-| `handlers/customers.go` | Customer management |
-| `middleware/auth.go` | JWT authentication middleware |
-| `middleware/webhook_auth.go` | HMAC webhook signature verification |
-
-## Database Conventions (PostgreSQL)
+## Database Conventions (PostgreSQL via Supabase)
 
 - UUID v4 primary keys (`uuid_generate_v4()`)
 - `DECIMAL(10,2)` for monetary values
@@ -161,255 +138,113 @@ func NewOrderHandler(db *sql.DB) *OrderHandler { return &OrderHandler{db: db} }
 - Check constraints for enum-like fields (roles, statuses, `order_source`)
 - Auto `updated_at` trigger on relevant tables
 - JSONB columns for flexible data (`external_data` on orders, `config_data` on platform_configs)
+- RLS enabled on all tables; policies use `auth.jwt() -> 'app_metadata'` for tenant/role checks
+- Helper functions: `get_my_org_id()`, `get_my_role()`, `get_my_location_id()`
 
 ### Key Tables
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Staff accounts with role-based access |
+| `users` | Staff accounts with `auth_user_id` linking to `auth.users` |
 | `categories` | Product categories |
 | `products` | Menu items (simple, configurable, combo) |
-| `orders` | All orders (POS + aggregator), supports `order_source` field |
+| `orders` | All orders (POS + aggregator), `order_source` field |
 | `order_items` | Line items with product reference |
 | `payments` | Payment records |
-| `tables` | Dining table layout |
+| `dining_tables` | Dining table layout |
 | `customers` | Customer records |
-| `platform_configs` | Swiggy/Zomato API credentials and settings (unique per platform) |
-| `settings` | App-wide key/value settings |
+| `platform_configs` | Aggregator API credentials and settings |
+| `settings` | App-wide key/value settings per org |
+| `locations` | Business locations per org |
+
+### Key Migration Files
+
+| File | Purpose |
+|------|---------|
+| `20260305000001_initial_schema.sql` | All tables, indexes, triggers |
+| `20260305000002_rls_policies.sql` | Row-level security for all tables |
+| `20260305000003_auth_hook.sql` | Custom access token hook (JWT claims) |
+| `20260305000004_database_functions.sql` | All RPC business logic functions |
+| `20260305000005_storage_buckets.sql` | Storage buckets + RLS |
 
 ## Environment
 
-Backend env (set in docker-compose.yml): `DB_HOST=postgres`, `DB_PORT=5432`, `DB_USER=postgres`, `DB_PASSWORD=postgres123`, `DB_NAME=pos_system`, `REDIS_HOST=redis`, `JWT_SECRET=your-super-secret-jwt-key`, `PORT=8080`
+Frontend env (`apps/desktop/.env`):
+- `VITE_SUPABASE_URL` — Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — Supabase anonymous/public key
 
-Frontend env (apps/desktop/.env): `VITE_API_URL=http://localhost:8080/api/v1`
+Local dev: `npx supabase start` provides local URLs and keys.
 
-Default admin login: `admin` / `admin123`
+## Deployment (Vercel + Supabase Cloud)
 
-## Railway Deployment (Production)
+- **Frontend**: Deployed on Vercel. Config in `vercel.json`. Build: `npm run build:desktop`, output: `apps/desktop/dist`.
+- **Backend**: Supabase Cloud project. Migrations pushed via `npx supabase db push`. Edge Functions deployed via `npx supabase functions deploy`.
+- **Env vars on Vercel**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
-Project: **zealous-miracle** | Railway CLI linked at project root.
+## Authentication
 
-### Live URLs
+Uses **Supabase Auth** exclusively. No Clerk, no internal JWT system.
 
-| Service | URL |
-|---------|-----|
-| Frontend | `https://frontend-production-b5819.up.railway.app` |
-| Backend API | `https://backend-production-3d327.up.railway.app` |
-| Postgres | Internal (`postgres.railway.internal:5432`, DB: `railway`) |
-| Redis | Internal (`redis.railway.internal:6379`) |
+### Auth Flow
+1. User signs in via `supabase.auth.signInWithPassword()`
+2. Custom access token hook injects `org_id`, `role`, `location_id`, `user_id` into JWT `app_metadata`
+3. RLS policies use these claims for tenant isolation and role enforcement
+4. Frontend auth state managed via `@pos/core` → `useAuthStore` (Zustand + localStorage persistence)
 
-### Deployment Details
+### Auth Helpers (`packages/supabase/src/auth.ts`)
+- `signInWithPassword(email, password)` — login
+- `signUp(email, password, metadata)` — registration
+- `signOut()` — logout
+- `getSession()` — current session
+- `getAccessToken()` — JWT for API calls
+- `onAuthStateChange(callback)` — session listener
+- `extractUserClaims(session)` — extract role/org/location from JWT
 
-- **Backend**: Deployed via `railway up --service backend --path-as-root ./backend`. Uses `backend/Dockerfile` (Go multi-stage build). Environment variables (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `REDIS_HOST`, `JWT_SECRET`, `PORT`) are set in Railway service settings.
-- **Frontend**: Deployed via `railway up --service frontend` from monorepo root. Uses **Nixpacks** builder (configured via `nixpacks.toml`). `VITE_API_URL` is set as a Railway variable pointing to the backend URL. Served with `npx serve`.
-- **Do NOT create a `railway.json`** at the project root — it overrides per-service build settings and breaks multi-service deployments.
-- The `nixpacks.toml` at the project root configures the frontend build only. Backend uses its own `Dockerfile` via `--path-as-root`.
-
-### Redeploying
-
-```bash
-# Backend (from monorepo root)
-railway up --service backend --path-as-root ./backend
-
-# Frontend (from monorepo root)
-railway up --service frontend
-
-# Check status
-railway service status --all
-```
-
-## Aggregator Integration (Swiggy/Zomato)
-
-### Webhook Endpoints (HMAC auth, no JWT)
-- `POST /api/v1/webhooks/:platform/order` — Receive incoming order from cloud relay
-- `POST /api/v1/webhooks/:platform/status` — Receive status updates (rider assigned, etc.)
-- `POST /api/v1/webhooks/:platform/cancel` — Handle platform-initiated cancellations
-
-### Aggregator Order Management (JWT auth)
-- `GET /api/v1/{counter,admin}/aggregator-orders?status=&platform=` — List aggregator orders
-- `POST /api/v1/{counter,admin}/orders/:id/accept-aggregator` — Accept with confirmation
-- `POST /api/v1/{counter,admin}/orders/:id/reject-aggregator` — Reject with reason
-
-### Platform Config CRUD (Admin only)
-- `GET /api/v1/admin/platform-configs` — List all platform configs
-- `GET /api/v1/admin/platform-configs/:platform` — Get specific config
-- `POST /api/v1/admin/platform-configs` — Create/update (upsert) config
-- `DELETE /api/v1/admin/platform-configs/:platform` — Remove config
-
-### Frontend Components
-- `AggregatorOrders` — Counter panel showing incoming orders with accept/reject, countdown timer, audio alerts
-- `PlatformSettings` — Admin settings page for configuring platform credentials
-- Kitchen display shows colored badges: orange for Swiggy, red for Zomato
-
-### Future Phases (not yet built)
-- **Cloud Relay Server** — Separate Go service receiving webhooks from Swiggy/Zomato and relaying to local POS via WebSocket
-- **Zomato API Integration** — Requires vendor approval as POS partner
-- **Swiggy API Integration** — Requires partner program enrollment
-
-## Authentication & Logout
-
-The app supports **dual authentication modes**: Clerk (SaaS/cloud) and internal JWT (self-hosted/offline).
-
-### Auth Providers
-
-- **Clerk** (`authProvider: 'clerk'`): Enabled when `VITE_CLERK_PUBLISHABLE_KEY` is set. Uses Clerk Organizations for multi-tenant SaaS. Staff are invited as organization members and receive automatic invitation emails. No JWT token stored locally; Clerk manages sessions via cookies.
-- **Internal** (`authProvider: 'internal'`): Traditional JWT-based auth. Token stored in Zustand + localStorage. Used for offline/self-hosted deployments.
-
-### Clerk Organizations (Multi-Tenant SaaS)
-
-When Clerk is enabled, the system uses **Clerk Organizations** for multi-tenancy. Each admin creates their own organization and invites staff members.
-
-**Staff Creation Flow:**
-1. Admin creates staff member at `/admin/settings/staff`
-2. Backend calls `CreateOrganizationInvitation()` with role mapping:
-   - `admin`/`manager` → `org:admin` (Clerk role)
-   - `server`/`counter`/`kitchen` → `org:member` (Clerk role)
-3. Clerk sends invitation email automatically
-4. Staff accepts invitation and sets password in Clerk
-5. On first login, webhook syncs `clerk_id` to existing user record (no duplicates)
-6. Staff redirected based on role (see Role-Based Navigation below)
-
-**Key Implementation Files:**
-- `backend/internal/services/clerk.go` - `CreateOrganizationInvitation()` with role mapping
-- `backend/internal/handlers/clerk_webhooks.go` - Webhook handler that syncs `clerk_id` by email, `needsSetup` logic
-- `backend/internal/handlers/users.go` - Staff creation endpoint
-
-**Environment Variables:**
-- `CLERK_SECRET_KEY` - Clerk API secret key
-- `CLERK_WEBHOOK_SECRET` - Webhook signature verification secret
-
-**Important Behaviors:**
-- Setup wizard only shown to admin/manager roles (staff skip it)
-- Staff members sync `clerk_id` to existing user record (prevents duplicates)
-- Role-based redirects after login (server/counter → `/admin/pos`, kitchen → `/admin/kitchen`)
-- Staff members don't see admin navigation (bottom nav hidden for non-admin roles)
-
-### Logout Flow (CRITICAL)
-
-When implementing logout, you **MUST** handle both auth providers correctly:
+### Logout Flow
 
 ```typescript
-const { logout, authProvider } = useAuthStore()
-const clerk = useClerk() // May be null if Clerk not available
+const { logout } = useAuthStore()
 
-const handleLogout = () => {
-  if (authProvider === 'clerk') {
-    // 1. Set logout flag to prevent re-authentication during logout
-    sessionStorage.setItem('pos-logging-out', '1')
-
-    // 2. Clear BOTH localStorage AND Zustand state immediately
-    localStorage.removeItem('pos-auth')
-    logout() // Must call this! Clears in-memory state
-
-    // 3. Sign out from Clerk and redirect
-    if (clerk) {
-      clerk.signOut().finally(() => {
-        window.location.href = '/landing'
-      })
-    } else {
-      window.location.href = '/landing'
-    }
-  } else {
-    // Internal auth - clear state and go to login
-    logout()
-    apiClient.clearAuth()
-    window.location.href = '/login'
-  }
+const handleLogout = async () => {
+  await signOut() // Supabase auth
+  logout()        // Clear Zustand state
+  window.location.href = '/login'
 }
 ```
 
-**Key Points:**
-- **ALWAYS call `logout()`** to clear Zustand in-memory state, not just localStorage
-- **Set `pos-logging-out` flag** before logout to prevent race conditions
-- **Redirect to `/landing`** for Clerk, `/login`** for internal auth
-- **Check the flag in AdminLayout** to prevent redirect loops during logout
-- Logout is implemented in **two locations**: `UserMenu` component and `AdminTopBar` component — keep them in sync!
-
-### Files with Logout Handlers
-
-| File | Component | Notes |
-|------|-----------|-------|
-| `components/ui/user-menu.tsx` | `UserMenu` | Used in sidebar layouts |
-| `components/admin/AdminSidebar.tsx` | `AdminTopBar` | Used in admin top bar |
-
-### Auth State Management
-
-- **Zustand Store**: `@pos/core` → `useAuthStore`
-- **Persisted**: `localStorage` key `pos-auth` (Zustand persist middleware)
-- **Session Flag**: `sessionStorage` key `pos-logging-out` (temporary logout indicator)
-- **API Client**: Auto-injects token via `getToken()` and `asyncGetToken()` functions
-- **Clerk Session Sync**: `routes/admin.tsx` syncs Clerk session to Zustand on mount (skips if `pos-logging-out` flag is set)
+Logout is implemented in `components/ui/user-menu.tsx` and `components/admin/AdminSidebar.tsx` — keep them in sync.
 
 ### Role-Based Navigation & Access Control
 
-The app uses role-based access control to restrict routes and hide navigation for staff members.
-
 **Route Access Control** (`routes/admin.tsx`):
-```typescript
-const allowedRoutes = {
-  admin: ['/admin'], // Full admin access
-  manager: ['/admin'], // Full admin access
-  server: ['/admin/pos'], // POS interface only
-  counter: ['/admin/pos'], // POS interface only
-  kitchen: ['/admin/kitchen'], // Kitchen display only
-}
-```
+- `admin`/`manager` → Full admin access
+- `server`/`counter` → `/admin/pos` only
+- `kitchen` → `/admin/kitchen` only
 
 **Login Redirects** (`routes/login.tsx`):
 - `server`/`counter` → `/admin/pos`
 - `kitchen` → `/admin/kitchen`
 - `admin`/`manager` → `/admin`
 
-**Navigation Visibility** (`routes/admin.tsx`):
-- **Admin/Manager**: See full admin navigation (bottom nav with POS, Bills, Kitchen, Customers, Reports, Settings)
-- **Server/Counter/Kitchen**: No admin navigation shown (clean interface with only their specific view)
+**Navigation Visibility**: Admin/Manager see full nav. Staff see only their specific view.
 
-**Implementation:**
-```typescript
-// In routes/admin.tsx
-const showAdminNav = user.role === 'admin' || user.role === 'manager'
+## Aggregator Integration (Swiggy/Zomato)
 
-return (
-  <div className="h-screen flex flex-col overflow-hidden">
-    {!isFullScreen && <AdminTopBar user={user} />}
-    <main className="flex-1 min-h-0 overflow-hidden bg-background">
-      <Outlet />
-    </main>
-    {!isFullScreen && showAdminNav && <AdminBottomNav />}
-  </div>
-)
-```
-
-**Key Files:**
-- `routes/admin.tsx` - Access control, navigation visibility, already-authenticated redirects
-- `routes/login.tsx` - Role-based login redirects
-- `components/admin/AdminSidebar.tsx` - AdminBottomNav component (6 nav items)
+- **Order source** tracked via `order_source` field: `pos`, `swiggy`, `zomato`
+- **Accept deadline** with countdown timer
+- **Platform configs** in `platform_configs` table
+- **Webhooks** handled via Supabase Edge Functions
+- **Frontend**: `AggregatorOrders` component (counter), `PlatformSettings` (admin), kitchen badges
 
 ## Touch Mode (On-Screen Keyboard)
 
-Controlled by `touchMode: boolean` in `StoreSettings`. Stored as `touch_mode` in the settings API. Default: `false` (off). Toggled in Admin > Settings > System.
+Controlled by `touchMode: boolean` in `StoreSettings`. Stored as `touch_mode` in settings. Default: `false`.
 
-### How it works
-- **Touch ON**: Text inputs render as tappable `<button>`/`<div>` elements that open `OnScreenKeyboard` (full-screen modal) or inline `KeyboardRow` (fixed at bottom). The `OnScreenKeyboard` also accepts physical keyboard input via a hidden `<input>`.
-- **Touch OFF**: Standard `<input>` elements with physical keyboard support. No on-screen keyboard rendered.
+- **Touch ON**: Tappable elements open `OnScreenKeyboard` modal or inline `KeyboardRow`
+- **Touch OFF**: Standard `<input>` elements
 
-### Files that check `touchMode`
-
-| File | What it gates |
-|------|---------------|
-| `routes/login.tsx` | Username/password fields + keyboard |
-| `components/counter/CounterInterface.tsx` | Product search bar + inline keyboard |
-| `components/counter/views/TablesView.tsx` | Takeout/delivery customer name input + keyboard |
-| `components/counter/panels/CartPanel.tsx` | Item special instructions + order notes |
-| `components/counter/payment-steps/CustomerStep.tsx` | New customer name input |
-
-### Adding a new touch-aware input
-1. Import `useSettingsStore` from `@pos/core`
-2. Read `const { settings } = useSettingsStore()` and check `settings.touchMode`
-3. **Touch ON**: Render a tappable element + `<OnScreenKeyboard>` from `@/components/ui/on-screen-keyboard`
-4. **Touch OFF**: Render a standard `<input>` or `<textarea>`
-5. On-screen keyboard components: `OnScreenKeyboard` (modal), `KeyboardRow` + layouts (inline)
+Files that check `touchMode`: `routes/login.tsx`, `CounterInterface.tsx`, `TablesView.tsx`, `CartPanel.tsx`, `CustomerStep.tsx`
 
 ## Current Status
 
-See `PROGRESS.md` for detailed phase tracking. As of Phase 9: monorepo setup, Tauri desktop shell, kitchen display, shared packages, API client integration, offline order creation, first-time onboarding, and aggregator order integration (Phase 1 - local POS infrastructure) are complete. Production deployment on Railway is live. Next priorities: cloud relay server, full offline sync testing, hardware integration, and installers.
+Migration from Go backend + Clerk + Railway to Supabase + Vercel is complete through Phase 6. The Go backend has been removed. All CRUD and business logic routes through Supabase PostgREST and database functions. Remaining: Phase 7 (offline-first adaptation with Supabase sync queue).

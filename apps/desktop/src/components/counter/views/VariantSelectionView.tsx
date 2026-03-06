@@ -3,9 +3,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ImageOff, Check, ChevronRight, ShoppingCart } from 'lucide-react'
 import type { InlineConfigState } from '../types'
-import type { ProductOptionItem, ComboSlot } from '@/types'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import type { ProductOptionItem, ComboSlot, ComboSlotChoice } from '@/types'
+import { imageUrl } from '@/lib/utils'
 
 interface VariantSelectionViewProps {
   config: InlineConfigState
@@ -167,7 +166,7 @@ function ComboSingleScreenView({
                       <div className="relative h-28 bg-zinc-800 overflow-hidden">
                         {product.image_url ? (
                           <img
-                            src={product.image_url.startsWith('/') ? `${API_BASE}${product.image_url}` : product.image_url}
+                            src={imageUrl(product.image_url)}
                             alt={product.name}
                             className="w-full h-full object-cover"
                           />

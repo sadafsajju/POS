@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
-import { 
+import {
   TextInputField,
   NumberInputField,
   PriceInputField,
@@ -11,7 +11,7 @@ import {
   SwitchField,
   FormSubmitButton,
   roleOptions,
-  productStatusOptions 
+  productStatusOptions
 } from '@/components/forms/FormComponents'
 import { createProductSchema, type CreateProductData } from '@/lib/form-schemas'
 import { toastHelpers } from '@/lib/toast-helpers'
@@ -30,9 +30,9 @@ export function FormDemo() {
       name: '',
       description: '',
       price: 0,
-      category_id: 1,
+      category_id: '1',
       image_url: '',
-      status: 'active',
+      is_available: true,
       preparation_time: 5,
     },
   })
@@ -61,14 +61,14 @@ export function FormDemo() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <TextInputField
-                  control={form.control}
+                  control={form.control as any}
                   name="name"
                   label="Product Name"
                   placeholder="Enter product name"
                 />
-                
+
                 <TextareaField
-                  control={form.control}
+                  control={form.control as any}
                   name="description"
                   label="Description"
                   placeholder="Describe the product..."
@@ -77,14 +77,14 @@ export function FormDemo() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <PriceInputField
-                    control={form.control}
+                    control={form.control as any}
                     name="price"
                     label="Price"
                     currency="$"
                   />
                   
                   <NumberInputField
-                    control={form.control}
+                    control={form.control as any}
                     name="preparation_time"
                     label="Prep Time (mins)"
                     min={1}
@@ -93,7 +93,7 @@ export function FormDemo() {
                 </div>
                 
                 <SelectField
-                  control={form.control}
+                  control={form.control as any}
                   name="category_id"
                   label="Category"
                   options={categoryOptions.map(cat => ({
@@ -103,18 +103,17 @@ export function FormDemo() {
                 />
                 
                 <TextInputField
-                  control={form.control}
+                  control={form.control as any}
                   name="image_url"
                   label="Image URL"
                   placeholder="https://example.com/image.jpg"
                   description="Optional product image"
                 />
                 
-                <SelectField
-                  control={form.control}
-                  name="status"
-                  label="Status"
-                  options={productStatusOptions}
+                <SwitchField
+                  control={form.control as any}
+                  name="is_available"
+                  label="Available"
                 />
                 
                 <FormSubmitButton className="w-full">

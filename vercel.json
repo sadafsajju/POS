@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build:desktop",
+  "outputDirectory": "apps/desktop/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

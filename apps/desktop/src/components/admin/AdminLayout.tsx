@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { UserMenu } from '@/components/ui/user-menu'
 // import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card' // Removed - not used in simplified layout
 import {
@@ -15,7 +14,6 @@ import {
   LayoutGrid
 } from 'lucide-react'
 import type { User as UserType } from '@/types'
-import apiClient from '@/api/client'
 
 // Import components for different sections
 import { CounterInterface } from '@/components/counter/CounterInterface'

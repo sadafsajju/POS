@@ -9,6 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@pos/supabase": "*",
     "@pos/types": "*",
     "zustand": "^4.5.0"
   },

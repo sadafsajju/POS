@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TokenDisplayRouteImport } from './routes/token-display'
+import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
@@ -49,6 +50,11 @@ import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/setti
 const TokenDisplayRoute = TokenDisplayRouteImport.update({
   id: '/token-display',
   path: '/token-display',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -238,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
+  '/sign-up': typeof SignUpRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
+  '/sign-up': typeof SignUpRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
+  '/sign-up': typeof SignUpRoute
   '/token-display': typeof TokenDisplayRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -352,6 +361,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/setup'
+    | '/sign-up'
     | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/setup'
+    | '/sign-up'
     | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
@@ -425,6 +436,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/setup'
+    | '/sign-up'
     | '/token-display'
     | '/admin/bills'
     | '/admin/customers'
@@ -464,6 +476,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   SetupRoute: typeof SetupRoute
+  SignUpRoute: typeof SignUpRoute
   TokenDisplayRoute: typeof TokenDisplayRoute
 }
 
@@ -474,6 +487,13 @@ declare module '@tanstack/react-router' {
       path: '/token-display'
       fullPath: '/token-display'
       preLoaderRoute: typeof TokenDisplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -812,6 +832,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   SetupRoute: SetupRoute,
+  SignUpRoute: SignUpRoute,
   TokenDisplayRoute: TokenDisplayRoute,
 }
 export const routeTree = rootRouteImport

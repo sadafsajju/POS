@@ -77,8 +77,8 @@ export function BillsInterface() {
           case 'total_amount':
             return (a.total_amount - b.total_amount) * multiplier
           case 'table_number': {
-            const aTable = a.table?.table_number || 0
-            const bTable = b.table?.table_number || 0
+            const aTable = parseInt(a.table?.table_number || '0', 10)
+            const bTable = parseInt(b.table?.table_number || '0', 10)
             return (aTable - bTable) * multiplier
           }
           default:

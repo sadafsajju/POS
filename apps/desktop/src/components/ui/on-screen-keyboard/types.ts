@@ -29,6 +29,7 @@ export interface OnScreenKeyboardProps {
   title?: string;
   placeholder?: string;
   maxLength?: number;
+  quickPhrases?: string[];
 }
 
 export interface KeyboardKeyProps {

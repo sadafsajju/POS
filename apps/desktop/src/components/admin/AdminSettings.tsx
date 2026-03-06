@@ -31,7 +31,7 @@ const currencyOptions = [
 ]
 
 export function AdminSettings() {
-  const { settings, isLoading, saveSettings, fetchSettings } = useSettingsStore()
+  const { settings, isLoading, saveSettings } = useSettingsStore()
   const [localSettings, setLocalSettings] = useState<StoreSettings>(settings)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -1,8 +1,7 @@
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { useKioskStore } from '../store/kiosk-store'
-
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8080'
+import { imageUrl } from '@/lib/utils'
 
 export function CartScreen() {
   const { settings } = useSettingsStore()
@@ -71,7 +70,7 @@ export function CartScreen() {
               <div className="w-20 h-20 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
                 {item.product.image_url ? (
                   <img
-                    src={item.product.image_url.startsWith('/') ? `${API_BASE}${item.product.image_url}` : item.product.image_url}
+                    src={imageUrl(item.product.image_url)}
                     alt={item.product.name}
                     className="w-full h-full object-cover"
                   />

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Package, CheckCircle, X, Volume2 } from 'lucide-react';
+import { Clock, Package, CheckCircle, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { kitchenSoundService } from '@/services/soundService';
 import { useSettingsStore } from '@pos/core';
@@ -26,7 +26,6 @@ export function TakeawayBoard({
   autoRefresh = true,
   onOrderComplete,
 }: TakeawayBoardProps) {
-  const { settings } = useSettingsStore();
   const [previousReadyOrders, setPreviousReadyOrders] = useState<Set<string>>(new Set());
   const [soundPlayed, setSoundPlayed] = useState<Set<string>>(new Set());
 
@@ -144,6 +143,7 @@ interface TakeawayOrderCardProps {
 }
 
 function TakeawayOrderCard({ order, onComplete }: TakeawayOrderCardProps) {
+  const { settings } = useSettingsStore();
   const getUrgencyLevel = (waitTime: number) => {
     if (waitTime >= 20) return { level: 'critical', color: 'bg-red-500', text: 'Very Urgent' };
     if (waitTime >= 15) return { level: 'high', color: 'bg-orange-500', text: 'Urgent' };

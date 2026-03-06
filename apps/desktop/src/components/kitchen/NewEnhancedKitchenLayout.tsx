@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import apiClient from '@/api/client';
-import type { User as UserType, Order, OrderItem } from '@/types';
+import type { User as UserType, Order, OrderItem, OrderStatus } from '@/types';
 
 interface NewEnhancedKitchenLayoutProps {
   user: UserType;
@@ -136,7 +136,7 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
 
   const handleStatusUpdate = useCallback(async (orderId: string, newStatus: string) => {
     try {
-      await apiClient.updateOrderStatus(orderId, newStatus);
+      await apiClient.updateOrderStatus(orderId, newStatus as OrderStatus);
       refetch();
     } catch (e) {
       console.error('Status update failed:', e);

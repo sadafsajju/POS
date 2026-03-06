@@ -1,50 +1,14 @@
-import axios, { AxiosInstance } from 'axios';
+import { productsDb, ordersDb } from '@pos/supabase';
 import type {
-  CustomerSessionResponse,
-  CreateCustomerSessionRequest,
-  CustomerOrderRequest,
-  ApiResponse,
   Product,
   Order,
 } from '@pos/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
-
 class CustomerAPI {
-  private client: AxiosInstance;
   private sessionToken: string | null = null;
 
   constructor() {
-    this.client = axios.create({
-      baseURL: API_BASE_URL,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Load session token from localStorage
     this.sessionToken = localStorage.getItem('session_token');
-
-    // Add session token to requests
-    this.client.interceptors.request.use((config) => {
-      if (this.sessionToken) {
-        config.headers['X-Session-Token'] = this.sessionToken;
-      }
-      return config;
-    });
-
-    // Handle session expiration
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Session expired
-          this.clearSession();
-          window.location.href = '/expired';
-        }
-        return Promise.reject(error);
-      }
-    );
   }
 
   setSessionToken(token: string) {
@@ -58,72 +22,44 @@ class CustomerAPI {
     localStorage.removeItem('session_data');
   }
 
-  // Initialize session from QR code
-  async initSession(
-    request: CreateCustomerSessionRequest
-  ): Promise<CustomerSessionResponse> {
-    const response = await this.client.post<ApiResponse<CustomerSessionResponse>>(
-      '/customer/session',
-      request
-    );
-
-    if (response.data.success && response.data.data) {
-      const sessionData = response.data.data;
-      this.setSessionToken(sessionData.session.session_token);
-      localStorage.setItem('session_data', JSON.stringify(sessionData));
-      return sessionData;
-    }
-
-    throw new Error(response.data.message || 'Failed to initialize session');
-  }
-
-  // Get menu
+  // Get menu — public read via Supabase
   async getMenu(): Promise<Product[]> {
-    const response = await this.client.get<ApiResponse<Product[]>>(
-      '/customer/menu'
-    );
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+    const response = await productsDb.getProducts({ available_only: true } as any);
+    if (response.success && Array.isArray(response.data)) {
+      return response.data as Product[];
     }
-
-    throw new Error(response.data.message || 'Failed to fetch menu');
+    throw new Error(response.message || 'Failed to fetch menu');
   }
 
-  // Place order
-  async placeOrder(request: CustomerOrderRequest): Promise<Order> {
-    const response = await this.client.post<ApiResponse<Order>>(
-      '/customer/order',
-      request
-    );
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+  // Place order via Supabase RPC
+  async placeOrder(request: {
+    table_id?: string;
+    order_type: string;
+    items: any[];
+    customer_name?: string;
+    notes?: string;
+  }): Promise<Order> {
+    const response = await ordersDb.createOrder(request as any);
+    if (response.success && response.data) {
+      return response.data as unknown as Order;
     }
-
-    throw new Error(response.data.message || 'Failed to place order');
+    throw new Error(response.message || 'Failed to place order');
   }
 
   // Get customer's orders
   async getMyOrders(): Promise<Order[]> {
-    const response = await this.client.get<ApiResponse<Order[]>>(
-      '/customer/orders'
-    );
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+    const response = await ordersDb.getOrders({});
+    if (response.success && Array.isArray(response.data)) {
+      return response.data as Order[];
     }
-
-    throw new Error(response.data.message || 'Failed to fetch orders');
+    throw new Error(response.message || 'Failed to fetch orders');
   }
 
-  // Check if session is active
   hasActiveSession(): boolean {
     return this.sessionToken !== null;
   }
 
-  // Get stored session data
-  getSessionData(): CustomerSessionResponse | null {
+  getSessionData(): any | null {
     const stored = localStorage.getItem('session_data');
     return stored ? JSON.parse(stored) : null;
   }

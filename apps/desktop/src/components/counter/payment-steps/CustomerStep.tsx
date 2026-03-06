@@ -49,7 +49,7 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
   }
 
   const handleUseCustomer = (customer: Customer) => {
-    onCustomerLinked(customer.id, customer.name || customer.phone)
+    onCustomerLinked(customer.id, customer.name || customer.phone || '')
   }
 
   const handleCreateAndProceed = async () => {
@@ -61,7 +61,7 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
       })
       if (response.success && response.data) {
         const customer = response.data as Customer
-        onCustomerLinked(customer.id, customer.name || customer.phone)
+        onCustomerLinked(customer.id, customer.name || customer.phone || '')
       } else {
         onCustomerLinked(null, newCustomerName || phoneNumber)
       }
@@ -151,8 +151,8 @@ export function CustomerStep({ formatCurrency, onCustomerLinked, onSkip }: Custo
                 <p className="text-sm text-zinc-400">{foundCustomer.phone}</p>
               </div>
               <div className="flex gap-4 text-sm text-zinc-400">
-                <span>{foundCustomer.total_orders} orders</span>
-                <span>{formatCurrency(foundCustomer.total_spent)} spent</span>
+                <span>{foundCustomer.total_orders ?? 0} orders</span>
+                <span>{formatCurrency(foundCustomer.total_spent ?? 0)} spent</span>
               </div>
               <Button
                 className="w-full h-12 text-base bg-amber-500 hover:bg-amber-400 font-black tracking-wider text-white"

@@ -8,6 +8,7 @@ interface AuthStore extends AuthState {
   locations: Location[];
   setHasHydrated: (state: boolean) => void;
   login: (user: User, token: string, organization?: Organization | null, location?: Location | null, locations?: Location[]) => void;
+  loginWithSupabase: (user: User, organization?: Organization | null, location?: Location | null, locations?: Location[]) => void;
   logout: () => void;
   lock: () => void;
   unlock: () => void;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: true, // Start as true until hydration completes
       isLocked: false,
+      authProvider: undefined,
       _hasHydrated: false,
 
       setHasHydrated: (state) => {
@@ -42,6 +44,20 @@ export const useAuthStore = create<AuthStore>()(
           locations: locations ?? [],
           isAuthenticated: true,
           isLoading: false,
+          authProvider: 'internal',
+        });
+      },
+
+      loginWithSupabase: (user, organization, location, locations) => {
+        set({
+          user,
+          token: null, // Supabase manages its own session
+          organization: organization ?? null,
+          location: location ?? null,
+          locations: locations ?? [],
+          isAuthenticated: true,
+          isLoading: false,
+          authProvider: 'supabase',
         });
       },
 
@@ -55,6 +71,7 @@ export const useAuthStore = create<AuthStore>()(
           isAuthenticated: false,
           isLocked: false,
           isLoading: false,
+          authProvider: undefined,
         });
       },
 
@@ -94,6 +111,7 @@ export const useAuthStore = create<AuthStore>()(
         locations: state.locations,
         isAuthenticated: state.isAuthenticated,
         isLocked: state.isLocked,
+        authProvider: state.authProvider,
       }),
       onRehydrateStorage: () => (state) => {
         // Called when hydration is complete
