@@ -245,7 +245,7 @@ export function CounterInterface() {
   // Query for active bill on selected table (KOT support)
   const { data: activeBillData } = useQuery({
     queryKey: ['activeBill', selectedTable?.id],
-    queryFn: () => selectedTable ? apiClient.getActiveBillForTable(selectedTable.id).then(res => res.data) : null,
+    queryFn: () => apiClient.getActiveBillForTable(selectedTable!.id).then(res => res.data ?? null),
     enabled: !!selectedTable && orderType === 'dine_in' && isOnline,
     refetchInterval: 5000, // Keep KOT statuses fresh so cart reflects served state
   })

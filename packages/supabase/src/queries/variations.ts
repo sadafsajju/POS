@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type VariationGroupRow = Database['public']['Tables']['variation_groups']['Row']
@@ -43,6 +43,11 @@ export async function getVariationGroupById(id: string): Promise<ApiResponse<Var
 
 export async function createVariationGroup(group: VariationGroupInsert): Promise<ApiResponse<VariationGroupRow>> {
   const sb = getSupabase()
+  if (!group.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    group = { ...group, org_id: orgId }
+  }
   const { data, error } = await sb.from('variation_groups').insert(group).select().single()
   return wrapOne(data, error, 'Variation group')
 }

@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type LocationRow = Database['public']['Tables']['locations']['Row']
@@ -23,6 +23,13 @@ export async function getLocationById(id: string): Promise<ApiResponse<LocationR
 
 export async function createLocation(location: LocationInsert): Promise<ApiResponse<LocationRow>> {
   const sb = getSupabase()
+
+  if (!location.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    location = { ...location, org_id: orgId }
+  }
+
   const { data, error } = await sb.from('locations').insert(location).select().single()
   return wrapOne(data, error, 'Location')
 }

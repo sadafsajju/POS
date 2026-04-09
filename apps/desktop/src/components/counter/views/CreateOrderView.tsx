@@ -126,7 +126,7 @@ export function CreateOrderView({
         onPointerCancel={handleLongPressCancel}
         className={`
           relative overflow-hidden cursor-pointer transition-all rounded-xl
-          ${displaySettings.showImage ? 'aspect-square' : ''} flex flex-col bg-zinc-900
+          ${displaySettings.showImage && product.image_url ? 'aspect-square' : ''} flex flex-col bg-zinc-900
           ${isUnavailable
             ? 'opacity-50 cursor-not-allowed'
             : 'hover:bg-zinc-800 active:scale-[0.98]'
@@ -135,20 +135,14 @@ export function CreateOrderView({
           ${longPressProductId === product.id ? 'ring-4 ring-red-500 scale-[0.95]' : ''}
         `}
       >
-        {/* Product Image */}
-        {displaySettings.showImage && (
+        {/* Product Image - only show when image exists */}
+        {displaySettings.showImage && product.image_url && (
           <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
-            {product.image_url ? (
-              <img
-                src={imageUrl(product.image_url)}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                <ImageOff className="w-12 h-12 text-zinc-700" />
-              </div>
-            )}
+            <img
+              src={imageUrl(product.image_url)}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
 
             {/* Top Right: Quantity Badge */}
             {cartQty > 0 && (
@@ -179,14 +173,14 @@ export function CreateOrderView({
         )}
 
         {/* Quantity badge when image is hidden */}
-        {!displaySettings.showImage && cartQty > 0 && (
+        {(!displaySettings.showImage || !product.image_url) && cartQty > 0 && (
           <div className="absolute top-1 sm:top-2 right-1 sm:right-2 bg-amber-500 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-lg">
             {cartQty}
           </div>
         )}
 
         {/* Product Info */}
-        <div className={`flex-1 p-1.5 sm:p-2 md:p-2.5 flex flex-col justify-between ${!displaySettings.showImage ? 'py-2 sm:py-3' : ''}`}>
+        <div className={`flex-1 p-1.5 sm:p-2 md:p-2.5 flex flex-col justify-between ${!displaySettings.showImage || !product.image_url ? 'py-2 sm:py-3' : ''}`}>
           <div>
             <h3 className="font-bold text-xs sm:text-sm md:text-base lg:text-md leading-tight line-clamp-1 flex items-center gap-0.5 sm:gap-1 text-zinc-100">
               {displaySettings.showDietaryType && product.dietary_type && (
@@ -216,7 +210,7 @@ export function CreateOrderView({
                 {product.barcode}
               </p>
             )}
-            {!displaySettings.showImage && displaySettings.showPreparationTime && product.preparation_time > 0 && (
+            {(!displaySettings.showImage || !product.image_url) && displaySettings.showPreparationTime && product.preparation_time > 0 && (
               <p className="text-xs text-zinc-500 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {product.preparation_time} min
@@ -241,7 +235,7 @@ export function CreateOrderView({
                 })()}
               </span>
             )}
-            {displaySettings.showAvailability && !displaySettings.showImage && isUnavailable && (
+            {displaySettings.showAvailability && (!displaySettings.showImage || !product.image_url) && isUnavailable && (
               <Badge variant="secondary" className="text-xs">
                 Unavailable
               </Badge>

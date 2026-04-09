@@ -1,29 +1,7 @@
 import {
-  ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-} from "@tanstack/react-table"
-import { useState } from "react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   Edit,
   Trash2,
   Tag,
-  Hash,
-  Calendar,
   MoreHorizontal
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -43,217 +21,142 @@ interface AdminCategoriesTableProps {
   isLoading?: boolean
 }
 
-function SortButton({ column, icon: Icon, label }: { column: any; icon: any; label: string }) {
-  const isSorted = column.getIsSorted()
-  return (
-    <button
-      onClick={() => column.toggleSorting(isSorted === "asc")}
-      className="flex items-center gap-1.5 h-8 px-2 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors text-xs font-medium"
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-      {isSorted === "asc" ? (
-        <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
-      ) : isSorted === "desc" ? (
-        <ArrowDown className="h-3.5 w-3.5 text-emerald-400" />
-      ) : (
-        <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-      )}
-    </button>
-  )
-}
-
 export function AdminCategoriesTable({
   data,
   onEdit,
   onDelete,
   isLoading = false
 }: AdminCategoriesTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([])
-
-  const columns: ColumnDef<Category>[] = [
-    {
-      accessorKey: "name",
-      header: ({ column }) => <SortButton column={column} icon={Tag} label="Category" />,
-      cell: ({ row }) => {
-        const category = row.original
-        return (
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0">
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center ring-1 ring-zinc-700"
-                style={{
-                  backgroundColor: category.color || '#3f3f46',
-                  color: 'white'
-                }}
-              >
-                <Tag className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="min-w-0">
-              <div className="font-medium text-zinc-200">
-                {category.name}
-              </div>
-              <div className="text-xs text-zinc-500 line-clamp-1">
-                {category.description || "No description"}
-              </div>
-            </div>
-          </div>
-        )
-      },
-    },
-    {
-      accessorKey: "sort_order",
-      header: ({ column }) => <SortButton column={column} icon={Hash} label="Order" />,
-      cell: ({ getValue }) => {
-        const order = getValue() as number
-        return (
-          <span className="text-zinc-500 font-mono text-xs tabular-nums">
-            #{order}
-          </span>
-        )
-      },
-    },
-    {
-      accessorKey: "is_active",
-      header: () => (
-        <span className="text-xs font-medium text-zinc-400 px-2">Status</span>
-      ),
-      cell: ({ getValue }) => {
-        const isActive = getValue() as boolean
-        return (
-          <span className={cn(
-            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium",
-            isActive
-              ? "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20"
-              : "bg-zinc-800 text-zinc-500 ring-1 ring-zinc-700"
-          )}>
-            <span className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              isActive ? "bg-emerald-400" : "bg-zinc-600"
-            )} />
-            {isActive ? "Active" : "Inactive"}
-          </span>
-        )
-      },
-    },
-    {
-      accessorKey: "created_at",
-      header: ({ column }) => <SortButton column={column} icon={Calendar} label="Created" />,
-      cell: ({ getValue }) => {
-        const date = getValue() as string
-        return (
-          <span className="text-zinc-400 text-xs">
-            {new Date(date).toLocaleDateString()}
-          </span>
-        )
-      },
-    },
-    {
-      id: "actions",
-      header: () => (
-        <span className="text-xs font-medium text-zinc-400 px-2">Actions</span>
-      ),
-      cell: ({ row }) => {
-        const category = row.original
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center justify-center h-8 w-8 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 bg-zinc-900 border-zinc-800 text-zinc-200">
-              <DropdownMenuItem
-                onClick={() => onEdit(category)}
-                className="gap-2 text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100 cursor-pointer"
-              >
-                <Edit className="h-3.5 w-3.5" />
-                Edit Category
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-zinc-800" />
-              <DropdownMenuItem
-                onClick={() => onDelete(category)}
-                className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-300 cursor-pointer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Category
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    },
-  ]
-
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    state: {
-      sorting,
-    },
-  })
-
   return (
     <div className="w-full">
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-zinc-800 hover:bg-transparent">
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="px-4 bg-zinc-900/80 text-zinc-400">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i} className="border-zinc-800/60 hover:bg-transparent">
-                  {columns.map((_, j) => (
-                    <TableCell key={j} className="px-4 py-3">
-                      <div className="h-4 bg-zinc-800 rounded animate-pulse" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="border-zinc-800/60 hover:bg-zinc-800/40 transition-colors"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-4 py-2.5">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow className="border-zinc-800/60 hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="h-32 text-center">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center">
-                      <Tag className="w-6 h-6 text-zinc-600" />
-                    </div>
-                    <p className="text-sm font-medium text-zinc-400">No categories found</p>
-                    <p className="text-xs text-zinc-600">Create your first category to get started</p>
+      {isLoading ? (
+        <div className="grid gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-[64px] rounded-xl bg-zinc-900 border border-zinc-800 animate-pulse" />
+          ))}
+        </div>
+      ) : data.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-14 h-14 bg-zinc-800 rounded-full flex items-center justify-center">
+            <Tag className="w-7 h-7 text-zinc-600" />
+          </div>
+          <p className="text-sm font-medium text-zinc-400">No categories found</p>
+          <p className="text-xs text-zinc-600">Create your first category to get started</p>
+        </div>
+      ) : (
+        <div className="grid gap-1.5">
+          {data.map((category) => {
+            const isActive = category.is_active
+            const categoryColor = category.color || '#3f3f46'
+
+            return (
+              <div
+                key={category.id}
+                className={cn(
+                  "group relative flex items-center gap-4 pl-4 pr-3 py-3 rounded-xl border transition-all duration-150",
+                  isActive
+                    ? "bg-zinc-900 border-zinc-800 hover:bg-zinc-800/70 hover:border-zinc-700"
+                    : "bg-zinc-900/60 border-zinc-800/60 hover:bg-zinc-800/40"
+                )}
+              >
+                {/* === IDENTITY ZONE: Color swatch + Name === */}
+                <div className={cn(
+                  "flex items-center gap-3.5 min-w-0 flex-1",
+                  !isActive && "opacity-50"
+                )}>
+                  {/* Color swatch */}
+                  <div
+                    className="flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center"
+                    style={{
+                      backgroundColor: categoryColor,
+                      color: 'white'
+                    }}
+                  >
+                    <Tag className="h-4.5 w-4.5" />
                   </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+
+                  {/* Name + inline metadata */}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-[15px] text-zinc-100 truncate leading-tight">
+                      {category.name}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {category.description ? (
+                        <span className="text-xs text-zinc-500 truncate max-w-[280px]">
+                          {category.description}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-600 italic">No description</span>
+                      )}
+                      {category.sort_order > 0 && (
+                        <>
+                          <span className="text-zinc-700">&#183;</span>
+                          <span className="text-xs text-zinc-600 font-mono tabular-nums">
+                            #{category.sort_order}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* === STATUS ZONE === */}
+                <div className="flex-shrink-0 flex items-center gap-3">
+                  {/* Status indicator */}
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium",
+                    isActive
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "bg-zinc-800 text-zinc-500"
+                  )}>
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      isActive ? "bg-emerald-400" : "bg-zinc-600"
+                    )} />
+                    {isActive ? "Active" : "Inactive"}
+                  </span>
+
+                  {/* Created date -- subtle tertiary info */}
+                  <span className="hidden sm:block text-zinc-600 text-xs tabular-nums min-w-[72px] text-right">
+                    {new Date(category.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                </div>
+
+                {/* === ACTIONS ZONE === */}
+                <div className="flex-shrink-0 pl-2 border-l border-zinc-800">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-600 hover:text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600 transition-colors">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44 bg-zinc-900 border-zinc-800 text-zinc-200">
+                      <DropdownMenuItem
+                        onClick={() => onEdit(category)}
+                        className="gap-2 text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100 cursor-pointer"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                        Edit Category
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-zinc-800" />
+                      <DropdownMenuItem
+                        onClick={() => onDelete(category)}
+                        className="gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-300 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Category
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

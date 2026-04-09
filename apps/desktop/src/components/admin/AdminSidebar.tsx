@@ -15,6 +15,34 @@ import { useAuthStore } from '@pos/core'
 import { LocationSwitcher } from '@/components/ui/location-switcher'
 import { signOut as supabaseSignOut } from '@pos/supabase'
 
+// --- Trial Banner ---
+
+function TrialBanner() {
+  const { plan, trialEndsAt } = useAuthStore()
+
+  if (plan !== 'trial' || !trialEndsAt) return null
+
+  const daysRemaining = Math.max(0, Math.ceil(
+    (new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  ))
+  const isUrgent = daysRemaining <= 3
+
+  return (
+    <a
+      href="/upgrade"
+      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+        isUrgent
+          ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
+      }`}
+    >
+      {daysRemaining > 0
+        ? `Trial: ${daysRemaining}d left`
+        : 'Trial expired'}
+    </a>
+  )
+}
+
 // --- Nav items ---
 
 const navItems = [
@@ -42,12 +70,12 @@ const navItems = [
     icon: Contact,
     href: '/admin/customers',
   },
-  {
-    id: 'reports',
-    label: 'Reports',
-    icon: BarChart3,
-    href: '/admin/reports',
-  },
+  // {
+  //   id: 'reports',
+  //   label: 'Reports',
+  //   icon: BarChart3,
+  //   href: '/admin/reports',
+  // },
   {
     id: 'settings',
     label: 'Settings',
@@ -96,6 +124,7 @@ export function AdminTopBar({ user }: AdminTopBarProps) {
         <LocationSwitcher />
       </div>
       <div className="flex items-center gap-1">
+        <TrialBanner />
         <Button
           variant="ghost"
           size="sm"

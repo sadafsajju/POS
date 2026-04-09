@@ -57,6 +57,9 @@ export function extractUserClaims(session: Session | null) {
     location_id: meta.location_id as string | undefined,
     user_id: meta.user_id as string | undefined,
     tenant_id: meta.tenant_id as string | undefined,
+    plan: meta.plan as string | undefined,
+    subscription_status: meta.subscription_status as string | undefined,
+    trial_ends_at: meta.trial_ends_at as string | undefined,
   }
 }
 

@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'USD', symbol?: string): string {
+export function formatCurrency(amount: number, currency = 'INR', symbol?: string): string {
   // If a symbol is provided, use simple formatting
   if (symbol) {
     return `${symbol}${amount.toFixed(2)}`
@@ -14,7 +14,7 @@ export function formatCurrency(amount: number, currency = 'USD', symbol?: string
 
   // Use Intl.NumberFormat for proper locale-aware formatting
   try {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: currency,
     }).format(amount)

@@ -347,7 +347,7 @@ export function TablesView({
                     return (
                       <Card
                         key={table.id}
-                        className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-2xl aspect-square overflow-hidden select-none ${
+                        className={`cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] border-0 relative rounded-2xl aspect-square select-none ${
                           ''
                         } ${hasOrders
                           ? (statusConf?.cardBg || 'bg-green-600')
@@ -360,7 +360,7 @@ export function TablesView({
                       >
                         {/* Paid stamp seal - top right inside card */}
                         {isPaid && (
-                          <div className="absolute -top-2 -right-2 z-10 pointer-events-none">
+                          <div className="absolute top-0 right-0 z-10 pointer-events-none">
                             <svg width="56" height="56" viewBox="0 0 56 56" className="rotate-[-20deg]">
                               <circle cx="28" cy="28" r="25" fill="none" stroke="white" strokeWidth="2.5" strokeDasharray="4 2" />
                               <circle cx="28" cy="28" r="20" fill="none" stroke="white" strokeWidth="2" />
@@ -370,7 +370,7 @@ export function TablesView({
                         )}
                         {/* Cart indicator for tables with pending items */}
                         {tableHasCartItems && !isPaid && (
-                          <div className="absolute -top-2 -right-2 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                          <div className="absolute top-1 right-1 w-7 h-7 bg-amber-500 rounded-full flex items-center justify-center shadow-lg z-10">
                             <ShoppingCart className="w-4 h-4 text-white" />
                           </div>
                         )}

@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type TableRow = Database['public']['Tables']['dining_tables']['Row']
@@ -68,6 +68,11 @@ export async function getTableStatus(): Promise<ApiResponse<{
 
 export async function createTable(table: TableInsert): Promise<ApiResponse<TableRow>> {
   const sb = getSupabase()
+  if (!table.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    table = { ...table, org_id: orgId }
+  }
   const { data, error } = await sb.from('dining_tables').insert(table).select().single()
   return wrapOne(data, error, 'Table')
 }

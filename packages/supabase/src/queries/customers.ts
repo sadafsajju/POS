@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type CustomerRow = Database['public']['Tables']['customers']['Row']
@@ -53,6 +53,11 @@ export async function searchCustomers(query: string, limit = 10): Promise<ApiRes
 
 export async function createCustomer(customer: CustomerInsert): Promise<ApiResponse<CustomerRow>> {
   const sb = getSupabase()
+  if (!customer.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    customer = { ...customer, org_id: orgId }
+  }
   const { data, error } = await sb.from('customers').insert(customer).select().single()
   return wrapOne(data, error, 'Customer')
 }

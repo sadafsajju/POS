@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { z } from 'zod'
 import { Form, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form'
 import { PinInput } from '@/components/ui/pin-input'
 import {
@@ -10,191 +11,130 @@ import {
   roleOptions
 } from '@/components/forms/FormComponents'
 import { LocationMultiSelectField } from '@/components/forms/LocationMultiSelectField'
-import { createUserSchema, updateUserSchema, type CreateUserData, type UpdateUserData } from '@/lib/form-schemas'
+import { updateUserSchema, type UpdateUserData } from '@/lib/form-schemas'
+import { emailSchema, userRoleSchema } from '@/lib/form-schemas'
 import { toastHelpers } from '@/lib/toast-helpers'
 import apiClient from '@/api/client'
 import type { User } from '@/types'
-import { Shield } from 'lucide-react'
+import { Shield, Mail } from 'lucide-react'
+
+// Invite schema — just email, role, locations
+const inviteStaffSchema = z.object({
+  email: emailSchema,
+  email_confirmation: emailSchema,
+  role: userRoleSchema,
+  location_ids: z.array(z.string()).optional(),
+}).refine((data) => data.email === data.email_confirmation, {
+  message: "Email addresses don't match",
+  path: ["email_confirmation"],
+})
+
+type InviteStaffData = z.infer<typeof inviteStaffSchema>
 
 interface UserFormProps {
-  user?: User // If provided, we're editing; otherwise creating
+  user?: User // If provided, we're editing; otherwise inviting
   onSuccess?: () => void
   onCancel?: () => void
   mode?: 'create' | 'edit'
 }
 
 export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFormProps) {
-  const queryClient = useQueryClient()
   const isEditing = mode === 'edit' && user
 
-  // Choose the appropriate schema and default values
-  const schema = isEditing ? updateUserSchema : createUserSchema
-  const defaultValues = isEditing
-    ? {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        role: user.role as any,
-        password: '', // Don't pre-fill password for editing
-        pin: '', // Don't pre-fill PIN for editing
-        location_ids: user.location_ids || [],
-      }
-    : {
-        username: '',
-        email: '',
-        email_confirmation: '',
-        password: '',
-        first_name: '',
-        last_name: '',
-        role: 'server' as const,
-        pin: '',
-        location_ids: [] as string[],
-      }
+  if (isEditing) {
+    return (
+      <EditUserForm
+        user={user}
+        onSuccess={onSuccess}
+        onCancel={onCancel}
+      />
+    )
+  }
 
-  const form = useForm<CreateUserData | UpdateUserData>({
-    resolver: zodResolver(schema),
-    defaultValues,
+  return (
+    <InviteStaffForm
+      onSuccess={onSuccess}
+      onCancel={onCancel}
+    />
+  )
+}
+
+// ── Invite Form (Create) ─────────────────────────────────────────────────────
+
+function InviteStaffForm({ onSuccess, onCancel }: { onSuccess?: () => void; onCancel?: () => void }) {
+  const queryClient = useQueryClient()
+
+  const form = useForm<InviteStaffData>({
+    resolver: zodResolver(inviteStaffSchema),
+    defaultValues: {
+      email: '',
+      email_confirmation: '',
+      role: 'server',
+      location_ids: [],
+    },
   })
 
-  // Create mutation
-  const createMutation = useMutation({
-    mutationFn: (data: CreateUserData) => apiClient.createUser(data),
-    onSuccess: (_response: any) => {
+  const inviteMutation = useMutation({
+    mutationFn: (data: InviteStaffData) => apiClient.inviteStaff({
+      email: data.email,
+      role: data.role,
+      location_ids: data.location_ids,
+    }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-
-      const name = `${form.getValues('first_name')} ${form.getValues('last_name')}`
-
-      toastHelpers.userCreated(name)
-
+      toastHelpers.apiSuccess('Invite', `Invitation sent to ${form.getValues('email')}`)
       form.reset()
       onSuccess?.()
     },
     onError: (error) => {
-      toastHelpers.apiError('Create user', error)
+      toastHelpers.apiError('Invite staff', error)
     },
   })
 
-  // Update mutation
-  const updateMutation = useMutation({
-    mutationFn: (data: UpdateUserData) => apiClient.updateUser(data.id.toString(), data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      toastHelpers.apiSuccess('Update', `User ${form.getValues('first_name')} ${form.getValues('last_name')}`)
-      onSuccess?.()
-    },
-    onError: (error) => {
-      toastHelpers.apiError('Update user', error)
-    },
-  })
-
-  const onSubmit = (data: CreateUserData | UpdateUserData) => {
-    if (isEditing) {
-      // Filter out empty password/pin for updates
-      const updateData = { ...data } as UpdateUserData
-      if (!updateData.password || updateData.password.trim() === '') {
-        delete updateData.password
-      }
-      if (!updateData.pin || updateData.pin.trim() === '') {
-        delete updateData.pin
-      }
-      updateMutation.mutate(updateData)
-    } else {
-      // Filter out empty password, empty pin, and remove email_confirmation for creates
-      const createData = { ...data } as CreateUserData
-      if (!createData.password || createData.password.trim() === '') {
-        delete createData.password
-      }
-      if (!createData.pin || createData.pin.trim() === '') {
-        delete createData.pin
-      }
-      // Remove email_confirmation before sending to API (only used for validation)
-      const { email_confirmation, ...dataToSend } = createData as any
-      createMutation.mutate(dataToSend as CreateUserData)
-    }
+  const onSubmit = (data: InviteStaffData) => {
+    inviteMutation.mutate(data)
   }
-
-  const isLoading = createMutation.isPending || updateMutation.isPending
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
-        {/* Scrollable content area */}
         <div className="flex-1 min-h-0 overflow-auto bg-zinc-950">
           <div className="max-w-3xl mx-auto p-6 space-y-4">
 
-            {/* Personal Information */}
+            {/* Info banner */}
+            <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
+              <p className="text-sm text-blue-400 flex items-start gap-2">
+                <Mail className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  <span className="font-semibold">Magic Link Invite: </span>
+                  Staff will receive an email with a link to set up their name, password, and PIN.
+                </span>
+              </p>
+            </div>
+
+            {/* Email */}
             <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
               <div className="px-5 py-3 border-b border-zinc-800">
-                <h3 className="text-sm font-semibold text-zinc-300">Personal Information</h3>
+                <h3 className="text-sm font-semibold text-zinc-300">Staff Email</h3>
               </div>
               <div className="p-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <TextInputField
-                    control={form.control}
-                    name="first_name"
-                    label="First Name"
-                    placeholder="Enter first name"
-                    autoComplete="given-name"
-                  />
-                  <TextInputField
-                    control={form.control}
-                    name="last_name"
-                    label="Last Name"
-                    placeholder="Enter last name"
-                    autoComplete="family-name"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Account Information */}
-            <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
-              <div className="px-5 py-3 border-b border-zinc-800">
-                <h3 className="text-sm font-semibold text-zinc-300">Account Information</h3>
-              </div>
-              <div className="p-5 space-y-4">
-                {/* Show helpful note about email login */}
-                {!isEditing && (
-                  <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
-                    <p className="text-sm text-blue-400">
-                      <span className="font-semibold">Email Login: </span>
-                      Staff will receive an invitation email to set up their account and login with their email address.
-                    </p>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <TextInputField
-                    control={form.control}
-                    name="email"
-                    label="Email Address"
-                    type="email"
-                    placeholder="Enter email address"
-                    autoComplete="email"
-                    description="Staff will use this email to login"
-                  />
-                  {!isEditing && (
-                    <TextInputField
-                      control={form.control}
-                      name="email_confirmation"
-                      label="Confirm Email Address"
-                      type="email"
-                      placeholder="Re-enter email address"
-                      autoComplete="email"
-                      description="Must match the email address above"
-                    />
-                  )}
-                </div>
                 <TextInputField
                   control={form.control}
-                  name="password"
-                  label={isEditing ? "New Password (leave blank to keep current)" : "Password (Optional)"}
-                  type="password"
-                  placeholder={isEditing ? "Enter new password or leave blank" : "Leave blank - staff will set their own"}
-                  autoComplete={isEditing ? "new-password" : "new-password"}
-                  description={isEditing ? "Leave blank to keep the current password" : "Optional: Staff will set their own password via invitation email"}
+                  name="email"
+                  label="Email Address"
+                  type="email"
+                  placeholder="staff@example.com"
+                  autoComplete="email"
+                  description="Invitation email will be sent here"
+                />
+                <TextInputField
+                  control={form.control}
+                  name="email_confirmation"
+                  label="Confirm Email Address"
+                  type="email"
+                  placeholder="Re-enter email address"
+                  autoComplete="email"
+                  description="Must match the email address above"
                 />
               </div>
             </section>
@@ -211,7 +151,7 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
                   label="Role"
                   placeholder="Select user role"
                   options={roleOptions}
-                  description="Determines what features the user can access"
+                  description="Determines what features the staff member can access"
                 />
                 <LocationMultiSelectField
                   control={form.control}
@@ -219,6 +159,127 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
                   label="Locations"
                   description="Branches this staff member can access"
                 />
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0 border-t border-zinc-800 bg-zinc-900 px-6 py-4">
+          <div className="max-w-3xl mx-auto flex items-center justify-end gap-3">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={inviteMutation.isPending}
+                className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            )}
+            <FormSubmitButton
+              isLoading={inviteMutation.isPending}
+              loadingText="Sending Invite..."
+            >
+              Send Invitation
+            </FormSubmitButton>
+          </div>
+        </div>
+      </form>
+    </Form>
+  )
+}
+
+// ── Edit Form ────────────────────────────────────────────────────────────────
+
+function EditUserForm({ user, onSuccess, onCancel }: { user: User; onSuccess?: () => void; onCancel?: () => void }) {
+  const queryClient = useQueryClient()
+
+  const form = useForm<UpdateUserData>({
+    resolver: zodResolver(updateUserSchema),
+    defaultValues: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role as any,
+      password: '',
+      pin: '',
+      location_ids: user.location_ids || [],
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdateUserData) => apiClient.updateUser(data.id.toString(), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toastHelpers.apiSuccess('Update', `User ${form.getValues('first_name')} ${form.getValues('last_name')}`)
+      onSuccess?.()
+    },
+    onError: (error) => {
+      toastHelpers.apiError('Update user', error)
+    },
+  })
+
+  const onSubmit = (data: UpdateUserData) => {
+    const updateData = { ...data }
+    if (!updateData.password || updateData.password.trim() === '') {
+      delete updateData.password
+    }
+    if (!updateData.pin || updateData.pin.trim() === '') {
+      delete updateData.pin
+    }
+    updateMutation.mutate(updateData)
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto bg-zinc-950">
+          <div className="max-w-3xl mx-auto p-6 space-y-4">
+
+            {/* Personal Information */}
+            <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="px-5 py-3 border-b border-zinc-800">
+                <h3 className="text-sm font-semibold text-zinc-300">Personal Information</h3>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <TextInputField control={form.control} name="first_name" label="First Name" placeholder="Enter first name" autoComplete="given-name" />
+                  <TextInputField control={form.control} name="last_name" label="Last Name" placeholder="Enter last name" autoComplete="family-name" />
+                </div>
+              </div>
+            </section>
+
+            {/* Account Information */}
+            <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="px-5 py-3 border-b border-zinc-800">
+                <h3 className="text-sm font-semibold text-zinc-300">Account Information</h3>
+              </div>
+              <div className="p-5 space-y-4">
+                <TextInputField control={form.control} name="email" label="Email Address" type="email" placeholder="Enter email address" autoComplete="email" />
+                <TextInputField
+                  control={form.control}
+                  name="password"
+                  label="New Password (leave blank to keep current)"
+                  type="password"
+                  placeholder="Enter new password or leave blank"
+                  autoComplete="new-password"
+                  description="Leave blank to keep the current password"
+                />
+              </div>
+            </section>
+
+            {/* Role & Location */}
+            <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="px-5 py-3 border-b border-zinc-800">
+                <h3 className="text-sm font-semibold text-zinc-300">Role & Location</h3>
+              </div>
+              <div className="p-5 space-y-4">
+                <SelectField control={form.control} name="role" label="Role" placeholder="Select user role" options={roleOptions} description="Determines what features the user can access" />
+                <LocationMultiSelectField control={form.control} name="location_ids" label="Locations" description="Branches this staff member can access" />
               </div>
             </section>
 
@@ -235,17 +296,10 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
                         <Shield className="w-4 h-4" />
-                        {isEditing ? 'New PIN (leave blank to keep current)' : '4-Digit PIN'}
+                        New PIN (leave blank to keep current)
                       </FormLabel>
-                      <PinInput
-                        value={field.value || ''}
-                        onChange={field.onChange}
-                        autoFocus={false}
-                        error={!!form.formState.errors.pin}
-                      />
-                      <FormDescription>
-                        {isEditing ? 'Leave blank to keep the current PIN' : 'Used for quick login and confirming actions'}
-                      </FormDescription>
+                      <PinInput value={field.value || ''} onChange={field.onChange} autoFocus={false} error={!!form.formState.errors.pin} />
+                      <FormDescription>Leave blank to keep the current PIN</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -263,17 +317,14 @@ export function UserForm({ user, onSuccess, onCancel, mode = 'create' }: UserFor
               <button
                 type="button"
                 onClick={onCancel}
-                disabled={isLoading}
+                disabled={updateMutation.isPending}
                 className="px-4 py-2 rounded-md text-sm font-medium text-zinc-400 bg-zinc-800 hover:bg-zinc-700 ring-1 ring-zinc-700 transition-colors disabled:opacity-40"
               >
                 Cancel
               </button>
             )}
-            <FormSubmitButton
-              isLoading={isLoading}
-              loadingText={isEditing ? "Updating..." : "Creating..."}
-            >
-              {isEditing ? 'Update User' : 'Create User'}
+            <FormSubmitButton isLoading={updateMutation.isPending} loadingText="Updating...">
+              Update User
             </FormSubmitButton>
           </div>
         </div>

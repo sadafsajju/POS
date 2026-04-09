@@ -180,7 +180,7 @@ export function AdminLocationManagement() {
         </div>
         <button
           onClick={() => { setFormData(emptyForm); setEditingLocation(null); setShowForm(true) }}
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500 text-white text-sm font-bold tracking-wide hover:bg-emerald-400 active:bg-emerald-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Add Location
@@ -206,7 +206,7 @@ export function AdminLocationManagement() {
           {locations.map((location) => (
             <div
               key={location.id}
-              className="rounded-lg border-l-4 border-l-teal-500 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors"
+              className="rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors"
             >
               <div className="flex items-start justify-between px-4 py-4">
                 <div className="flex items-start gap-3 min-w-0 flex-1">

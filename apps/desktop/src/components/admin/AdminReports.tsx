@@ -55,8 +55,8 @@ export function AdminReports() {
   const format = (amount: number) => formatCurrency(amount, settings.currency, settings.currencySymbol)
 
   // Calculate totals from real data
-  const totalRevenue = salesData?.reduce((sum: number, item: SalesReportItem) => sum + item.revenue, 0) || 0
-  const totalOrders = salesData?.reduce((sum: number, item: SalesReportItem) => sum + item.order_count, 0) || 0
+  const totalRevenue = Array.isArray(salesData) ? salesData.reduce((sum: number, item: SalesReportItem) => sum + item.revenue, 0) : 0
+  const totalOrders = Array.isArray(salesData) ? salesData.reduce((sum: number, item: SalesReportItem) => sum + item.order_count, 0) : 0
   const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
   const LoadingState = () => (
@@ -165,9 +165,9 @@ export function AdminReports() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">+12.5%</div>
+            <div className="text-2xl font-bold text-muted-foreground">—</div>
             <p className="text-xs text-muted-foreground">
-              Compared to previous period
+              Not enough data yet
             </p>
           </CardContent>
         </Card>

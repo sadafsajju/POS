@@ -1,8 +1,8 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { useEffect } from 'react'
-import { useSettingsStore, useSetupCheck, usePinVerifyStore } from '@pos/core'
+import { useEffect, useMemo } from 'react'
+import { useSettingsStore, useSetupCheck, usePinVerifyStore, useAuthStore } from '@pos/core'
 import { Loader2, WifiOff, RefreshCw } from 'lucide-react'
 import { PinDialog } from '@/components/ui/pin-dialog'
 import '../index.css'
@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
 function SetupGate({ children }: { children: React.ReactNode }) {
   const pathname = window.location.pathname
   const isCustomerDisplay = pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk'
-  const isPublicRoute = pathname === '/landing' || pathname === '/login' || pathname === '/sign-up' || pathname === '/setup'
+  const isPublicRoute = pathname === '/landing' || pathname === '/login' || pathname === '/sign-up' || pathname === '/setup' || pathname === '/staff-onboarding' || pathname === '/upgrade'
   const { needsSetup, isChecking, error, retry } = useSetupCheck()
 
   useEffect(() => {
@@ -88,7 +88,7 @@ function SettingsInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Skip fetching settings on login, setup, lock, and customer-display pages
     const pathname = window.location.pathname
-    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk' || pathname === '/sign-up') {
+    if (pathname === '/login' || pathname === '/setup' || pathname === '/lock' || pathname === '/customer-display' || pathname === '/token-display' || pathname === '/kiosk' || pathname === '/sign-up' || pathname === '/staff-onboarding' || pathname === '/upgrade') {
       console.log('SettingsInitializer: On login/setup page, skipping fetch')
       return
     }
@@ -139,20 +139,53 @@ function GlobalPinDialog() {
   )
 }
 
+// Gate that checks if the user's trial has expired
+function TrialGate({ children }: { children: React.ReactNode }) {
+  const pathname = window.location.pathname
+  const { plan, subscriptionStatus, trialEndsAt, isAuthenticated } = useAuthStore()
+
+  const isTrialExempt = pathname === '/landing' || pathname === '/login'
+    || pathname === '/sign-up' || pathname === '/setup'
+    || pathname === '/staff-onboarding' || pathname === '/upgrade'
+    || pathname === '/customer-display' || pathname === '/token-display'
+    || pathname === '/kiosk' || pathname === '/lock'
+
+  const isExpired = useMemo(() => {
+    if (!isAuthenticated) return false
+    if (!plan || plan !== 'trial') return false
+    if (!trialEndsAt) return false
+    if (subscriptionStatus === 'expired') return true
+    return new Date(trialEndsAt) < new Date()
+  }, [isAuthenticated, plan, trialEndsAt, subscriptionStatus])
+
+  useEffect(() => {
+    if (isTrialExempt) return
+    if (isExpired) {
+      window.location.href = '/upgrade'
+    }
+  }, [isExpired, isTrialExempt])
+
+  if (!isTrialExempt && isExpired) return null
+
+  return <>{children}</>
+}
+
 export const Route = createRootRoute({
   component: () => {
     const pathname = window.location.pathname
     // Landing, register, and login pages need scrolling
-    const needsScrolling = pathname === '/landing' || pathname === '/register' || pathname === '/login' || pathname === '/sign-up'
+    const needsScrolling = pathname === '/landing' || pathname === '/register' || pathname === '/login' || pathname === '/sign-up' || pathname === '/staff-onboarding' || pathname === '/upgrade'
 
     return (
       <QueryClientProvider client={queryClient}>
         <SetupGate>
-          <SettingsInitializer>
-            <div className={needsScrolling ? "min-h-screen bg-background" : "h-screen overflow-hidden bg-background"}>
-              <Outlet />
-            </div>
-          </SettingsInitializer>
+          <TrialGate>
+            <SettingsInitializer>
+              <div className={needsScrolling ? "min-h-screen bg-background" : "h-screen overflow-hidden bg-background"}>
+                <Outlet />
+              </div>
+            </SettingsInitializer>
+          </TrialGate>
         </SetupGate>
         <GlobalPinDialog />
         <ReactQueryDevtools initialIsOpen={false} />

@@ -47,12 +47,28 @@ export async function updateSettings(settings: Record<string, string>): Promise<
   }
 
   for (const [key, value] of Object.entries(settings)) {
-    const { error } = await sb
+    // Try update first, then insert if no row exists
+    const { data: updated, error: updateError } = await sb
       .from('settings')
-      .upsert({ key, value, org_id: orgId }, { onConflict: 'org_id,key' })
+      .update({ value })
+      .eq('org_id', orgId)
+      .eq('key', key)
+      .is('location_id', null)
+      .select('id')
 
-    if (error) {
-      return { success: false, message: error.message, error: error.code }
+    if (updateError) {
+      return { success: false, message: updateError.message, error: updateError.code }
+    }
+
+    // If no row was updated, insert a new one
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await sb
+        .from('settings')
+        .insert({ key, value, org_id: orgId })
+
+      if (insertError) {
+        return { success: false, message: insertError.message, error: insertError.code }
+      }
     }
   }
 

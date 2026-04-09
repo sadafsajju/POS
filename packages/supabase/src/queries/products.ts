@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type ProductRow = Database['public']['Tables']['products']['Row']
@@ -63,6 +63,11 @@ export async function getProductsByCategory(
 
 export async function createProduct(product: ProductInsert): Promise<ApiResponse<ProductRow>> {
   const sb = getSupabase()
+  if (!product.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    product = { ...product, org_id: orgId }
+  }
   const { data, error } = await sb.from('products').insert(product).select().single()
   return wrapOne(data, error, 'Product')
 }

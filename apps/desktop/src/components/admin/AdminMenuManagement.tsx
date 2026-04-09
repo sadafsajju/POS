@@ -293,6 +293,13 @@ export function AdminMenuManagement() {
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </button>
+          <button
+            onClick={activeTab === 'products' ? handleAddProduct : activeTab === 'categories' ? handleAddCategory : handleAddVariation}
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            {activeTab === 'products' ? 'Add Product' : activeTab === 'categories' ? 'Add Category' : 'Add Variation'}
+          </button>
         </div>
       </header>
 
@@ -349,14 +356,6 @@ export function AdminMenuManagement() {
           />
         </div>
 
-        {/* Add button */}
-        <button
-          onClick={activeTab === 'products' ? handleAddProduct : activeTab === 'categories' ? handleAddCategory : handleAddVariation}
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          {activeTab === 'products' ? 'Add Product' : activeTab === 'categories' ? 'Add Category' : 'Add Variation'}
-        </button>
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────── */}

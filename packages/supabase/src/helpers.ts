@@ -4,6 +4,17 @@
  */
 
 import type { PostgrestError } from '@supabase/supabase-js'
+import { getSupabase } from './client'
+
+/**
+ * Get the current user's org_id from the Supabase session JWT claims.
+ * Used by create functions to auto-inject org_id.
+ */
+export async function getMyOrgId(): Promise<string | null> {
+  const sb = getSupabase()
+  const { data: { session } } = await sb.auth.getSession()
+  return session?.user?.app_metadata?.org_id || null
+}
 
 export interface ApiResponse<T> {
   success: boolean

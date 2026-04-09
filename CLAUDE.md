@@ -69,7 +69,7 @@ npm run lint                     # ESLint across all packages
   - `get_sales_report()`, `get_orders_report()`, `get_income_report()`
   - `clear_table()`, `transfer_table()`
   - `generate_order_number()`, `generate_token_number()`
-  - `register_tenant()`
+  - `register_tenant()`, `initial_setup()`, `check_setup_status()`
 - **Edge Functions** — HTTP-level concerns (webhooks, PIN login, tenant registration)
 - **Realtime** — Channel subscriptions for kitchen display, table management, order status
 - **Storage** — Buckets for `products`, `promos`, `media` with public read + authenticated write RLS
@@ -101,6 +101,7 @@ Wrapper helpers in `packages/supabase/src/helpers.ts`: `wrapOne()`, `wrapMany()`
 - **Role-based navigation hides admin UI for staff** — Staff members (server/counter/kitchen) don't see admin navigation. See "Role-Based Navigation" section below.
 - **Supabase `.eq()` on union-typed columns** requires `as any` casts when filtering by `string` params (e.g., `.eq('status', status as any)`).
 - **Dual type definitions** — `Product` and other interfaces exist in both `packages/types/src/index.ts` and `apps/desktop/src/types/index.ts`. Both must be updated when adding fields.
+- **Tauri detection** — Use `'__TAURI__' in window` to check if running in native desktop vs browser.
 
 ## Adding New Features
 
@@ -166,6 +167,10 @@ Wrapper helpers in `packages/supabase/src/helpers.ts`: `wrapOne()`, `wrapMany()`
 | `20260305000003_auth_hook.sql` | Custom access token hook (JWT claims) |
 | `20260305000004_database_functions.sql` | All RPC business logic functions |
 | `20260305000005_storage_buckets.sql` | Storage buckets + RLS |
+| `20260305000006_initial_setup_function.sql` | Initial setup RPC (create org, location, admin user) |
+| `20260305000007_setup_function_anon_access.sql` | Grant anon access to setup RPC with guard clause |
+| `20260305000008_setup_auto_confirm.sql` | Auto-confirm email + inject JWT claims during setup |
+| `20260305000009_fix_settings_keys.sql` | Fix settings key naming (`restaurant_name`) + add defaults |
 
 ## Environment
 
@@ -200,6 +205,24 @@ Uses **Supabase Auth** exclusively. No Clerk, no internal JWT system.
 - `onAuthStateChange(callback)` — session listener
 - `extractUserClaims(session)` — extract role/org/location from JWT
 
+### Initial Setup Flow
+
+First-time setup uses `initial_setup` RPC (granted to `anon` role with guard clause — only works when no admin exists):
+
+1. `supabase.auth.signUp()` creates auth user
+2. `supabase.rpc('initial_setup', {...})` creates org, location, user record, and default settings in one transaction
+3. The RPC auto-confirms email (`email_confirmed_at = now()`) and injects JWT `app_metadata` claims
+4. `supabase.auth.signInWithPassword()` establishes the session
+
+Implemented in `packages/supabase/src/queries/setup.ts` (`performInitialSetup`, `checkSetupStatus`).
+
+### Setup Wizard (`components/setup/SetupWizard.tsx`)
+
+- **Online mode**: Full Supabase signup + setup (email, password, store config, PIN)
+- **Offline mode (Tauri)**: Stores config in localStorage, no internet needed
+- **Offline mode (Browser)**: Shows download prompt for desktop app (macOS .dmg / Windows .exe)
+- Tauri detection: `'__TAURI__' in window`
+
 ### Logout Flow
 
 ```typescript
@@ -228,6 +251,20 @@ Logout is implemented in `components/ui/user-menu.tsx` and `components/admin/Adm
 
 **Navigation Visibility**: Admin/Manager see full nav. Staff see only their specific view.
 
+## App Routing
+
+| Route | Purpose |
+|-------|---------|
+| `/landing` | Marketing/welcome page (entry point when no setup) |
+| `/setup` | Setup wizard (online/offline mode selection) |
+| `/login` | Login page |
+| `/admin` | Admin layout (role-gated) |
+| `/admin/pos` | POS interface (counter/server) |
+| `/admin/kitchen` | Kitchen display |
+| `/admin/settings/*` | Settings pages (admin/manager only) |
+
+**Setup gate** (`routes/__root.tsx`): If `needsSetup` is true, redirects to `/landing`. Public routes (`/landing`, `/login`, `/sign-up`, `/setup`) skip the gate.
+
 ## Aggregator Integration (Swiggy/Zomato)
 
 - **Order source** tracked via `order_source` field: `pos`, `swiggy`, `zomato`
@@ -245,6 +282,25 @@ Controlled by `touchMode: boolean` in `StoreSettings`. Stored as `touch_mode` in
 
 Files that check `touchMode`: `routes/login.tsx`, `CounterInterface.tsx`, `TablesView.tsx`, `CartPanel.tsx`, `CustomerStep.tsx`
 
+## Settings Key Mapping
+
+Settings are stored as key/value pairs in the `settings` table. The `settings-store.ts` maps between DB keys and frontend `StoreSettings` fields:
+
+| DB Key | Frontend Field |
+|--------|---------------|
+| `restaurant_name` | `restaurantName` |
+| `currency` | `currency` |
+| `currency_symbol` | `currencySymbol` |
+| `tax_rate` | `taxRate` |
+| `touch_mode` | `touchMode` |
+| `service_charge` | `serviceCharge` |
+| `language` | `language` |
+| `receipt_header` | `receiptHeader` |
+| `receipt_footer` | `receiptFooter` |
+| `industry_mode` | `industryMode` |
+
+Note: Legacy `store_name` key has a fallback to `restaurant_name` in `apiToStoreSettings`.
+
 ## Current Status
 
-Migration from Go backend + Clerk + Railway to Supabase + Vercel is complete through Phase 6. The Go backend has been removed. All CRUD and business logic routes through Supabase PostgREST and database functions. Remaining: Phase 7 (offline-first adaptation with Supabase sync queue).
+Migration from Go backend + Clerk + Railway to Supabase + Vercel is complete through Phase 7. The Go backend has been removed. All CRUD and business logic routes through Supabase PostgREST and database functions. Setup wizard supports online (Supabase) and offline (Tauri/localStorage) modes. Offline sync engine uses handler-based approach for Supabase compatibility.

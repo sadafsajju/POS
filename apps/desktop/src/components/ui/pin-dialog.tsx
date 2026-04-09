@@ -38,6 +38,35 @@ export function PinDialog({
     }
   }, [open])
 
+  // Accept keyboard input for PIN entry
+  useEffect(() => {
+    if (!open || isVerifying) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault()
+        setPin(prev => {
+          if (prev.length >= 4) return prev
+          const next = prev + e.key
+          setError('')
+          if (next.length === 4) {
+            handleVerify(next)
+          }
+          return next
+        })
+      } else if (e.key === 'Backspace') {
+        e.preventDefault()
+        setPin(prev => prev.slice(0, -1))
+        setError('')
+      } else if (e.key === 'Escape') {
+        onCancel()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, isVerifying, handleVerify, onCancel])
+
   const handleVerify = useCallback(async (pinValue: string) => {
     if (pinValue.length !== 4) return
 

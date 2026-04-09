@@ -121,7 +121,12 @@ export async function getKitchenOrders(status?: string): Promise<ApiResponse<Ord
 
   query = query.order('created_at', { ascending: true })
   const { data, error } = await query
-  return wrapMany(data as any, error)
+  // Map order_items to items for frontend compatibility
+  const mapped = data?.map((order: any) => ({
+    ...order,
+    items: order.order_items,
+  }))
+  return wrapMany(mapped as any, error)
 }
 
 export async function updateOrderItemStatus(

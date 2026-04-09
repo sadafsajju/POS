@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type CategoryRow = Database['public']['Tables']['categories']['Row']
@@ -41,6 +41,11 @@ export async function getCategoryById(id: string): Promise<ApiResponse<CategoryR
 
 export async function createCategory(category: CategoryInsert): Promise<ApiResponse<CategoryRow>> {
   const sb = getSupabase()
+  if (!category.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    category = { ...category, org_id: orgId }
+  }
   const { data, error } = await sb.from('categories').insert(category).select().single()
   return wrapOne(data, error, 'Category')
 }

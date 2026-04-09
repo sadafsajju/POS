@@ -64,8 +64,13 @@ class APIClient {
     return { success: false, message: 'Use Supabase Auth getSession() instead' }
   }
 
-  async switchLocation(_locationId: string): Promise<APIResponse<{ token: string; location: Location }>> {
-    return { success: false, message: 'Location switching not yet implemented for Supabase' }
+  async switchLocation(locationId: string): Promise<APIResponse<{ token: string; location: Location }>> {
+    // With Supabase, location switching is client-side only (RLS uses org_id, not location_id)
+    const res = await locationsDb.getLocationById(locationId)
+    if (res.success && res.data) {
+      return { success: true, message: 'Location switched', data: { token: '', location: res.data as any } }
+    }
+    return { success: false, message: res.message || 'Location not found' }
   }
 
   // Product endpoints
@@ -303,6 +308,26 @@ class APIClient {
     return await usersDb.createUser(userData) as any
   }
 
+  async inviteStaff(params: { email: string; role: string; location_ids?: string[] }): Promise<APIResponse<User>> {
+    const { getSupabase } = await import('@pos/supabase')
+    const sb = getSupabase()
+    const { data, error } = await sb.functions.invoke('invite-staff', {
+      body: params,
+    })
+    if (error) {
+      // FunctionsHttpError contains the response body with our error message
+      let message = error.message
+      if (error.context && typeof error.context === 'object' && 'json' in error.context) {
+        try {
+          const body = await (error.context as Response).json()
+          message = body.message || message
+        } catch {}
+      }
+      return { success: false, message } as any
+    }
+    return data as any
+  }
+
   async updateUser(id: string, userData: any): Promise<APIResponse<User>> {
     return await usersDb.updateUser(id, userData) as any
   }
@@ -423,11 +448,13 @@ class APIClient {
 
   // Admin-specific category management
   async createCategory(categoryData: any): Promise<APIResponse<Category>> {
-    return await categoriesDb.createCategory(categoryData) as any
+    const { image_url, id, ...data } = categoryData
+    return await categoriesDb.createCategory(data) as any
   }
 
   async updateCategory(id: string, categoryData: any): Promise<APIResponse<Category>> {
-    return await categoriesDb.updateCategory(id, categoryData) as any
+    const { image_url, id: _id, ...data } = categoryData
+    return await categoriesDb.updateCategory(id, data) as any
   }
 
   async deleteCategory(id: string): Promise<APIResponse> {

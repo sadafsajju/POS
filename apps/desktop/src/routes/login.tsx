@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Store, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '@pos/core';
-import { signInWithPassword, extractUserClaims } from '@pos/supabase';
+import { signInWithPassword, extractUserClaims, locationsDb } from '@pos/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,7 +83,19 @@ function LoginPage() {
             updated_at: '',
           };
 
-          loginWithSupabase(user);
+          // Fetch locations for the org
+          const locRes = await locationsDb.getLocations();
+          const allLocations = (locRes.success && Array.isArray(locRes.data)) ? locRes.data : [];
+          const currentLocation = allLocations.find((l: any) => l.id === claims.location_id) || allLocations[0] || null;
+
+          loginWithSupabase(user, null, currentLocation, allLocations);
+
+          // Set trial info from JWT claims
+          useAuthStore.getState().setTrialInfo(
+            claims.plan || null,
+            claims.subscription_status || null,
+            claims.trial_ends_at || null
+          );
 
           const redirectPath = getRoleBasedRedirect(user.role);
           navigate({ to: redirectPath });
@@ -100,13 +112,6 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4">
-      <Link to="/landing" className="flex items-center gap-2 mb-8">
-        <div className="bg-blue-600 p-2 rounded-lg">
-          <Store className="h-6 w-6 text-white" />
-        </div>
-        <span className="text-2xl font-bold text-zinc-100">YourPOS</span>
-      </Link>
-
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-zinc-100">Welcome back</h1>
@@ -121,7 +126,7 @@ function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-zinc-300">Email</Label>
+            <Label htmlFor="email" className="text-zinc-400 text-xs font-bold uppercase tracking-wide">Email</Label>
             <Input
               id="email"
               type="email"
@@ -134,7 +139,7 @@ function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-zinc-300">Password</Label>
+            <Label htmlFor="password" className="text-zinc-400 text-xs font-bold uppercase tracking-wide">Password</Label>
             <Input
               id="password"
               type="password"
@@ -149,7 +154,7 @@ function LoginPage() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full bg-zinc-100 hover:bg-white text-zinc-950 font-semibold h-11 rounded-xl"
           >
             {loading ? (
               <>
@@ -164,7 +169,7 @@ function LoginPage() {
 
         <p className="text-center text-sm text-zinc-500">
           Don't have an account?{' '}
-          <Link to="/sign-up" className="text-blue-500 hover:text-blue-400">
+          <Link to="/setup" className="text-zinc-300 hover:text-zinc-100 underline underline-offset-2">
             Start free trial
           </Link>
         </p>

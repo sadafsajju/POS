@@ -306,7 +306,7 @@ export function AdminTableManagement() {
             setEditingTable(null)
             setTableDialogOpen(true)
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500 text-white text-sm font-bold tracking-wide hover:bg-emerald-400 active:bg-emerald-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
         >
           <Plus className="h-4 w-4" />
           Add Table
@@ -392,7 +392,7 @@ export function AdminTableManagement() {
             return (
               <div
                 key={table.id}
-                className={`group rounded-lg border-l-4 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors ${getStatusAccent(tableStatus)}`}
+                className="group rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors"
               >
                 <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
                   <div className="flex items-center gap-2.5 min-w-0">

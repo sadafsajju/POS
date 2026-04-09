@@ -31,6 +31,7 @@ export {
   variationsDb,
   combosDb,
   setupDb,
+  tenantsDb,
 } from './queries'
 
 // Realtime subscriptions

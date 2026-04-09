@@ -30,6 +30,49 @@ const settingsSections = [
     activeText: 'text-amber-400',
     activeBg: 'bg-amber-500/10',
   },
+  // {
+  //   id: 'financial',
+  //   label: 'Financial',
+  //   icon: <DollarSign className="w-4 h-4" />,
+  //   description: 'Currency, tax & charges',
+  //   href: '/admin/settings/financial',
+  //   accent: 'bg-emerald-500',
+  //   activeText: 'text-emerald-400',
+  //   activeBg: 'bg-emerald-500/10',
+  // },
+  // {
+  //   id: 'system',
+  //   label: 'System',
+  //   icon: <Settings className="w-4 h-4" />,
+  //   description: 'Theme, backup & notifications',
+  //   href: '/admin/settings/system',
+  //   accent: 'bg-violet-500',
+  //   activeText: 'text-violet-400',
+  //   activeBg: 'bg-violet-500/10',
+  // },
+  // {
+  //   id: 'account',
+  //   label: 'Account',
+  //   icon: <KeyRound className="w-4 h-4" />,
+  //   description: 'PIN & account security',
+  //   href: '/admin/settings/account',
+  //   accent: 'bg-rose-500',
+  //   activeText: 'text-rose-400',
+  //   activeBg: 'bg-rose-500/10',
+  // },
+  // {
+  //   id: 'about',
+  //   label: 'About',
+  //   icon: <Info className="w-4 h-4" />,
+  //   description: 'System status & version',
+  //   href: '/admin/settings/about',
+  //   accent: 'bg-zinc-500',
+  //   activeText: 'text-zinc-300',
+  //   activeBg: 'bg-zinc-500/10',
+  // },
+]
+
+const posSections = [
   {
     id: 'products',
     label: 'Products',
@@ -51,16 +94,6 @@ const settingsSections = [
     activeBg: 'bg-cyan-500/10',
   },
   {
-    id: 'financial',
-    label: 'Financial',
-    icon: <DollarSign className="w-4 h-4" />,
-    description: 'Currency, tax & charges',
-    href: '/admin/settings/financial',
-    accent: 'bg-emerald-500',
-    activeText: 'text-emerald-400',
-    activeBg: 'bg-emerald-500/10',
-  },
-  {
     id: 'receipts',
     label: 'Receipts',
     icon: <Printer className="w-4 h-4" />,
@@ -70,49 +103,9 @@ const settingsSections = [
     activeText: 'text-sky-400',
     activeBg: 'bg-sky-500/10',
   },
-  {
-    id: 'system',
-    label: 'System',
-    icon: <Settings className="w-4 h-4" />,
-    description: 'Theme, backup & notifications',
-    href: '/admin/settings/system',
-    accent: 'bg-violet-500',
-    activeText: 'text-violet-400',
-    activeBg: 'bg-violet-500/10',
-  },
-  {
-    id: 'account',
-    label: 'Account',
-    icon: <KeyRound className="w-4 h-4" />,
-    description: 'PIN & account security',
-    href: '/admin/settings/account',
-    accent: 'bg-rose-500',
-    activeText: 'text-rose-400',
-    activeBg: 'bg-rose-500/10',
-  },
-  {
-    id: 'about',
-    label: 'About',
-    icon: <Info className="w-4 h-4" />,
-    description: 'System status & version',
-    href: '/admin/settings/about',
-    accent: 'bg-zinc-500',
-    activeText: 'text-zinc-300',
-    activeBg: 'bg-zinc-500/10',
-  },
 ]
 
 const managementSections = [
-  {
-    id: 'staff',
-    label: 'Staff',
-    icon: <UserCog className="w-4 h-4" />,
-    description: 'User and role management',
-    href: '/admin/settings/staff',
-    accent: 'bg-rose-500',
-    activeText: 'text-rose-400',
-    activeBg: 'bg-rose-500/10',
-  },
   {
     id: 'menu',
     label: 'Menu',
@@ -144,6 +137,16 @@ const managementSections = [
     activeBg: 'bg-teal-500/10',
   },
   {
+    id: 'staff',
+    label: 'Staff',
+    icon: <UserCog className="w-4 h-4" />,
+    description: 'User and role management',
+    href: '/admin/settings/staff',
+    accent: 'bg-rose-500',
+    activeText: 'text-rose-400',
+    activeBg: 'bg-rose-500/10',
+  },
+  {
     id: 'media',
     label: 'Media',
     icon: <ImagePlus className="w-4 h-4" />,
@@ -163,26 +166,26 @@ const managementSections = [
     activeText: 'text-purple-400',
     activeBg: 'bg-purple-500/10',
   },
-  {
-    id: 'platforms',
-    label: 'Platforms',
-    icon: <Plug className="w-4 h-4" />,
-    description: 'Swiggy & Zomato integration',
-    href: '/admin/settings/platforms',
-    accent: 'bg-orange-500',
-    activeText: 'text-orange-400',
-    activeBg: 'bg-orange-500/10',
-  },
-  {
-    id: 'qr-codes',
-    label: 'QR Codes',
-    icon: <QrCode className="w-4 h-4" />,
-    description: 'Customer self-service ordering',
-    href: '/admin/settings/qr-codes',
-    accent: 'bg-blue-500',
-    activeText: 'text-blue-400',
-    activeBg: 'bg-blue-500/10',
-  },
+  // {
+  //   id: 'platforms',
+  //   label: 'Platforms',
+  //   icon: <Plug className="w-4 h-4" />,
+  //   description: 'Swiggy & Zomato integration',
+  //   href: '/admin/settings/platforms',
+  //   accent: 'bg-orange-500',
+  //   activeText: 'text-orange-400',
+  //   activeBg: 'bg-orange-500/10',
+  // },
+  // {
+  //   id: 'qr-codes',
+  //   label: 'QR Codes',
+  //   icon: <QrCode className="w-4 h-4" />,
+  //   description: 'Customer self-service ordering',
+  //   href: '/admin/settings/qr-codes',
+  //   accent: 'bg-blue-500',
+  //   activeText: 'text-blue-400',
+  //   activeBg: 'bg-blue-500/10',
+  // },
 ]
 
 export function SettingsSidebar() {
@@ -207,6 +210,36 @@ export function SettingsSidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-hide">
         {settingsSections.map((section) => {
+          const active = isActiveRoute(section.href)
+          return (
+            <Link key={section.id} to={section.href} className="block">
+              <div
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
+                  active
+                    ? cn(section.activeBg, section.activeText)
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                )}
+              >
+                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                  {active && (
+                    <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', section.accent)} />
+                  )}
+                  <span className={cn(!active && 'ml-4')}>{section.icon}</span>
+                  <span className="text-sm font-medium truncate">{section.label}</span>
+                </div>
+              </div>
+            </Link>
+          )
+        })}
+
+        {/* POS separator */}
+        <div className="pt-4 pb-2 px-3">
+          <div className="border-t border-zinc-800" />
+          <p className="text-[10px] uppercase tracking-wider text-zinc-600 mt-3 font-bold">POS</p>
+        </div>
+
+        {posSections.map((section) => {
           const active = isActiveRoute(section.href)
           return (
             <Link key={section.id} to={section.href} className="block">

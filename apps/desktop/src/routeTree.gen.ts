@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as TokenDisplayRouteImport } from './routes/token-display'
+import { Route as StaffOnboardingRouteImport } from './routes/staff-onboarding'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -47,9 +49,19 @@ import { Route as AdminSettingsAccountRouteImport } from './routes/admin/setting
 import { Route as AdminSettingsAboutRouteImport } from './routes/admin/settings/about'
 import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/settings/menu/index'
 
+const UpgradeRoute = UpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TokenDisplayRoute = TokenDisplayRouteImport.update({
   id: '/token-display',
   path: '/token-display',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffOnboardingRoute = StaffOnboardingRouteImport.update({
+  id: '/staff-onboarding',
+  path: '/staff-onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignUpRoute = SignUpRouteImport.update({
@@ -245,7 +257,9 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/sign-up': typeof SignUpRoute
+  '/staff-onboarding': typeof StaffOnboardingRoute
   '/token-display': typeof TokenDisplayRoute
+  '/upgrade': typeof UpgradeRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -283,7 +297,9 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/sign-up': typeof SignUpRoute
+  '/staff-onboarding': typeof StaffOnboardingRoute
   '/token-display': typeof TokenDisplayRoute
+  '/upgrade': typeof UpgradeRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -321,7 +337,9 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/sign-up': typeof SignUpRoute
+  '/staff-onboarding': typeof StaffOnboardingRoute
   '/token-display': typeof TokenDisplayRoute
+  '/upgrade': typeof UpgradeRoute
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -362,7 +380,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/sign-up'
+    | '/staff-onboarding'
     | '/token-display'
+    | '/upgrade'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -400,7 +420,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/sign-up'
+    | '/staff-onboarding'
     | '/token-display'
+    | '/upgrade'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -437,7 +459,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/sign-up'
+    | '/staff-onboarding'
     | '/token-display'
+    | '/upgrade'
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -477,16 +501,32 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   SetupRoute: typeof SetupRoute
   SignUpRoute: typeof SignUpRoute
+  StaffOnboardingRoute: typeof StaffOnboardingRoute
   TokenDisplayRoute: typeof TokenDisplayRoute
+  UpgradeRoute: typeof UpgradeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/upgrade': {
+      id: '/upgrade'
+      path: '/upgrade'
+      fullPath: '/upgrade'
+      preLoaderRoute: typeof UpgradeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/token-display': {
       id: '/token-display'
       path: '/token-display'
       fullPath: '/token-display'
       preLoaderRoute: typeof TokenDisplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff-onboarding': {
+      id: '/staff-onboarding'
+      path: '/staff-onboarding'
+      fullPath: '/staff-onboarding'
+      preLoaderRoute: typeof StaffOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-up': {
@@ -833,7 +873,9 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   SetupRoute: SetupRoute,
   SignUpRoute: SignUpRoute,
+  StaffOnboardingRoute: StaffOnboardingRoute,
   TokenDisplayRoute: TokenDisplayRoute,
+  UpgradeRoute: UpgradeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

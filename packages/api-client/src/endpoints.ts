@@ -11,6 +11,7 @@ import {
   reportsDb,
   platformConfigsDb,
   setupDb,
+  tenantsDb,
 } from '@pos/supabase';
 import type { Json } from '@pos/supabase';
 import type {
@@ -142,10 +143,14 @@ export const setupApi = {
       store_name: data.store_name || 'My Store',
       location_name: data.location_name || 'Main Branch',
       location_code: data.location_code || 'MAIN',
-      currency: data.currency || 'USD',
-      currency_symbol: data.currency_symbol || '$',
-      tax_rate: data.tax_rate || '10',
+      currency: data.currency || 'INR',
+      currency_symbol: data.currency_symbol || '₹',
+      tax_rate: data.tax_rate ?? '0',
     }) as any,
+};
+
+export const trialApi = {
+  checkStatus: () => tenantsDb.checkTrialStatus(),
 };
 
 // ============================================
@@ -174,11 +179,11 @@ export const authApi = {
   pinStatus: () =>
     Promise.resolve({ success: false, message: 'PIN status not yet implemented' }) as any,
 
-  verifyPin: (_pin: string) =>
-    Promise.resolve({ success: false, message: 'PIN verification not yet implemented' }) as any,
+  verifyPin: (pin: string) =>
+    usersDb.verifyPin(pin) as any,
 
-  updatePin: (_newPin: string) =>
-    Promise.resolve({ success: false, message: 'PIN update not yet implemented' }) as any,
+  updatePin: (currentPin: string, newPin: string) =>
+    usersDb.updatePin(currentPin, newPin) as any,
 
   switchLocation: (_locationId: string) =>
     Promise.resolve({ success: false, message: 'Location switching not yet implemented' }) as any,
@@ -376,6 +381,14 @@ export const adminApi = {
 
   createUser: (userData: Partial<User> & { password?: string }) =>
     usersDb.createUser(userData as any) as any,
+
+  inviteStaff: async (params: { email: string; role: string; location_ids?: string[] }) => {
+    const { getSupabase } = await import('@pos/supabase')
+    const sb = getSupabase()
+    const { data, error } = await sb.functions.invoke('invite-staff', { body: params })
+    if (error) return { success: false, message: error.message }
+    return data
+  },
 
   updateUser: (id: string, userData: Partial<User> & { password?: string }) =>
     usersDb.updateUser(id, userData as any) as any,

@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type UserRow = Database['public']['Tables']['users']['Row']
@@ -47,6 +47,11 @@ export async function getUserById(id: string): Promise<ApiResponse<UserRow>> {
 
 export async function createUser(user: UserInsert): Promise<ApiResponse<UserRow>> {
   const sb = getSupabase()
+  if (!user.org_id) {
+    const orgId = await getMyOrgId()
+    if (!orgId) return { success: false, message: 'Could not determine organization. Please log in again.', error: 'no_org_id' }
+    user = { ...user, org_id: orgId }
+  }
   const { data, error } = await sb.from('users').insert(user).select().single()
   return wrapOne(data, error, 'User')
 }
@@ -73,4 +78,20 @@ export async function getStaffForPin(): Promise<ApiResponse<Pick<UserRow, 'id' |
     .not('pin_hash', 'is', null)
     .order('first_name', { ascending: true })
   return wrapMany(data, error)
+}
+
+export async function verifyPin(pin: string): Promise<ApiResponse<null>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('verify_pin', { p_pin: pin })
+  if (error) return { success: false, message: error.message, error: error.code }
+  const result = data as any
+  return { success: result.success, message: result.message }
+}
+
+export async function updatePin(currentPin: string, newPin: string): Promise<ApiResponse<null>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('update_pin', { p_current_pin: currentPin, p_new_pin: newPin })
+  if (error) return { success: false, message: error.message, error: error.code }
+  const result = data as any
+  return { success: result.success, message: result.message }
 }
