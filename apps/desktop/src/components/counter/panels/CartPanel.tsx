@@ -14,7 +14,8 @@ import {
   MessageSquare,
   CreditCard,
   CheckCircle2,
-  DoorOpen
+  DoorOpen,
+  StickyNote
 } from 'lucide-react'
 import type { DiningTable, Order, CartItem, OrderType, BillSummary } from '../types'
 import type { CartSettings } from '@pos/types'
@@ -95,6 +96,7 @@ export function CartPanel({
   const [keyboardForItem, setKeyboardForItem] = useState<{ productId: string; cartItemId?: string } | null>(null)
   const [keyboardValue, setKeyboardValue] = useState('')
   const [showOrderNotesKeyboard, setShowOrderNotesKeyboard] = useState(false)
+  const [showNotesExpanded, setShowNotesExpanded] = useState(false)
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [longPressItem, setLongPressItem] = useState<{ productId: string; cartItemId?: string } | null>(null)
   const { settings } = useSettingsStore()
@@ -597,29 +599,67 @@ export function CartPanel({
                 )
               })}
             </div>
-            {/* Order Notes */}
+            {/* Order Notes — collapsed by default, expands on click */}
             {cartSettings?.showOrderNotes !== false && (
-            <div className="px-3 py-3 bg-zinc-900 border-b border-zinc-800">
-              <label className="text-sm font-medium text-zinc-300">Order Notes</label>
-              {touchMode ? (
-                <div
-                  onClick={() => setShowOrderNotesKeyboard(true)}
-                  className="mt-1 flex min-h-[44px] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm cursor-pointer hover:bg-zinc-700 active:bg-zinc-600 text-zinc-100"
+            <div className="border-b border-zinc-800">
+              {!orderNotes && !showNotesExpanded ? (
+                <button
+                  onClick={() => {
+                    setShowNotesExpanded(true)
+                    if (touchMode) setShowOrderNotesKeyboard(true)
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-3 min-h-[44px] text-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 active:bg-zinc-800 transition-colors"
                 >
-                  {orderNotes ? (
-                    <span>{orderNotes}</span>
+                  <StickyNote className="h-4 w-4" />
+                  Add note
+                </button>
+              ) : (
+                <div className="px-3 py-2 bg-zinc-900">
+                  {touchMode ? (
+                    <div className="flex items-center gap-2">
+                      <div
+                        onClick={() => setShowOrderNotesKeyboard(true)}
+                        className="flex-1 flex items-center gap-2 min-h-[44px] rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm cursor-pointer hover:bg-zinc-700 active:bg-zinc-600 text-zinc-100"
+                      >
+                        <StickyNote className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
+                        {orderNotes ? (
+                          <span className="truncate">{orderNotes}</span>
+                        ) : (
+                          <span className="text-zinc-500">Special requests...</span>
+                        )}
+                      </div>
+                      {orderNotes && (
+                        <button
+                          onClick={() => { onOrderNotesChange(''); setShowNotesExpanded(false) }}
+                          className="flex-shrink-0 flex items-center justify-center h-11 w-11 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   ) : (
-                    <span className="text-zinc-500">Special requests or notes...</span>
+                    <div className="flex items-center gap-2">
+                      <StickyNote className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
+                      <input
+                        type="text"
+                        autoFocus
+                        value={orderNotes}
+                        onChange={(e) => onOrderNotesChange(e.target.value)}
+                        onBlur={() => { if (!orderNotes) setShowNotesExpanded(false) }}
+                        placeholder="Special requests..."
+                        className="flex-1 h-9 px-2 rounded-md border border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-600"
+                      />
+                      {orderNotes && (
+                        <button
+                          onClick={() => { onOrderNotesChange(''); setShowNotesExpanded(false) }}
+                          className="flex-shrink-0 flex items-center justify-center h-9 w-9 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              ) : (
-                <input
-                  type="text"
-                  value={orderNotes}
-                  onChange={(e) => onOrderNotesChange(e.target.value)}
-                  placeholder="Special requests or notes..."
-                  className="mt-1 w-full h-11 px-3 rounded-md border border-zinc-700 bg-zinc-800 text-zinc-100 placeholder:text-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/50"
-                />
               )}
             </div>
             )}
@@ -646,7 +686,7 @@ export function CartPanel({
             const totalWithTax = getTotalAmount() * (1 + taxRate / 100)
             const previousBalance = hasActiveBill
               ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
-              : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+              : tableOrders.filter(o => o.status !== 'paid').reduce((sum, order) => sum + order.total_amount, 0)
             const grandTotal = totalWithTax + previousBalance
 
             // Show TOTAL when: there are new items OR there's an unpaid balance
@@ -663,7 +703,7 @@ export function CartPanel({
                       <span>{formatCurrency(tax)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base font-black text-zinc-100 px-3 pb-2.5 font-mono">
+                  <div className="flex justify-between text-base font-black text-zinc-100 px-3 py-2.5 font-mono">
                     <span>TOTAL</span>
                     <span>{formatCurrency(grandTotal)}</span>
                   </div>
@@ -681,7 +721,7 @@ export function CartPanel({
             const showKot = (buttons?.showKot !== false) && hasNewItems
             const unpaidBalance = hasActiveBill
               ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
-              : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+              : tableOrders.filter(o => o.status !== 'paid').reduce((sum, order) => sum + order.total_amount, 0)
             // Show Pay when: there are new items, or there's an unpaid balance
             const showPay = (buttons?.showPay !== false) && (hasNewItems || unpaidBalance > 0)
             const visibleCount = [showSave, showKot, showPay].filter(Boolean).length
@@ -690,7 +730,7 @@ export function CartPanel({
             // 2 buttons = side by side, last one blue primary
             // 3 buttons = Save+KOT top row (outline), Pay bottom row (blue)
             const primaryClass = 'flex-1 h-14 text-base rounded-none bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-black tracking-wider'
-            const secondaryClass = 'flex-1 h-14 text-base rounded-none border-0 border-r border-zinc-800 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+            const secondaryClass = 'flex-1 h-14 text-base rounded-none border-0 border-r border-zinc-800 bg-zinc-800 text-zinc-100 font-bold tracking-wide hover:bg-zinc-700 hover:text-white active:bg-zinc-600 transition-colors'
 
             const getSaveClass = () => {
               if (visibleCount === 1) return primaryClass
@@ -777,7 +817,7 @@ export function CartPanel({
             {!hasNewItems && hasActiveOrders && isDineIn && (() => {
               const unpaidBalance = hasActiveBill
                 ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
-                : tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
+                : tableOrders.filter(o => o.status !== 'paid').reduce((sum, order) => sum + order.total_amount, 0)
               const isFullyPaid = unpaidBalance === 0
 
               if (!isFullyPaid) return null

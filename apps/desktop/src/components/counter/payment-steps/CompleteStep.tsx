@@ -2,9 +2,10 @@ import { Button } from '@/components/ui/button'
 import {
   Printer,
   CheckCircle2,
+  Truck,
 } from 'lucide-react'
 
-type SelectedMethod = 'cash' | 'card' | 'digital'
+type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
 interface CompleteStepProps {
   formatCurrency: (amount: number) => string
@@ -27,7 +28,23 @@ export function CompleteStep({
 }: CompleteStepProps) {
   return (
     <div className="w-full max-w-sm space-y-6 text-center">
-      {selectedMethod === 'cash' ? (
+      {selectedMethod === 'cod' ? (
+        <>
+          {/* COD Complete Screen */}
+          <div className="space-y-2">
+            <Truck className="w-16 h-16 mx-auto text-amber-400" />
+            <h3 className="text-2xl font-black tracking-tight text-zinc-100">Cash on Delivery</h3>
+          </div>
+
+          <div className="space-y-2 text-zinc-400">
+            <p className="text-base">Payment will be collected at delivery</p>
+            <div className="flex justify-between px-4">
+              <span>Amount to Collect</span>
+              <span className="font-medium text-zinc-100">{formatCurrency(total)}</span>
+            </div>
+          </div>
+        </>
+      ) : selectedMethod === 'cash' ? (
         <>
           {/* Cash Drawer Screen */}
           <div className="space-y-2">

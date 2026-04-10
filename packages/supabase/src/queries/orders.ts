@@ -40,6 +40,15 @@ export async function getOrders(params?: {
   }
 
   const { data, error, count } = await query
+  // Remap PostgREST relation name 'order_items' → 'items' to match Order type
+  if (data) {
+    for (const order of data as any[]) {
+      if (order.order_items) {
+        order.items = order.order_items
+        delete order.order_items
+      }
+    }
+  }
   return wrapMany(data as any, error, count, params?.page, params?.per_page)
 }
 
@@ -50,6 +59,15 @@ export async function getOrderById(id: string): Promise<ApiResponse<OrderRow>> {
     .select('*, order_items(*, products(id, name, image_url))')
     .eq('id', id)
     .single()
+  // Remap PostgREST relation name 'order_items' → 'items' to match Order type
+  if (data && (data as any).order_items) {
+    const mapped = data as any
+    mapped.items = mapped.order_items.map((oi: any) => ({
+      ...oi,
+      product: oi.products, // Remap nested 'products' → 'product'
+    }))
+    delete mapped.order_items
+  }
   return wrapOne(data as any, error, 'Order')
 }
 

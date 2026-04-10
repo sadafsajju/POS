@@ -118,7 +118,7 @@ export function CounterInterface() {
     const types: { type: OrderType; view: ActiveTab }[] = []
     if (settings.cartSettings?.showDineIn !== false) types.push({ type: 'dine_in', view: 'tables' })
     if (settings.cartSettings?.showTakeout !== false) types.push({ type: 'takeout', view: 'create' })
-    if (settings.cartSettings?.showDelivery !== false) types.push({ type: 'delivery', view: 'tables' })
+    if (settings.cartSettings?.showDelivery !== false) types.push({ type: 'delivery', view: 'create' })
     return types
   }, [settings.cartSettings?.showDineIn, settings.cartSettings?.showTakeout, settings.cartSettings?.showDelivery])
 
@@ -331,11 +331,22 @@ export function CounterInterface() {
         counter: () => apiClient.createCounterOrder(orderData),
       }),
     onSuccess: (response, variables) => {
-      const createdOrder = response.data
+      // The create_order RPC returns { success, data: { ...order } } wrapped by wrapRpc,
+      // so response.data is { success, data: { ...order }, bill_id } — unwrap the inner data
+      const rpcResult = response.data as any
+      const createdOrder = rpcResult?.data ?? rpcResult
 
       // Takeout/Delivery pending payment: construct BillSummary and open payment overlay
       if (pendingPayment.current && createdOrder && variables.order_type !== 'dine_in') {
         pendingPayment.current = false
+        // Enrich order items with product names from the cart (RPC doesn't return product.name)
+        if (Array.isArray(createdOrder.items)) {
+          const cartItems = cart.cart
+          createdOrder.items = createdOrder.items.map((item: any) => {
+            const cartItem = cartItems.find(ci => ci.product.id === item.product_id)
+            return cartItem ? { ...item, product: { id: item.product_id, name: cartItem.product.name } } : item
+          })
+        }
         const bill: BillSummary = {
           bill: createdOrder,
           kots: [],
@@ -937,7 +948,7 @@ export function CounterInterface() {
                       </span>
                     )},
                     { type: 'takeout' as OrderType, show: settings.cartSettings?.showTakeout !== false, icon: Package, label: 'Takeout', image: 'takeout.png', hoverBorder: 'hover:border-orange-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'takeout') } },
-                    { type: 'delivery' as OrderType, show: settings.cartSettings?.showDelivery !== false, icon: Car, label: 'Delivery', image: 'delivery.png', hoverBorder: 'hover:border-green-500', onClick: () => { setSelectedTable(null); navigateTo('tables', 'delivery') } },
+                    { type: 'delivery' as OrderType, show: settings.cartSettings?.showDelivery !== false, icon: Car, label: 'Delivery', image: 'delivery.png', hoverBorder: 'hover:border-green-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'delivery') } },
                   ]).filter(c => c.show).map(card => {
                     const Icon = card.icon
                     return (

@@ -7,6 +7,7 @@ import {
   AlertCircle,
   X,
   User,
+  MapPin,
 } from 'lucide-react'
 import { useCustomerDisplayBroadcast } from '@pos/core'
 import type { DiningTable, Order, BillSummary } from './types'
@@ -19,7 +20,7 @@ import { CashAmountStep } from './payment-steps/CashAmountStep'
 import { CompleteStep } from './payment-steps/CompleteStep'
 
 type PaymentStep = 'customer' | 'method' | 'cash-amount' | 'complete'
-type SelectedMethod = 'cash' | 'card' | 'digital'
+type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
 interface PaymentOverlayProps {
   activeBill: BillSummary
@@ -45,6 +46,7 @@ export function PaymentOverlay({
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null)
   const [linkedCustomerName, setLinkedCustomerName] = useState<string | null>(null)
+  const [linkedCustomerAddress, setLinkedCustomerAddress] = useState<string | null>(null)
   const [paidTotal, setPaidTotal] = useState<number | null>(null) // Captured at payment time
   const { broadcastPaymentStart, broadcastPaymentComplete } = useCustomerDisplayBroadcast()
 
@@ -59,6 +61,7 @@ export function PaymentOverlay({
   ]
   const consolidatedItems = consolidateItems(allItems)
 
+  const isDelivery = activeBill.bill?.order_type === 'delivery'
   const cashReceivedNum = parseFloat(cashReceived) || 0
   const changeAmount = cashReceivedNum > total ? cashReceivedNum - total : 0
 
@@ -108,10 +111,14 @@ export function PaymentOverlay({
   const handleMethodSelect = (method: SelectedMethod) => {
     setSelectedMethod(method)
     setPaymentError(null)
-    broadcastPaymentStart(total, method)
+    broadcastPaymentStart(total, method === 'cod' ? 'cash' : method)
 
     if (method === 'cash') {
       setStep('cash-amount')
+    } else if (method === 'cod') {
+      // COD: record as cash payment with full amount collected at delivery
+      setCashReceived(total.toString())
+      processPayment('cash')
     } else if (method === 'card') {
       processPayment('credit_card')
     } else {
@@ -127,12 +134,13 @@ export function PaymentOverlay({
 
   // Handle print
   const handlePrint = async () => {
+    const isCashType = selectedMethod === 'cash' || selectedMethod === 'cod'
     const paidDetails: PaidPaymentDetails = {
-      cash: selectedMethod === 'cash' ? total : 0,
+      cash: isCashType ? total : 0,
       card: selectedMethod === 'card' ? total : 0,
       digital: selectedMethod === 'digital' ? total : 0,
-      cash_received: selectedMethod === 'cash' ? cashReceivedNum : undefined,
-      change_amount: selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined,
+      cash_received: isCashType ? cashReceivedNum : undefined,
+      change_amount: isCashType && cashReceivedNum > total ? cashReceivedNum - total : undefined,
     }
 
     const orderForPrint: Order = {
@@ -146,9 +154,10 @@ export function PaymentOverlay({
   }
 
   // Handle customer linked from CustomerStep
-  const handleCustomerLinked = (id: string | null, name: string) => {
+  const handleCustomerLinked = (id: string | null, name: string, address?: string) => {
     setLinkedCustomerId(id)
     setLinkedCustomerName(name)
+    setLinkedCustomerAddress(address || null)
     setStep('method')
   }
 
@@ -218,6 +227,12 @@ export function PaymentOverlay({
               <span>{linkedCustomerName}</span>
             </div>
           )}
+          {linkedCustomerAddress && (
+            <div className="flex items-start gap-2 mb-3 text-sm text-zinc-400">
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{linkedCustomerAddress}</span>
+            </div>
+          )}
           {paidAmount > 0 && (
             <div className="space-y-1 mb-3">
               <div className="flex justify-between text-sm text-zinc-500">
@@ -261,6 +276,7 @@ export function PaymentOverlay({
               formatCurrency={formatCurrency}
               onCustomerLinked={handleCustomerLinked}
               onSkip={() => setStep('method')}
+              isDelivery={isDelivery}
             />
           )}
 
@@ -272,6 +288,7 @@ export function PaymentOverlay({
               selectedMethod={selectedMethod}
               onMethodSelect={handleMethodSelect}
               onBack={handleMethodBack}
+              isDelivery={isDelivery}
             />
           )}
 

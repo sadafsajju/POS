@@ -4,9 +4,10 @@ import {
   Banknote,
   CreditCard,
   QrCode,
+  Truck,
 } from 'lucide-react'
 
-type SelectedMethod = 'cash' | 'card' | 'digital'
+type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
 interface MethodStepProps {
   formatCurrency: (amount: number) => string
@@ -15,6 +16,7 @@ interface MethodStepProps {
   selectedMethod: SelectedMethod | null
   onMethodSelect: (method: SelectedMethod) => void
   onBack: () => void
+  isDelivery?: boolean
 }
 
 export function MethodStep({
@@ -24,6 +26,7 @@ export function MethodStep({
   selectedMethod,
   onMethodSelect,
   onBack,
+  isDelivery,
 }: MethodStepProps) {
   return (
     <div className="w-full max-w-sm space-y-6">
@@ -40,6 +43,29 @@ export function MethodStep({
           <p className="text-amber-400 font-black text-3xl mt-2">{formatCurrency(total)}</p>
         </div>
         </div>
+
+      {/* COD option — delivery only, shown first */}
+      {isDelivery && (
+        <Button
+          className="w-full h-20 text-xl justify-start px-8 gap-4 border-amber-600 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20"
+          variant="outline"
+          size="lg"
+          onClick={() => onMethodSelect('cod')}
+          disabled={isProcessing}
+        >
+          {isProcessing && selectedMethod === 'cod' ? (
+            <>
+              <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <Truck className="w-8 h-8" />
+              Cash on Delivery
+            </>
+          )}
+        </Button>
+      )}
 
       <Button
         className="w-full h-20 text-xl justify-start px-8 gap-4 border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"

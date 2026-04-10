@@ -38,6 +38,28 @@ export function PinDialog({
     }
   }, [open])
 
+  const handleVerify = useCallback(async (pinValue: string) => {
+    if (pinValue.length !== 4) return
+
+    setIsVerifying(true)
+    setError('')
+
+    try {
+      const response = await authApi.verifyPin(pinValue)
+      if (response.success) {
+        onVerified()
+      } else {
+        setError(response.message || 'Invalid PIN')
+        setPin('')
+      }
+    } catch {
+      setError('Failed to verify PIN')
+      setPin('')
+    } finally {
+      setIsVerifying(false)
+    }
+  }, [onVerified])
+
   // Accept keyboard input for PIN entry
   useEffect(() => {
     if (!open || isVerifying) return
@@ -66,28 +88,6 @@ export function PinDialog({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, isVerifying, handleVerify, onCancel])
-
-  const handleVerify = useCallback(async (pinValue: string) => {
-    if (pinValue.length !== 4) return
-
-    setIsVerifying(true)
-    setError('')
-
-    try {
-      const response = await authApi.verifyPin(pinValue)
-      if (response.success) {
-        onVerified()
-      } else {
-        setError(response.message || 'Invalid PIN')
-        setPin('')
-      }
-    } catch {
-      setError('Failed to verify PIN')
-      setPin('')
-    } finally {
-      setIsVerifying(false)
-    }
-  }, [onVerified])
 
   const handlePinChange = useCallback((value: string) => {
     if (value.length > 4) return

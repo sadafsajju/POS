@@ -175,9 +175,35 @@ class APIClient {
     return await ordersDb.getBillSummary(billId) as any
   }
 
-  async getActiveBillForTable(_tableId: string): Promise<APIResponse<any>> {
-    // TODO: Implement as RPC function
-    return { success: false, message: 'Not yet implemented for Supabase' }
+  async getActiveBillForTable(tableId: string): Promise<APIResponse<any>> {
+    // Find the active parent bill for this table (not a KOT, not paid/completed/cancelled)
+    const { getSupabase } = await import('@pos/supabase')
+    const sb = getSupabase()
+    const { data: bill, error } = await sb
+      .from('orders')
+      .select('id')
+      .eq('table_id', tableId)
+      .is('parent_order_id', null)
+      .eq('is_kot', false)
+      .not('status', 'in', '("paid","completed","cancelled")')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !bill) {
+      return { success: true, message: 'No active bill', data: null }
+    }
+
+    // Fetch the full bill summary via RPC
+    const summaryResponse = await ordersDb.getBillSummary(bill.id)
+    if (!summaryResponse.success) {
+      return summaryResponse
+    }
+
+    // Unwrap the double-nested RPC response
+    const rpcResult = summaryResponse.data as any
+    const summaryData = rpcResult?.data ?? rpcResult
+    return { success: true, message: 'Success', data: summaryData }
   }
 
   // Dashboard endpoints
@@ -326,6 +352,34 @@ class APIClient {
       return { success: false, message } as any
     }
     return data as any
+  }
+
+  async parseMenuImage(params: { image_base64: string; content_type: string }): Promise<any> {
+    const { getSupabase } = await import('@pos/supabase')
+    const sb = getSupabase()
+    const { data, error } = await sb.functions.invoke('parse-menu-image', {
+      body: params,
+    })
+    if (error) {
+      let message = error.message
+      const ctx = (error as any).context
+      try {
+        if (ctx && typeof ctx === 'object' && typeof ctx.json === 'function') {
+          // Context is a Response object
+          const body = await ctx.json()
+          message = body.message || message
+        } else if (ctx && typeof ctx === 'object' && ctx.message) {
+          // Context is already parsed JSON
+          message = ctx.message
+        } else if (typeof ctx === 'string') {
+          // Context is raw text — try parsing as JSON
+          const parsed = JSON.parse(ctx)
+          message = parsed.message || message
+        }
+      } catch {}
+      return { success: false, message }
+    }
+    return data
   }
 
   async updateUser(id: string, userData: any): Promise<APIResponse<User>> {
