@@ -297,7 +297,7 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                       control={form.control as any}
                       name="image_url"
                       label="Product Image"
-                      description="Upload an image or choose from the media library"
+                      description="Upload a product image"
                     />
                   </div>
                 </section>

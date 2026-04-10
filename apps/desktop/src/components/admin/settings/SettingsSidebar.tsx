@@ -1,5 +1,6 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
+import { useCustomerDisplayStore } from '@pos/core'
 import {
   Store,
   DollarSign,
@@ -17,6 +18,7 @@ import {
   Image,
   ImagePlus,
   QrCode,
+  Sparkles,
 } from 'lucide-react'
 
 const settingsSections = [
@@ -166,6 +168,16 @@ const managementSections = [
     activeText: 'text-purple-400',
     activeBg: 'bg-purple-500/10',
   },
+  {
+    id: 'import',
+    label: 'AI Import',
+    icon: <Sparkles className="w-4 h-4" />,
+    description: 'Import menu from photo',
+    href: '/admin/settings/import',
+    accent: 'bg-indigo-500',
+    activeText: 'text-indigo-400',
+    activeBg: 'bg-indigo-500/10',
+  },
   // {
   //   id: 'platforms',
   //   label: 'Platforms',
@@ -190,6 +202,7 @@ const managementSections = [
 
 export function SettingsSidebar() {
   const location = useLocation()
+  const { isOpen: isCustomerDisplayOpen } = useCustomerDisplayStore()
 
   const isActiveRoute = (href: string) => {
     if (href === '/admin/settings/menu') {
@@ -269,7 +282,7 @@ export function SettingsSidebar() {
           <p className="text-[10px] uppercase tracking-wider text-zinc-600 mt-3 font-bold">Manage</p>
         </div>
 
-        {managementSections.map((section) => {
+        {managementSections.filter(s => s.id !== 'media' && (s.id !== 'promos' || isCustomerDisplayOpen)).map((section) => {
           const active = isActiveRoute(section.href)
           return (
             <Link key={section.id} to={section.href} className="block">

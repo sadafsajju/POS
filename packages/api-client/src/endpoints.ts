@@ -390,6 +390,27 @@ export const adminApi = {
     return data
   },
 
+  parseMenuImage: async (params: { image_base64: string; content_type: string }) => {
+    const { getSupabase } = await import('@pos/supabase')
+    const sb = getSupabase()
+    const { data, error } = await sb.functions.invoke('parse-menu-image', { body: params })
+    if (error) {
+      let message = error.message
+      const ctx = (error as any).context
+      try {
+        if (ctx && typeof ctx === 'object' && typeof ctx.json === 'function') {
+          message = (await ctx.json()).message || message
+        } else if (ctx?.message) {
+          message = ctx.message
+        } else if (typeof ctx === 'string') {
+          message = JSON.parse(ctx).message || message
+        }
+      } catch {}
+      return { success: false, message }
+    }
+    return data
+  },
+
   updateUser: (id: string, userData: Partial<User> & { password?: string }) =>
     usersDb.updateUser(id, userData as any) as any,
 

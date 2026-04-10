@@ -42,6 +42,7 @@ import { Route as AdminSettingsPlatformsRouteImport } from './routes/admin/setti
 import { Route as AdminSettingsMenuRouteImport } from './routes/admin/settings/menu'
 import { Route as AdminSettingsMediaRouteImport } from './routes/admin/settings/media'
 import { Route as AdminSettingsLocationsRouteImport } from './routes/admin/settings/locations'
+import { Route as AdminSettingsImportRouteImport } from './routes/admin/settings/import'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin/settings/general'
 import { Route as AdminSettingsFinancialRouteImport } from './routes/admin/settings/financial'
 import { Route as AdminSettingsCartRouteImport } from './routes/admin/settings/cart'
@@ -214,6 +215,11 @@ const AdminSettingsLocationsRoute = AdminSettingsLocationsRouteImport.update({
   path: '/locations',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsImportRoute = AdminSettingsImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -272,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/import': typeof AdminSettingsImportRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
@@ -311,6 +318,7 @@ export interface FileRoutesByTo {
   '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/import': typeof AdminSettingsImportRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
@@ -352,6 +360,7 @@ export interface FileRoutesById {
   '/admin/settings/cart': typeof AdminSettingsCartRoute
   '/admin/settings/financial': typeof AdminSettingsFinancialRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/import': typeof AdminSettingsImportRoute
   '/admin/settings/locations': typeof AdminSettingsLocationsRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
   '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/import'
     | '/admin/settings/locations'
     | '/admin/settings/media'
     | '/admin/settings/menu'
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/import'
     | '/admin/settings/locations'
     | '/admin/settings/media'
     | '/admin/settings/platforms'
@@ -474,6 +485,7 @@ export interface FileRouteTypes {
     | '/admin/settings/cart'
     | '/admin/settings/financial'
     | '/admin/settings/general'
+    | '/admin/settings/import'
     | '/admin/settings/locations'
     | '/admin/settings/media'
     | '/admin/settings/menu'
@@ -739,6 +751,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsLocationsRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/import': {
+      id: '/admin/settings/import'
+      path: '/import'
+      fullPath: '/admin/settings/import'
+      preLoaderRoute: typeof AdminSettingsImportRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/settings/general': {
       id: '/admin/settings/general'
       path: '/general'
@@ -801,6 +820,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsCartRoute: typeof AdminSettingsCartRoute
   AdminSettingsFinancialRoute: typeof AdminSettingsFinancialRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsImportRoute: typeof AdminSettingsImportRoute
   AdminSettingsLocationsRoute: typeof AdminSettingsLocationsRoute
   AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
   AdminSettingsMenuRoute: typeof AdminSettingsMenuRouteWithChildren
@@ -821,6 +841,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsCartRoute: AdminSettingsCartRoute,
   AdminSettingsFinancialRoute: AdminSettingsFinancialRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsImportRoute: AdminSettingsImportRoute,
   AdminSettingsLocationsRoute: AdminSettingsLocationsRoute,
   AdminSettingsMediaRoute: AdminSettingsMediaRoute,
   AdminSettingsMenuRoute: AdminSettingsMenuRouteWithChildren,
