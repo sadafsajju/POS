@@ -743,71 +743,95 @@ export function CartPanel({
               return secondaryClass
             }
 
+            // Layout: 1 button = full width, 2 buttons = side by side, 3 buttons = Save+KOT top row + Pay bottom
+            const twoButtonRow = visibleCount === 2 && !showKot
+
+            const saveBtn = showSave && (
+              <Button
+                key="save"
+                className={twoButtonRow ? secondaryClass : getSaveClass()}
+                size="lg"
+                variant={twoButtonRow ? 'outline' : getSaveClass() === primaryClass ? 'default' : 'outline'}
+                onClick={() => onCreateOrder(false)}
+                disabled={isDisabled}
+              >
+                {isCreating ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : !isOnline ? (
+                  <>
+                    <CloudOff className="w-5 h-5 mr-2" />
+                    Save Offline
+                  </>
+                ) : (
+                  <>
+                    <ChefHat className="w-5 h-5 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+            )
+
+            const kotBtn = showKot && (
+              <Button
+                key="kot"
+                className={getKotClass()}
+                size="lg"
+                variant={getKotClass() === primaryClass ? 'default' : 'outline'}
+                onClick={() => onCreateOrder(true)}
+                disabled={isDisabled}
+              >
+                {isCreating ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    Printing...
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-5 h-5 mr-2" />
+                    KOT
+                  </>
+                )}
+              </Button>
+            )
+
+            const payBtn = showPay && (
+              <Button
+                key="pay"
+                className={twoButtonRow
+                  ? 'flex-1 h-14 text-base rounded-none bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-black tracking-wider'
+                  : `w-full h-14 text-base rounded-none bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-black tracking-wider${(showSave || showKot) ? ' border-t border-zinc-800' : ''}`
+                }
+                size="lg"
+                onClick={onOpenPayment}
+              >
+                <CreditCard className="w-5 h-5 mr-2" />
+                Pay
+              </Button>
+            )
+
             return (
               <div>
-                {/* Top row: Save + KOT (or single button) */}
-                {(showSave || showKot) && (
+                {twoButtonRow ? (
+                  // 2 buttons without KOT — side by side
                   <div className="flex">
-                    {showSave && (
-                      <Button
-                        className={getSaveClass()}
-                        size="lg"
-                        variant={getSaveClass() === primaryClass ? 'default' : 'outline'}
-                        onClick={() => onCreateOrder(false)}
-                        disabled={isDisabled}
-                      >
-                        {isCreating ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                            Saving...
-                          </>
-                        ) : !isOnline ? (
-                          <>
-                            <CloudOff className="w-5 h-5 mr-2" />
-                            Save Offline
-                          </>
-                        ) : (
-                          <>
-                            <ChefHat className="w-5 h-5 mr-2" />
-                            Save
-                          </>
-                        )}
-                      </Button>
-                    )}
-                    {showKot && (
-                      <Button
-                        className={getKotClass()}
-                        size="lg"
-                        variant={getKotClass() === primaryClass ? 'default' : 'outline'}
-                        onClick={() => onCreateOrder(true)}
-                        disabled={isDisabled}
-                      >
-                        {isCreating ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                            Printing...
-                          </>
-                        ) : (
-                          <>
-                            <Printer className="w-5 h-5 mr-2" />
-                            KOT
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    {saveBtn}
+                    {payBtn}
                   </div>
-                )}
-
-                {/* Bottom row: Pay (or in top row if Save/KOT hidden) */}
-                {showPay && (
-                  <Button
-                    className={`w-full h-14 text-base rounded-none bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white font-black tracking-wider${(showSave || showKot) ? ' border-t border-zinc-800' : ''}`}
-                    size="lg"
-                    onClick={onOpenPayment}
-                  >
-                    <CreditCard className="w-5 h-5 mr-2" />
-                    Pay
-                  </Button>
+                ) : (
+                  <>
+                    {/* Top row: Save + KOT */}
+                    {(showSave || showKot) && (
+                      <div className="flex">
+                        {saveBtn}
+                        {kotBtn}
+                      </div>
+                    )}
+                    {/* Bottom row: Pay */}
+                    {payBtn}
+                  </>
                 )}
               </div>
             )

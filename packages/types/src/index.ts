@@ -822,6 +822,9 @@ export interface StoreSettings {
   // Device
   touchMode: boolean;
 
+  // Kitchen Display System
+  enableKds: boolean;
+
   // Mode
   industryMode: 'restaurant' | 'retail';
 

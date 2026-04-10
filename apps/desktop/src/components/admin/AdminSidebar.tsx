@@ -11,7 +11,7 @@ import {
   Lock,
 } from 'lucide-react'
 import type { User as UserType } from '@/types'
-import { useAuthStore } from '@pos/core'
+import { useAuthStore, useSettingsStore } from '@pos/core'
 import { LocationSwitcher } from '@/components/ui/location-switcher'
 import { signOut as supabaseSignOut } from '@pos/supabase'
 
@@ -152,6 +152,7 @@ export function AdminTopBar({ user }: AdminTopBarProps) {
 
 export function AdminBottomNav() {
   const location = useLocation()
+  const { settings } = useSettingsStore()
 
   const isActive = (href: string) => {
     if (href === '/admin/settings') {
@@ -160,10 +161,12 @@ export function AdminBottomNav() {
     return location.pathname === href
   }
 
+  const visibleItems = settings.enableKds ? navItems : navItems.filter(i => i.id !== 'kitchen')
+
   return (
     <nav className="flex-shrink-0 bg-zinc-900 border-t border-zinc-800">
       <div className="flex items-stretch justify-around">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const active = isActive(item.href)
           const Icon = item.icon
           return (

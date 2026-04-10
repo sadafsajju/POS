@@ -14,7 +14,7 @@ export async function getOrders(params?: {
   date_to?: string
 }): Promise<ApiResponse<OrderRow[]>> {
   const sb = getSupabase()
-  let query = sb.from('orders').select('*, order_items(*)', { count: 'exact' })
+  let query = sb.from('orders').select('*, order_items(*, products(id, name, image_url))', { count: 'exact' })
 
   if (params?.status) {
     query = query.eq('status', params.status as any)
@@ -40,11 +40,14 @@ export async function getOrders(params?: {
   }
 
   const { data, error, count } = await query
-  // Remap PostgREST relation name 'order_items' → 'items' to match Order type
+  // Remap PostgREST relation names to match Order type
   if (data) {
     for (const order of data as any[]) {
       if (order.order_items) {
-        order.items = order.order_items
+        order.items = order.order_items.map((oi: any) => ({
+          ...oi,
+          product: oi.products, // Remap nested 'products' → 'product'
+        }))
         delete order.order_items
       }
     }

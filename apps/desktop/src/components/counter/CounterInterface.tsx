@@ -4,6 +4,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import apiClient from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig } from '@/components/ui/on-screen-keyboard/types'
@@ -170,8 +171,8 @@ export function CounterInterface() {
   // Inline config state (replaces product grid for variation/combo products)
   const [inlineConfig, setInlineConfig] = useState<InlineConfigState | null>(null)
 
-  // Print workflow state
-  const [pendingPrintCart, setPendingPrintCart] = useState<typeof cart.cart>([])
+  // Print workflow state — ref to avoid stale closure in mutation callbacks
+  const pendingPrintCartRef = useRef<typeof cart.cart>([])
 
   // Currency formatter
   const format = (amount: number) => formatCurrency(amount, settings.currency, settings.currencySymbol)
@@ -319,7 +320,7 @@ export function CounterInterface() {
       setCustomerName('')
       setOrderNotes('')
     }
-    setPendingPrintCart([])
+    pendingPrintCartRef.current = []
   }
 
   // Create order mutation
@@ -358,7 +359,7 @@ export function CounterInterface() {
         cart.clearCart()
         setCustomerName('')
         setOrderNotes('')
-        setPendingPrintCart([])
+        pendingPrintCartRef.current = []
         setErrorMessage(null)
         invalidateQueries()
         setShowPaymentOverlay(true)
@@ -371,7 +372,7 @@ export function CounterInterface() {
           selectedTable?.table_number,
           variables.customer_name,
           variables.order_type,
-          cartToKotItems(pendingPrintCart),
+          cartToKotItems(pendingPrintCartRef.current),
           variables.notes,
           false,
           undefined,
@@ -404,7 +405,7 @@ export function CounterInterface() {
           selectedTable?.table_number,
           variables.existingOrder.customer_name,
           orderType,
-          cartToKotItems(pendingPrintCart),
+          cartToKotItems(pendingPrintCartRef.current),
           orderNotes,
           true,
           undefined,
@@ -477,17 +478,19 @@ export function CounterInterface() {
   })
 
   // Handle order creation
-  // For dine-in orders: uses KOT mode (creates bill + KOT structure)
+  // When KDS is enabled: all order types use KOT mode (creates bill + KOT structure)
+  // When KDS is disabled: simple order creation, no kitchen workflow
   const handleCreateOrder = async (shouldPrint: boolean = false) => {
     if (cart.cart.length === 0) return
     if (orderType === 'dine_in' && !selectedTable) return
 
-    setPendingPrintCart([...cart.cart])
+    pendingPrintCartRef.current = [...cart.cart]
     const items = cart.toOrderItems()
+    const kdsEnabled = settings.enableKds
 
-    // For dine-in, fetch fresh active bill data to avoid stale parent_order_id
+    // When KDS is enabled, fetch fresh active bill data to avoid stale parent_order_id
     let currentActiveBillId: string | undefined = undefined
-    if (orderType === 'dine_in' && selectedTable && isOnline) {
+    if (kdsEnabled && orderType === 'dine_in' && selectedTable && isOnline) {
       try {
         const freshBillData = await queryClient.fetchQuery({
           queryKey: ['activeBill', selectedTable.id],
@@ -501,16 +504,14 @@ export function CounterInterface() {
       }
     }
 
-    // Build order data with KOT support for dine-in
+    // Build order data — KOT mode for all order types when KDS enabled
     const orderData: CreateOrderRequest = {
       table_id: orderType === 'dine_in' ? selectedTable?.id : undefined,
       customer_name: customerName || undefined,
       order_type: orderType,
       items,
       notes: orderNotes || undefined,
-      // KOT support: for dine-in orders, always create as KOT
-      create_as_kot: orderType === 'dine_in',
-      // Use freshly fetched active bill ID
+      create_as_kot: kdsEnabled,
       parent_order_id: currentActiveBillId,
     }
 
@@ -519,7 +520,7 @@ export function CounterInterface() {
       try {
         const result = await createOfflineOrder(orderData)
         if (shouldPrint && 'orderNumber' in result) {
-          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCart), orderData.notes, false)
+          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCartRef.current), orderData.notes, false)
         }
       } catch (error) {
         console.error('Failed to create offline order:', error)
@@ -930,7 +931,7 @@ export function CounterInterface() {
         )}
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto pb-4">
+        <ScrollArea className="flex-1 pb-4">
           {/* Order Type Selection - first step */}
           {activeTab === 'order-type' && (
             <div className="flex flex-col h-full">
@@ -1056,7 +1057,7 @@ export function CounterInterface() {
               />
             )
           )}
-        </div>
+        </ScrollArea>
 
               </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check } from 'lucide-react'
+import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettingsStore, useAuthStore, useCustomerDisplayStore, useTokenDisplayStore, useKioskDisplayStore } from '@pos/core'
 import { authApi } from '@pos/api-client'
@@ -26,6 +26,7 @@ function GeneralSettingsPage() {
     storePhone: settings.storePhone,
 
     touchMode: settings.touchMode,
+    enableKds: settings.enableKds,
     currency: settings.currency,
     currencySymbol: settings.currencySymbol,
     taxRate: settings.taxRate,
@@ -40,8 +41,9 @@ function GeneralSettingsPage() {
       restaurantName: settings.restaurantName,
       storeAddress: settings.storeAddress,
       storePhone: settings.storePhone,
-  
+
       touchMode: settings.touchMode,
+      enableKds: settings.enableKds,
       currency: settings.currency,
       currencySymbol: settings.currencySymbol,
       taxRate: settings.taxRate,
@@ -56,6 +58,7 @@ function GeneralSettingsPage() {
       localSettings.storePhone !== settings.storePhone ||
 
       localSettings.touchMode !== settings.touchMode ||
+      localSettings.enableKds !== settings.enableKds ||
       localSettings.currency !== settings.currency ||
       localSettings.taxRate !== settings.taxRate ||
       localSettings.serviceCharge !== settings.serviceCharge
@@ -81,8 +84,9 @@ function GeneralSettingsPage() {
       restaurantName: settings.restaurantName,
       storeAddress: settings.storeAddress,
       storePhone: settings.storePhone,
-  
+
       touchMode: settings.touchMode,
+      enableKds: settings.enableKds,
       currency: settings.currency,
       currencySymbol: settings.currencySymbol,
       taxRate: settings.taxRate,
@@ -217,6 +221,37 @@ function GeneralSettingsPage() {
             <div className={cn(
               'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
               localSettings.touchMode ? 'translate-x-5' : 'translate-x-1'
+            )} />
+          </div>
+        </button>
+      </div>
+
+      {/* Kitchen Display */}
+      <SectionHeading title="Kitchen" />
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <button
+          onClick={() => setLocalSettings({ ...localSettings, enableKds: !localSettings.enableKds })}
+          className={cn(
+            'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+            localSettings.enableKds
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <ChefHat className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Kitchen Display System</span>
+              <span className="block text-xs text-zinc-500">Send orders to kitchen display for preparation tracking across all order types</span>
+            </div>
+          </div>
+          <div className={cn(
+            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+            localSettings.enableKds ? 'bg-emerald-500' : 'bg-zinc-700'
+          )}>
+            <div className={cn(
+              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+              localSettings.enableKds ? 'translate-x-5' : 'translate-x-1'
             )} />
           </div>
         </button>
