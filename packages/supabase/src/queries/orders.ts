@@ -14,7 +14,7 @@ export async function getOrders(params?: {
   date_to?: string
 }): Promise<ApiResponse<OrderRow[]>> {
   const sb = getSupabase()
-  let query = sb.from('orders').select('*, order_items(*, products(id, name, image_url))', { count: 'exact' })
+  let query = sb.from('orders').select('*, table:dining_tables(id, table_number), order_items(*, products(id, name, image_url))', { count: 'exact' })
 
   if (params?.status) {
     query = query.eq('status', params.status as any)
@@ -59,7 +59,7 @@ export async function getOrderById(id: string): Promise<ApiResponse<OrderRow>> {
   const sb = getSupabase()
   const { data, error } = await sb
     .from('orders')
-    .select('*, order_items(*, products(id, name, image_url))')
+    .select('*, order_items(*, products(id, name, image_url)), payments(*, processed_by_user:users!processed_by(id, username, first_name))')
     .eq('id', id)
     .single()
   // Remap PostgREST relation name 'order_items' → 'items' to match Order type
@@ -126,26 +126,53 @@ export async function updateOrderStatus(
 
 export async function getKitchenOrders(status?: string): Promise<ApiResponse<OrderRow[]>> {
   const sb = getSupabase()
+  // !inner join excludes bills that have no direct items (KOT mode attaches items to the KOT, not the bill).
+  // Includes 'pending' because KOTs are created with that default status.
+  // Aliased `table:dining_tables(...)` so the frontend can read `order.table.table_number`.
+  const selectCols = '*, table:dining_tables(id, table_number), created_by_user:users!user_id(id, username, first_name), order_items!inner(*, products(id, name, image_url))'
   let query = sb
     .from('orders')
-    .select('*, order_items(*, products(id, name, image_url))')
-    .in('status', ['confirmed', 'preparing', 'ready'])
-    .eq('is_kot', false)
+    .select(selectCols)
+    .in('status', ['pending', 'confirmed', 'preparing', 'ready'])
 
   if (status && status !== 'all') {
     query = sb
       .from('orders')
-      .select('*, order_items(*, products(id, name, image_url))')
+      .select(selectCols)
       .eq('status', status as any)
-      .eq('is_kot', false)
   }
 
   query = query.order('created_at', { ascending: true })
   const { data, error } = await query
-  // Map order_items to items for frontend compatibility
+  if (error) return wrapMany(null as any, error)
+
+  // KOTs have token_number = NULL; fetch their parent bills' tokens in a second query.
+  // (PostgREST self-referential embeds are unreliable; a batch .in() lookup is simpler.)
+  const parentIds = Array.from(
+    new Set((data || []).map((o: any) => o.parent_order_id).filter(Boolean)),
+  ) as string[]
+  const parentTokenMap = new Map<string, number | null>()
+  if (parentIds.length > 0) {
+    const { data: parents } = await sb
+      .from('orders')
+      .select('id, token_number')
+      .in('id', parentIds)
+    for (const p of parents || []) {
+      parentTokenMap.set((p as any).id, (p as any).token_number)
+    }
+  }
+
+  // Remap PostgREST relation 'order_items' → 'items' and nested 'products' → 'product'.
+  // Attach parent_order.token_number so KOT cards can display the customer-facing token.
   const mapped = data?.map((order: any) => ({
     ...order,
-    items: order.order_items,
+    items: (order.order_items || []).map((oi: any) => ({
+      ...oi,
+      product: oi.products,
+    })),
+    parent_order: order.parent_order_id
+      ? { token_number: parentTokenMap.get(order.parent_order_id) ?? null }
+      : null,
   }))
   return wrapMany(mapped as any, error)
 }
@@ -190,7 +217,11 @@ export async function getAggregatorOrders(params?: {
 export async function getBillSummary(orderId: string): Promise<ApiResponse<any>> {
   const sb = getSupabase()
   const { data, error } = await sb.rpc('get_bill_summary', { p_order_id: orderId })
-  return wrapRpc(data, error)
+  if (error) return { success: false, message: error.message, error: error.code }
+  // The RPC returns { success, data: { bill, kots, ... } } — unwrap the inner data so callers
+  // can read summary.kots directly (matches the shape used by getActiveBillForTable).
+  const inner = (data as any)?.data ?? data
+  return { success: true, message: 'Success', data: inner }
 }
 
 export async function clearTable(tableId: string): Promise<ApiResponse<any>> {

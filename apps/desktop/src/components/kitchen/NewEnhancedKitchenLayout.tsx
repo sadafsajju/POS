@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import apiClient from '@/api/client';
+import { subscribeToOrders, subscribeToOrderItems, unsubscribe, getSupabase } from '@pos/supabase';
 import type { User as UserType, Order, OrderItem, OrderStatus } from '@/types';
 
 interface NewEnhancedKitchenLayoutProps {
@@ -52,7 +53,9 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
   const [optimisticReady, setOptimisticReady] = useState<Set<string>>(new Set());
   const [optimisticServed, setOptimisticServed] = useState<Set<string>>(new Set());
 
-  const { data: ordersResponse, isLoading, refetch } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data: ordersResponse, isLoading } = useQuery({
     queryKey: ['kitchenOrders'],
     queryFn: () => apiClient.getKitchenOrders('all'),
     refetchInterval: autoRefresh ? 3000 : false,
@@ -69,6 +72,24 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
 
   const orders: Order[] = Array.isArray(ordersResponse) ? ordersResponse : [];
   const servedOrders: Order[] = Array.isArray(servedResponse) ? servedResponse : [];
+
+  // Refresh both the active (pending/confirmed/preparing/ready) and served lists together.
+  // If we only refresh one, an order transitioning to 'served' disappears from the active
+  // list before the served list refetches on its own interval.
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['kitchenOrders'] });
+    queryClient.invalidateQueries({ queryKey: ['kitchenServedOrders'] });
+  }, [queryClient]);
+
+  // Realtime: refetch immediately when orders or items change, instead of waiting for the 3s poll.
+  useEffect(() => {
+    const ordersChannel = subscribeToOrders(() => refetch());
+    const itemsChannel = subscribeToOrderItems(() => refetch());
+    return () => {
+      unsubscribe(ordersChannel);
+      unsubscribe(itemsChannel);
+    };
+  }, [refetch]);
 
   // ── Derive if an item is "ready" (server or optimistic) ────────────────
 
@@ -89,9 +110,9 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
   }, [isItemReady, isItemServed]);
 
   // ── Build lane tickets ─────────────────────────────────────────────────
-  // NEW: confirmed orders, all items
+  // NEW: fresh tickets awaiting kitchen (KOTs start as 'pending', non-KOT orders may be 'confirmed')
   const newTickets: LaneTicket[] = orders
-    .filter((o) => o.status === 'confirmed')
+    .filter((o) => o.status === 'pending' || o.status === 'confirmed')
     .map((o) => ({ order: o, displayItems: o.items || [] }));
 
   // FIRING: preparing orders, only items still cooking
@@ -123,9 +144,18 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
       .filter((t) => t.displayItems.length > 0),
   ];
 
-  // DONE: recently served orders (read-only, for reference)
+  // DONE: recently served orders (read-only, for reference).
+  // Dedupe: in KOT mode the parent bill also gets marked 'served' — skip bills that
+  // have served KOT children so we don't render the same order twice.
+  const servedBillIdsWithKots = new Set(
+    servedOrders
+      .map((o) => (o as any).parent_order_id)
+      .filter((id): id is string => !!id),
+  );
   const doneTickets: LaneTicket[] = servedOrders
+    .filter((o) => !servedBillIdsWithKots.has(o.id))
     .map((o) => ({ order: o, displayItems: o.items || [] }));
+  // The Lane component sorts DONE by served_at desc internally.
 
   const totalActive = newTickets.length + firingTickets.length + readyTickets.length + doneTickets.length;
   const urgentCount = orders.filter(
@@ -143,49 +173,83 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
     }
   }, [refetch]);
 
-  // FIRING → READY: tap item to mark as ready
-  const handleItemCheck = useCallback((orderId: string, item: OrderItem) => {
-    setOptimisticReady((prev) => new Set([...prev, item.id]));
+  // If all sibling KOTs for a bill are 'served', advance the parent bill to 'served' too
+  // so the Bills page reflects kitchen progress.
+  const maybePropagateParentServed = useCallback(async (parentId: string) => {
+    const sb = getSupabase();
+    const { data: siblings } = await sb
+      .from('orders')
+      .select('id, status')
+      .eq('parent_order_id', parentId);
+    if (!siblings || siblings.length === 0) return;
+    const allServed = (siblings as Array<{ status: string }>).every((s) => s.status === 'served');
+    if (allServed) {
+      await apiClient.updateOrderStatus(parentId, 'served' as OrderStatus).catch(console.error);
+    }
+  }, []);
 
+  // FIRING → READY: tap item to mark as ready.
+  // Uses a functional setState so bulk "SERVE ALL" style flows see the in-flight set,
+  // not the stale closure from the previous render.
+  const handleItemCheck = useCallback((orderId: string, item: OrderItem) => {
     apiClient.updateOrderItemStatus(orderId, item.id, 'ready').catch((e) => {
       console.error('Item status update failed:', e);
       setOptimisticReady((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
     });
 
-    // Auto-advance order to 'ready' when all items are done cooking
-    const order = orders.find((o) => o.id === orderId);
-    if (order) {
-      const allItems = order.items || [];
-      const allReady = allItems.every((i) => i.id === item.id || isItemReady(i) || isItemServed(i));
-      if (allReady && allItems.length > 0) {
-        setTimeout(() => {
-          apiClient.updateOrderStatus(orderId, 'ready').then(() => refetch()).catch(console.error);
-        }, 300);
+    setOptimisticReady((prev) => {
+      const next = new Set([...prev, item.id]);
+      const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        const allItems = order.items || [];
+        const allReady = allItems.every(
+          (i) => next.has(i.id) || i.status === 'ready' || i.status === 'served',
+        );
+        if (allReady && allItems.length > 0) {
+          setTimeout(() => {
+            apiClient.updateOrderStatus(orderId, 'ready').then(() => refetch()).catch(console.error);
+          }, 300);
+        }
       }
-    }
-  }, [orders, isItemReady, isItemServed, refetch]);
+      return next;
+    });
+  }, [orders, refetch]);
 
-  // READY → SERVED: tap item to serve it individually
+  // READY → SERVED: tap item to serve it individually (or bulk via SERVE ALL)
   const handleItemServe = useCallback((orderId: string, item: OrderItem) => {
-    setOptimisticServed((prev) => new Set([...prev, item.id]));
-
     apiClient.updateOrderItemStatus(orderId, item.id, 'served').catch((e) => {
       console.error('Item serve failed:', e);
       setOptimisticServed((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
     });
 
-    // Auto-advance order to 'served' when all items are served
-    const order = orders.find((o) => o.id === orderId);
-    if (order) {
-      const allItems = order.items || [];
-      const allServed = allItems.every((i) => i.id === item.id || isItemServed(i));
-      if (allServed && allItems.length > 0) {
-        setTimeout(() => {
-          apiClient.updateOrderStatus(orderId, 'served').then(() => refetch()).catch(console.error);
-        }, 300);
+    setOptimisticServed((prev) => {
+      const next = new Set([...prev, item.id]);
+      const order = orders.find((o) => o.id === orderId);
+      if (order) {
+        const allItems = order.items || [];
+        const allServed = allItems.every(
+          (i) => next.has(i.id) || i.status === 'served',
+        );
+        if (allServed && allItems.length > 0) {
+          setTimeout(async () => {
+            try {
+              await apiClient.updateOrderStatus(orderId, 'served');
+              // For KOT mode: if this was a KOT and all sibling KOTs are also served,
+              // advance the parent bill so /admin/bills shows 'served' too.
+              if (order.is_kot && (order as any).parent_order_id) {
+                await maybePropagateParentServed((order as any).parent_order_id);
+              }
+            } catch (e) {
+              console.error(e);
+            } finally {
+              refetch();
+            }
+          }, 300);
+        }
       }
-    }
-  }, [orders, isItemServed, refetch]);
+      return next;
+    });
+  }, [orders, refetch, maybePropagateParentServed]);
 
   // Clean up optimistic state when server confirms
   const allServerItems = orders.flatMap((o) => o.items || []);
@@ -340,9 +404,16 @@ function Lane({
 }) {
   const meta = LANE_META[name];
 
-  const sorted = [...tickets].sort(
-    (a, b) => new Date(a.order.created_at).getTime() - new Date(b.order.created_at).getTime(),
-  );
+  // Active lanes: oldest first (kitchen works oldest-to-newest).
+  // DONE lane: newest-served at the top, since it's a recent-history view.
+  const sorted = [...tickets].sort((a, b) => {
+    if (name === 'done') {
+      const aTime = new Date(a.order.served_at || a.order.updated_at || a.order.created_at).getTime();
+      const bTime = new Date(b.order.served_at || b.order.updated_at || b.order.created_at).getTime();
+      return bTime - aTime;
+    }
+    return new Date(a.order.created_at).getTime() - new Date(b.order.created_at).getTime();
+  });
 
   return (
     <div className="flex-1 min-w-[340px] max-w-[500px] flex flex-col border-r border-zinc-800/60 last:border-r-0">
@@ -408,7 +479,7 @@ function Ticket({
   return (
     <div
       className={cn(
-        'rounded-lg border-l-4 overflow-hidden',
+        'rounded-lg border-l-4 overflow-hidden animate-kds-enter transition-colors duration-200',
         isDone ? 'bg-zinc-900/60' : 'bg-zinc-900',
         meta.border,
         urg.pulse && lane !== 'ready' && lane !== 'done' && 'ring-1 ring-red-500/50',
@@ -416,7 +487,20 @@ function Ticket({
     >
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <span className={cn('font-black tracking-tight text-zinc-100', isDone ? 'text-lg' : 'text-2xl')}>{headline}</span>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className={cn('font-black tracking-tight text-zinc-100', isDone ? 'text-lg' : 'text-2xl')}>{headline}</span>
+          {(() => {
+            const token = order.token_number ?? (order as any).parent_order?.token_number
+            return token != null ? (
+              <span className={cn(
+                'font-black tracking-wider px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 tabular-nums',
+                isDone ? 'text-xs' : 'text-sm',
+              )}>
+                #{String(token).padStart(4, '0')}
+              </span>
+            ) : null
+          })()}
+        </div>
         {isDone ? (
           <span className="text-xs text-zinc-500 tabular-nums">{servedTime}</span>
         ) : (
@@ -429,11 +513,18 @@ function Ticket({
         )}
       </div>
 
-      <div className="px-3 pb-2 flex items-center gap-2">
+      <div className="px-3 pb-2 flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-zinc-500">#{order.order_number}</span>
         {order.customer_name && (
           <span className="text-xs text-zinc-600 truncate max-w-[120px]">{order.customer_name}</span>
         )}
+        {(() => {
+          const u = (order as any).created_by_user
+          const name = u?.first_name || u?.username
+          return name ? (
+            <span className="text-[10px] text-zinc-500 truncate max-w-[120px]">by {name}</span>
+          ) : null
+        })()}
         {order.is_kot && order.kot_number && (
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">KOT</span>
         )}

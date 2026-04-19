@@ -15,6 +15,48 @@ export function isTauriEnvironment(): boolean {
 }
 
 /**
+ * Browser-fallback print via a hidden iframe. Avoids popup windows
+ * (which get blocked or close before the document renders).
+ */
+function printViaIframe(html: string): void {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  document.body.appendChild(iframe)
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!doc) {
+    iframe.remove()
+    return
+  }
+  doc.open()
+  doc.write(html)
+  doc.close()
+
+  let printed = false
+  const triggerPrint = () => {
+    if (printed) return
+    printed = true
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } catch (e) {
+      console.error('Print failed:', e)
+    } finally {
+      setTimeout(() => iframe.remove(), 1000)
+    }
+  }
+
+  iframe.addEventListener('load', triggerPrint, { once: true })
+  // Safety fallback: document.write can skip the load event.
+  setTimeout(triggerPrint, 500)
+}
+
+/**
  * Print thermal receipt for an order
  */
 export async function printThermalReceipt(
@@ -51,15 +93,9 @@ export async function printThermalReceipt(
       })
       onSuccess?.()
     } else {
-      // Fallback: open browser print dialog for web version
-      const printWindow = window.open('', '_blank', 'width=300,height=600')
-      if (printWindow) {
-        const receiptHtml = generateReceiptHtml(order, paidPaymentDetails, formatCurrency)
-        printWindow.document.write(receiptHtml)
-        printWindow.document.close()
-        printWindow.print()
-        printWindow.close()
-      }
+      // Fallback: browser print via hidden iframe
+      printViaIframe(generateReceiptHtml(order, paidPaymentDetails, formatCurrency))
+      onSuccess?.()
     }
   } catch (error) {
     console.error('Failed to print receipt:', error)
@@ -80,7 +116,8 @@ export async function printKOT(
   isNewItems: boolean = false,
   onSuccess?: () => void,
   onError?: (error: Error) => void,
-  tokenNumber?: number
+  tokenNumber?: number,
+  staffName?: string
 ): Promise<void> {
   try {
     if (isTauriEnvironment()) {
@@ -98,21 +135,16 @@ export async function printKOT(
           })),
           notes: notes,
           is_new_items: isNewItems,
-          token_number: tokenNumber
+          token_number: tokenNumber,
+          staff_name: staffName
         }
       })
       console.log('KOT printed successfully!')
       onSuccess?.()
     } else {
-      // Fallback: open browser print dialog for web version
-      const printWindow = window.open('', '_blank', 'width=300,height=500')
-      if (printWindow) {
-        const kotHtml = generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber)
-        printWindow.document.write(kotHtml)
-        printWindow.document.close()
-        printWindow.print()
-        printWindow.close()
-      }
+      // Fallback: browser print via hidden iframe
+      printViaIframe(generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber, staffName))
+      onSuccess?.()
     }
   } catch (error) {
     console.error('Failed to print KOT:', error)
@@ -217,7 +249,8 @@ export function generateKOTHtml(
   items: KOTItem[],
   notes?: string,
   isNewItems: boolean = false,
-  tokenNumber?: number
+  tokenNumber?: number,
+  staffName?: string
 ): string {
   const orderTypeDisplay = {
     dine_in: 'DINE-IN',
@@ -260,6 +293,7 @@ export function generateKOTHtml(
       ${tableNumber ? `<div class="table-number">TABLE: ${tableNumber}</div>` : ''}
       <div class="info"><strong>Type:</strong> ${orderTypeDisplay}</div>
       ${customerName ? `<div class="info"><strong>Customer:</strong> ${customerName}</div>` : ''}
+      ${staffName ? `<div class="info"><strong>Staff:</strong> ${staffName}</div>` : ''}
       <div class="info"><strong>Time:</strong> ${new Date().toLocaleTimeString()}</div>
       <div class="divider"></div>
       <div style="font-weight: bold; margin-bottom: 5px;">ITEMS:</div>

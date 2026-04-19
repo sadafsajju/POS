@@ -178,11 +178,13 @@ export function BillsList({
                   }`}
                   onClick={() => onSelectOrder(order.id)}
                 >
-                  {/* Top row: order number, status, amount */}
+                  {/* Top row: token (KDS-style), status, amount */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-semibold text-sm text-zinc-100">
-                        #{order.order_number}
+                      <span className="font-semibold text-sm text-zinc-100 tabular-nums">
+                        {order.token_number != null
+                          ? `#${String(order.token_number).padStart(4, '0')}`
+                          : `#${order.order_number}`}
                       </span>
                       <Badge className={`${status.color} text-[10px] px-1.5 py-0 border-0`}>
                         {status.label}

@@ -8,9 +8,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig } from '@/components/ui/on-screen-keyboard/types'
-import { Table as TableIcon, Search, CloudOff, RefreshCw, X, ArrowLeft, Package, Car, UtensilsCrossed} from 'lucide-react'
+import { Table as TableIcon, Search, CloudOff, RefreshCw, X, ArrowLeft, Package, Car, UtensilsCrossed, MapPin } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast } from '@pos/core'
+import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast, useAuthStore } from '@pos/core'
 import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
 
@@ -100,6 +100,9 @@ export function CounterInterface() {
   // External hooks
   const { settings } = useSettingsStore()
   const { isOnline } = useSyncStore()
+  const { location: currentLocation, user: currentUser } = useAuthStore()
+  const currentLocationId = currentLocation?.id
+  const currentStaffName = currentUser?.first_name || currentUser?.username
   const queryClient = useQueryClient()
   const { broadcastCartUpdate, broadcastIdle } = useCustomerDisplayBroadcast()
 
@@ -162,6 +165,9 @@ export function CounterInterface() {
   const [showPaymentOverlay, setShowPaymentOverlay] = useState(false)
   const pendingPayment = useRef(false)
   const [takeawayBill, setTakeawayBill] = useState<BillSummary | null>(null)
+  // Snapshot the bill while the overlay is open so a refetch (which returns null for 'paid'
+  // bills) can't yank the overlay away mid-complete-screen.
+  const [paymentBillSnapshot, setPaymentBillSnapshot] = useState<BillSummary | null>(null)
 
   // Product options dialog state (for configurable products)
   const [configProduct, setConfigProduct] = useState<Product | null>(null)
@@ -232,8 +238,8 @@ export function CounterInterface() {
   })
 
   const { data: tables = [] } = useQuery({
-    queryKey: ['tables'],
-    queryFn: () => apiClient.getTables().then(res => res.data),
+    queryKey: ['tables', currentLocationId],
+    queryFn: () => apiClient.getTables(currentLocationId ? { location_id: currentLocationId } : undefined).then(res => res.data),
     refetchInterval: 5 * 1000, // 5 seconds – table status must stay fresh
   })
 
@@ -377,7 +383,8 @@ export function CounterInterface() {
           false,
           undefined,
           undefined,
-          createdOrder.token_number
+          createdOrder.token_number,
+          currentStaffName
         )
       }
       clearAfterOrder()
@@ -410,7 +417,8 @@ export function CounterInterface() {
           true,
           undefined,
           undefined,
-          variables.existingOrder.token_number
+          variables.existingOrder.token_number,
+          currentStaffName
         )
       }
       clearAfterOrder()
@@ -520,7 +528,7 @@ export function CounterInterface() {
       try {
         const result = await createOfflineOrder(orderData)
         if (shouldPrint && 'orderNumber' in result) {
-          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCartRef.current), orderData.notes, false)
+          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCartRef.current), orderData.notes, false, undefined, undefined, undefined, currentStaffName)
         }
       } catch (error) {
         console.error('Failed to create offline order:', error)
@@ -576,6 +584,17 @@ export function CounterInterface() {
       setShowPaymentOverlay(true)
     }
   }, [activeBill])
+
+  // Keep the overlay's bill reference alive even after the bill is marked paid and
+  // disappears from the activeBill query. Snapshot the live bill while the overlay is open.
+  useEffect(() => {
+    if (!showPaymentOverlay) {
+      setPaymentBillSnapshot(null)
+      return
+    }
+    const live = activeBill || takeawayBill
+    if (live) setPaymentBillSnapshot(live)
+  }, [showPaymentOverlay, activeBill, takeawayBill])
 
   const handlePaymentComplete = () => {
     setShowPaymentOverlay(false)
@@ -782,6 +801,12 @@ export function CounterInterface() {
               )}
               <OrderTypeTitle orderType={orderType} />
               <OrderTypeBadge orderType={orderType} />
+              {currentLocation?.name && (
+                <span className="flex items-center gap-1.5 text-sm text-zinc-400 px-2">
+                  <MapPin className="w-4 h-4" />
+                  <span className="font-medium">{currentLocation.name}</span>
+                </span>
+              )}
               <Button
                 variant="outline"
                 size="lg"
@@ -931,43 +956,43 @@ export function CounterInterface() {
         )}
 
         {/* Content Area */}
-        <ScrollArea className="flex-1 pb-4">
-          {/* Order Type Selection - first step */}
-          {activeTab === 'order-type' && (
-            <div className="flex flex-col h-full">
-              <div className="px-4 pt-4">
-                <AggregatorOrders />
-              </div>
-              <div className="flex-1 flex flex-col items-center justify-center p-6">
-                <h1 className="text-3xl font-black tracking-tight text-zinc-100 mb-8">Are you dining in or taking away?</h1>
-                <div className="flex gap-6 w-full max-w-4xl">
-                  {([
-                    { type: 'dine_in' as OrderType, show: settings.cartSettings?.showDineIn !== false, icon: UtensilsCrossed, label: 'Dine-In', image: 'dine-in.png', hoverBorder: 'hover:border-amber-500', onClick: () => navigateTo('tables', 'dine_in'), extra: activeTablesCount > 0 && (
-                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-sm font-semibold">
-                        <TableIcon className="w-3.5 h-3.5" />
-                        {activeTablesCount} active {activeTablesCount === 1 ? 'table' : 'tables'}
+        {activeTab === 'order-type' && (
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto pb-4">
+            <div className="px-4 pt-4">
+              <AggregatorOrders />
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-6">
+              <h1 className="text-3xl font-black tracking-tight text-zinc-100 mb-8">Are you dining in or taking away?</h1>
+              <div className="flex gap-6 w-full max-w-4xl">
+                {([
+                  { type: 'dine_in' as OrderType, show: settings.cartSettings?.showDineIn !== false, icon: UtensilsCrossed, label: 'Dine-In', image: 'dine-in.png', hoverBorder: 'hover:border-amber-500', onClick: () => navigateTo('tables', 'dine_in'), extra: activeTablesCount > 0 && (
+                    <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-sm font-semibold">
+                      <TableIcon className="w-3.5 h-3.5" />
+                      {activeTablesCount} active {activeTablesCount === 1 ? 'table' : 'tables'}
+                    </span>
+                  )},
+                  { type: 'takeout' as OrderType, show: settings.cartSettings?.showTakeout !== false, icon: Package, label: 'Takeout', image: 'takeout.png', hoverBorder: 'hover:border-orange-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'takeout') } },
+                  { type: 'delivery' as OrderType, show: settings.cartSettings?.showDelivery !== false, icon: Car, label: 'Delivery', image: 'delivery.png', hoverBorder: 'hover:border-green-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'delivery') } },
+                ]).filter(c => c.show).map(card => {
+                  const Icon = card.icon
+                  return (
+                    <button key={card.type} onClick={card.onClick} className={`flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent ${card.hoverBorder} active:scale-[0.97] transition-all duration-200 select-none touch-manipulation`}>
+                      <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url(/images/${card.image})` }} />
+                      <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
+                      <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
+                        <Icon className="w-10 h-10" />
+                        <span className="text-3xl font-bold">{card.label}</span>
+                        {card.extra}
                       </span>
-                    )},
-                    { type: 'takeout' as OrderType, show: settings.cartSettings?.showTakeout !== false, icon: Package, label: 'Takeout', image: 'takeout.png', hoverBorder: 'hover:border-orange-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'takeout') } },
-                    { type: 'delivery' as OrderType, show: settings.cartSettings?.showDelivery !== false, icon: Car, label: 'Delivery', image: 'delivery.png', hoverBorder: 'hover:border-green-500', onClick: () => { setSelectedTable(null); navigateTo('create', 'delivery') } },
-                  ]).filter(c => c.show).map(card => {
-                    const Icon = card.icon
-                    return (
-                      <button key={card.type} onClick={card.onClick} className={`flex-1 relative overflow-hidden rounded-2xl h-80 group cursor-pointer border-4 border-transparent ${card.hoverBorder} active:scale-[0.97] transition-all duration-200 select-none touch-manipulation`}>
-                        <span className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110" style={{ backgroundImage: `url(/images/${card.image})` }} />
-                        <span className="absolute inset-0 bg-black/50 group-hover:bg-black/40 transition-colors" />
-                        <span className="relative z-10 flex flex-col items-center justify-center h-full gap-3 text-white">
-                          <Icon className="w-10 h-10" />
-                          <span className="text-3xl font-bold">{card.label}</span>
-                          {card.extra}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
-          )}
+          </div>
+        )}
+        {activeTab !== 'order-type' && (
+        <ScrollArea className="flex-1 pb-4">
           {activeTab === 'tables' && (<>
             <div className="px-4 pt-4">
               <AggregatorOrders />
@@ -1058,6 +1083,7 @@ export function CounterInterface() {
             )
           )}
         </ScrollArea>
+        )}
 
               </div>
 
@@ -1210,9 +1236,9 @@ export function CounterInterface() {
       )}
 
       {/* Payment Overlay */}
-      {showPaymentOverlay && (activeBill || takeawayBill) && (
+      {showPaymentOverlay && paymentBillSnapshot && (
         <PaymentOverlay
-          activeBill={(activeBill || takeawayBill)!}
+          activeBill={paymentBillSnapshot}
           selectedTable={orderType === 'dine_in' ? selectedTable : null}
           isAdmin={isAdmin}
           formatCurrency={format}
