@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react'
 import { useSettingsStore, useSetupCheck, usePinVerifyStore, useAuthStore } from '@pos/core'
 import { Loader2, WifiOff, RefreshCw } from 'lucide-react'
 import { PinDialog } from '@/components/ui/pin-dialog'
+import { UpdateChecker } from '@/components/UpdateChecker'
 import '../index.css'
 
 const queryClient = new QueryClient({
@@ -188,6 +189,7 @@ export const Route = createRootRoute({
           </TrialGate>
         </SetupGate>
         <GlobalPinDialog />
+        <UpdateChecker />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     )

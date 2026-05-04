@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for the POS desktop app",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "sql:default",
+    "store:default",
+    "shell:default",
+    "updater:default",
+    "process:default"
+  ]
+}
