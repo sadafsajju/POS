@@ -63,7 +63,7 @@
     },
     "updater": {
       "endpoints": [
-        "https://github.com/sadafsajju/POS/releases/latest/download/latest.json"
+        "https://okbrsgh3owvulyoz.public.blob.vercel-storage.com/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxODhBOTA0RUUzOUE1NDAKUldSQXBUbnVCS21JZ2YvOVJKZktzL1ovS0luaG54akNtTWpoYmZHNnU5N0xqbU5BbVY4TlkyVVcK"
     }

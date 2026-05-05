@@ -27,6 +27,7 @@
     "supabase:gen-types": "npx supabase gen types typescript --local > packages/supabase/src/types.ts"
   },
   "devDependencies": {
+    "@vercel/blob": "^2.3.3",
     "turbo": "^2.3.0"
   },
   "engines": {

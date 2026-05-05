@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -35,10 +33,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build, sign, and (on tag) release
+      - name: Build & sign installer
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -46,11 +43,20 @@ jobs:
         with:
           projectPath: ./apps/desktop
           args: --target x86_64-pc-windows-msvc
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: "POS System ${{ github.ref_name }}"
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: true
+          tagName: ""
+          includeUpdaterJson: false
+
+      - name: Publish update to Vercel Blob (tagged releases only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          APP_VERSION: ${{ github.ref_name }}
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          # Strip leading "v" so APP_VERSION matches package version
+          export APP_VERSION="${APP_VERSION#v}"
+          node scripts/publish-update.mjs
 
       - name: Upload installer artifact (manual runs)
         if: github.event_name == 'workflow_dispatch'
