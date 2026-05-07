@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PinInput } from '@/components/ui/pin-input'
@@ -79,6 +80,7 @@ export function SetupWizard({ mode: _mode }: SetupWizardProps = {}) {
   const [isOffline, setIsOffline] = useState(false)
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
+  const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null)
 
   // Steps depend on online vs offline — offline skips 'admin' (no account needed)
   const stepKeys: readonly Step[] = isOffline
@@ -92,15 +94,24 @@ export function SetupWizard({ mode: _mode }: SetupWizardProps = {}) {
   const setupMutation = useMutation({
     mutationFn: async (data: CreateAdminRequest) => {
       const response = await setupApi.createAdmin(data)
-      if (!response.success) throw new Error(response.message || 'Setup failed')
+      if (!response.success) {
+        const err = new Error(response.message || 'Setup failed') as Error & { code?: string }
+        err.code = response.error
+        throw err
+      }
       return response
     },
     onSuccess: () => {
       markSetupComplete()
       setStep('complete')
     },
-    onError: (error: Error) => {
-      setErrors({ username: error.message || 'Setup failed. Please try again.' })
+    onError: (error: Error & { code?: string }) => {
+      if (error.code === 'user_already_exists') {
+        setDuplicateEmail(formData.email)
+        setStep('admin')
+      } else {
+        setErrors({ username: error.message || 'Setup failed. Please try again.' })
+      }
     },
   })
 
@@ -108,6 +119,9 @@ export function SetupWizard({ mode: _mode }: SetupWizardProps = {}) {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
+    }
+    if (field === 'email' && duplicateEmail) {
+      setDuplicateEmail(null)
     }
   }
 
@@ -322,6 +336,25 @@ export function SetupWizard({ mode: _mode }: SetupWizardProps = {}) {
                 <h2 className="text-xl font-black tracking-tight text-zinc-100">Create Admin Account</h2>
                 <p className="text-sm text-zinc-400 mt-1">Sign up with your email to enable cloud sync</p>
               </div>
+
+              {duplicateEmail && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-amber-300">
+                      An account with this email already exists
+                    </p>
+                    <p className="text-xs text-amber-200/70 mt-1">
+                      {duplicateEmail} is already registered. Sign in to continue.
+                    </p>
+                  </div>
+                  <Link
+                    to="/login"
+                    className="inline-flex w-full items-center justify-center rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 transition-colors"
+                  >
+                    Sign in instead
+                  </Link>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <FieldGroup label="First Name" error={errors.firstName}>

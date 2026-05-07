@@ -67,6 +67,16 @@ export async function performInitialSetup(params: InitialSetupParams): Promise<A
 
   if (authError) return { success: false, message: authError.message, error: authError.code }
   if (!authData.user) return { success: false, message: 'Failed to create auth user' }
+  // Supabase returns a user with empty identities[] when the email already
+  // exists (anti-enumeration behaviour). Surface that as a structured error
+  // so the UI can route the user to /login.
+  if ((authData.user.identities?.length ?? 0) === 0) {
+    return {
+      success: false,
+      message: 'A user with this email already exists.',
+      error: 'user_already_exists',
+    }
+  }
 
   // Step 2: Call the initial_setup RPC to create org, location, user record, settings
   const { data, error } = await sb.rpc('initial_setup', {

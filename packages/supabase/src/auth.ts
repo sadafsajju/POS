@@ -15,7 +15,17 @@ export async function signUp(email: string, password: string, metadata?: Record<
     password,
     options: { data: metadata },
   })
-  if (error) return { success: false as const, error: error.message }
+  if (error) return { success: false as const, error: error.message, code: error.code }
+  // Supabase returns a "user" with no session and identities=[] when the email
+  // is already registered (this is a deliberate enumeration-defence behaviour).
+  // Treat that as a duplicate so the UI can route the user to /login.
+  if (data.user && (data.user.identities?.length ?? 0) === 0) {
+    return {
+      success: false as const,
+      error: 'A user with this email already exists.',
+      code: 'user_already_exists',
+    }
+  }
   return { success: true as const, session: data.session, user: data.user }
 }
 

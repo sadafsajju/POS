@@ -21,6 +21,7 @@ function SignUpPage() {
   const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateEmail, setDuplicateEmail] = useState<string | null>(null);
 
   // Already authenticated — redirect
   if (isAuthenticated) {
@@ -31,6 +32,7 @@ function SignUpPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setDuplicateEmail(null);
     setLoading(true);
 
     try {
@@ -41,7 +43,11 @@ function SignUpPage() {
       });
 
       if (!result.success) {
-        setError(result.error);
+        if (result.code === 'user_already_exists') {
+          setDuplicateEmail(email);
+        } else {
+          setError(result.error);
+        }
         setLoading(false);
         return;
       }
@@ -79,6 +85,25 @@ function SignUpPage() {
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
               <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {duplicateEmail && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-amber-300">
+                  An account with this email already exists
+                </p>
+                <p className="text-xs text-amber-200/70 mt-1">
+                  {duplicateEmail} is already registered. Sign in to continue.
+                </p>
+              </div>
+              <Link
+                to="/login"
+                className="inline-flex w-full items-center justify-center rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 transition-colors"
+              >
+                Sign in instead
+              </Link>
             </div>
           )}
 
@@ -123,7 +148,10 @@ function SignUpPage() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (duplicateEmail) setDuplicateEmail(null);
+              }}
               placeholder="you@example.com"
               required
               className="bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-600"
