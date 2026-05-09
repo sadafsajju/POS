@@ -35,7 +35,7 @@ import {
 
 import { imageUrl } from '@/lib/utils'
 
-export const Route = createFileRoute('/admin/settings/promos')({
+export const Route = createFileRoute('/admin/more/promos')({
   component: PromosSettingsPage,
 })
 

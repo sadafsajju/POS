@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { SettingsSidebar } from '@/components/admin/settings/SettingsSidebar'
 
-export const Route = createFileRoute('/admin/settings')({
+export const Route = createFileRoute('/admin/more')({
   component: SettingsLayout,
 })
 

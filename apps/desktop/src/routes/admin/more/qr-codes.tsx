@@ -5,7 +5,7 @@ import { adminApi } from '@pos/api-client';
 import { QrCode, Download, Printer, Globe } from 'lucide-react';
 import QRCode from 'qrcode';
 
-export const Route = createFileRoute('/admin/settings/qr-codes')({
+export const Route = createFileRoute('/admin/more/qr-codes')({
   component: QRCodesSettings,
 });
 

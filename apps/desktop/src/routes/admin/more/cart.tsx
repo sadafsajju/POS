@@ -7,7 +7,7 @@ import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
 import type { CartSettings } from '@pos/types'
 
-export const Route = createFileRoute('/admin/settings/cart')({
+export const Route = createFileRoute('/admin/more/cart')({
   component: CartSettingsPage,
 })
 

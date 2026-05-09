@@ -6,7 +6,7 @@ import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
 import type { StoreSettings } from '@pos/types'
 
-export const Route = createFileRoute('/admin/settings/receipts')({
+export const Route = createFileRoute('/admin/more/receipts')({
   component: ReceiptsSettingsPage,
 })
 

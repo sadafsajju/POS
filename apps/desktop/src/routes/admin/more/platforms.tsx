@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Plug } from 'lucide-react'
 import { PlatformSettings } from '@/components/admin/PlatformSettings'
 
-export const Route = createFileRoute('/admin/settings/platforms')({
+export const Route = createFileRoute('/admin/more/platforms')({
   component: PlatformsSettingsPage,
 })
 

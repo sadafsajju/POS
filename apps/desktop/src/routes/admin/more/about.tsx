@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Info, Database, Server, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 
-export const Route = createFileRoute('/admin/settings/about')({
+export const Route = createFileRoute('/admin/more/about')({
   component: AboutPage,
 })
 

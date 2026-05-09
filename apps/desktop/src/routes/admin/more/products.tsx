@@ -8,7 +8,7 @@ import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
 import type { ProductDisplaySettings } from '@pos/types'
 
-export const Route = createFileRoute('/admin/settings/products')({
+export const Route = createFileRoute('/admin/more/products')({
   component: ProductsSettingsPage,
 })
 
@@ -163,14 +163,12 @@ function PreviewCard({
           )}
         </div>
       )}
-
       {/* Quantity badge when image hidden */}
       {!displaySettings.showImage && product.cartQty > 0 && (
         <div className="absolute top-2 right-2 bg-amber-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-lg">
           {product.cartQty}
         </div>
       )}
-
       {/* Product Info */}
       <div className={cn('flex-1 p-2 flex flex-col justify-between', !displaySettings.showImage && 'py-3')}>
         <div>

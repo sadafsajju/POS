@@ -6,7 +6,6 @@ import {
   Upload,
   Loader2,
   Check,
-  X,
   Trash2,
   ImagePlus,
   AlertCircle,
@@ -17,10 +16,9 @@ import { cn } from '@/lib/utils'
 import apiClient from '@/api/client'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { useSettingsStore } from '@pos/core'
-import { formatCurrency } from '@/lib/utils'
 import type { Category } from '@/types'
 
-export const Route = createFileRoute('/admin/settings/import')({
+export const Route = createFileRoute('/admin/more/import')({
   component: AIMenuImport,
 })
 
@@ -254,7 +252,6 @@ function AIMenuImport() {
   }
 
   const selectedCount = items.filter(i => i.selected).length
-  const fmt = (amount: number) => formatCurrency(amount, settings.currency, settings.currencySymbol)
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-zinc-950 text-zinc-100 select-none">

@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   CreditCard,
   ChefHat,
-  Settings,
-  BarChart3,
+  MoreHorizontal,
   Contact,
   Receipt,
   LogOut,
@@ -70,17 +69,11 @@ const navItems = [
     icon: Contact,
     href: '/admin/customers',
   },
-  // {
-  //   id: 'reports',
-  //   label: 'Reports',
-  //   icon: BarChart3,
-  //   href: '/admin/reports',
-  // },
   {
     id: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    href: '/admin/settings',
+    label: 'More',
+    icon: MoreHorizontal,
+    href: '/admin/more',
   },
 ]
 
@@ -155,13 +148,16 @@ export function AdminBottomNav() {
   const { settings } = useSettingsStore()
 
   const isActive = (href: string) => {
-    if (href === '/admin/settings') {
-      return location.pathname.startsWith('/admin/settings')
+    if (href === '/admin/more') {
+      return location.pathname.startsWith('/admin/more')
     }
     return location.pathname === href
   }
 
-  const visibleItems = settings.enableKds ? navItems : navItems.filter(i => i.id !== 'kitchen')
+  const visibleItems = navItems.filter(i => {
+    if (i.id === 'kitchen' && !settings.enableKds) return false
+    return true
+  })
 
   return (
     <nav className="flex-shrink-0 bg-zinc-900 border-t border-zinc-800">

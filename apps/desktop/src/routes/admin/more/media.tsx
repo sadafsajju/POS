@@ -13,7 +13,7 @@ import {
 
 import { imageUrl } from '@/lib/utils'
 
-export const Route = createFileRoute('/admin/settings/media')({
+export const Route = createFileRoute('/admin/more/media')({
   component: MediaSettingsPage,
 })
 
