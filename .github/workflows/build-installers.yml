@@ -1,0 +1,118 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform_label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform_label: Windows
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            bundle_subdir: nsis
+            artifact_name: windows
+            artifact_glob: |
+              apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+              apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.sig
+          - os: macos-latest
+            platform_label: macOS (universal)
+            target: universal-apple-darwin
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            bundle_subdir: macos
+            artifact_name: macos
+            artifact_glob: |
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build & sign installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        with:
+          projectPath: ./apps/desktop
+          args: --target ${{ matrix.target }}
+          tagName: ""
+          includeUpdaterJson: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish to Vercel Blob
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Inspect artifacts
+        run: |
+          echo "Artifacts directory tree:"
+          find artifacts -type f -printf '%p (%s bytes)\n' | sort
+
+      - name: Publish update to Vercel Blob
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          APP_VERSION: ${{ github.ref_name }}
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          # Strip leading "v" so APP_VERSION matches package version
+          export APP_VERSION="${APP_VERSION#v}"
+          node scripts/publish-update.mjs
