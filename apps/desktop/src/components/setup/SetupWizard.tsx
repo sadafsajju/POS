@@ -18,6 +18,7 @@ import {
 import { setupApi, type CreateAdminRequest } from '@pos/api-client'
 import { markSetupComplete } from '@pos/core'
 import { cn } from '@/lib/utils'
+import { currencyOptions } from '@/lib/currencies'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
 
@@ -60,19 +61,6 @@ const initialFormData: FormData = {
   currencySymbol: '₹',
   taxRate: '0',
 }
-
-const currencyOptions = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
-  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit' },
-  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
-]
 
 export function SetupWizard({ mode: _mode }: SetupWizardProps = {}) {
   // In Tauri, start with mode selection; in browser, skip straight to online setup

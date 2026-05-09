@@ -20,16 +20,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import apiClient from '@/api/client'
 import { toastHelpers } from '@/lib/toast-helpers'
-import { TableForm } from '@/components/forms/TableForm'
+import { TableDialog } from '@/components/admin/TableDialog'
 import { PaginationControlsComponent } from '@/components/ui/pagination-controls'
 import { usePagination } from '@/hooks/usePagination'
 import { TableGridSkeleton, SearchingSkeleton, FilteringSkeleton } from '@/components/ui/skeletons'
@@ -236,17 +229,6 @@ export function AdminTableManagement() {
     occupied: allTables.filter(t => (t as any).status === 'occupied').length,
     reserved: allTables.filter(t => (t as any).status === 'reserved').length,
     maintenance: allTables.filter(t => (t as any).status === 'maintenance').length,
-  }
-
-  // Status accent colors for card left border
-  const getStatusAccent = (status: string) => {
-    switch (status) {
-      case 'available': return 'border-l-emerald-500'
-      case 'occupied': return 'border-l-amber-500'
-      case 'reserved': return 'border-l-sky-500'
-      case 'maintenance': return 'border-l-red-500'
-      default: return 'border-l-zinc-500'
-    }
   }
 
   return (
@@ -463,31 +445,14 @@ export function AdminTableManagement() {
       </div>
       </div>
 
-      {/* Create / Edit Table Dialog */}
-      <Dialog open={tableDialogOpen} onOpenChange={(v) => { if (!v) closeTableDialog() }}>
-        <DialogContent className="dark flex flex-col !max-w-none !w-screen !h-screen !rounded-none p-0 gap-0 overflow-hidden bg-zinc-950 border-zinc-800 text-zinc-100">
-          <DialogHeader className="px-6 pt-5 pb-4 border-b border-zinc-800 flex-shrink-0 bg-zinc-900">
-            <DialogTitle className="text-zinc-100">
-              {editingTable ? 'Edit Table' : 'Create New Table'}
-            </DialogTitle>
-            <DialogDescription className="text-zinc-500">
-              {editingTable
-                ? `Editing Table ${editingTable.table_number}`
-                : 'Add a new table to your restaurant'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 min-h-0">
-            <TableForm
-              key={editingTable ? `edit-${editingTable.id}` : 'create'}
-              table={editingTable || undefined}
-              mode={editingTable ? 'edit' : 'create'}
-              onSuccess={closeTableDialog}
-              onCancel={closeTableDialog}
-              hideChrome
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TableDialog
+        open={tableDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeTableDialog()
+          else setTableDialogOpen(true)
+        }}
+        editingTable={editingTable}
+      />
     </div>
   )
 }

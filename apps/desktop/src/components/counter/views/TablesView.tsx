@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, UtensilsCrossed, CircleCheck, CircleDollarSign, ClipboardList, CreditCard, X, CheckCircle2, ArrowRightLeft } from 'lucide-react'
+import { Table as TableIcon, Clock, Timer, ArrowRight, ShoppingCart, ChefHat, UtensilsCrossed, CircleCheck, CircleDollarSign, ClipboardList, CreditCard, X, CheckCircle2, ArrowRightLeft, Plus } from 'lucide-react'
+import { TableDialog } from '@/components/admin/TableDialog'
 import { KeyboardRow } from '@/components/ui/on-screen-keyboard/KeyboardRow'
 import { QWERTY_LAYOUT, NUMBERS_LAYOUT, SYMBOLS_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layouts'
 import type { KeyConfig, KeyboardLayout } from '@/components/ui/on-screen-keyboard/types'
@@ -217,6 +219,8 @@ export function TablesView({
   onTableMove,
 }: TablesViewProps) {
   const safeTables = Array.isArray(tables) ? tables : []
+  const queryClient = useQueryClient()
+  const [createTableOpen, setCreateTableOpen] = useState(false)
 
   // Long-press context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -444,12 +448,32 @@ export function TablesView({
 
           {/* Empty state */}
           {safeTables.length === 0 && (
-            <div className="text-center py-12 text-zinc-500">
-              <TableIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <div className="flex flex-col items-center justify-center text-center min-h-[60vh] text-zinc-500">
+              <TableIcon className="w-12 h-12 mb-3 opacity-20" />
               <p>No tables configured</p>
-              <p className="text-sm">Add tables in the admin settings</p>
+              <p className="text-sm mb-5">Add tables in the admin settings</p>
+              <button
+                type="button"
+                onClick={() => setCreateTableOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Table
+              </button>
             </div>
           )}
+
+          {/* Inline create-table dialog so the empty state doesn't have to navigate */}
+          <TableDialog
+            open={createTableOpen}
+            onOpenChange={setCreateTableOpen}
+            onSuccess={() => {
+              // Refresh whichever table queries are in flight so the new table
+              // appears immediately on the POS view.
+              queryClient.invalidateQueries({ queryKey: ['tables'] })
+              queryClient.invalidateQueries({ queryKey: ['admin-tables'] })
+            }}
+          />
         </>
       )}
 
