@@ -44,21 +44,32 @@ if (!existsSync(artifactsDir)) {
 }
 
 /**
- * Find a single file under `dir` whose name matches `predicate`. Returns
- * undefined if no match. If multiple match, throws (we want unambiguous
- * pipeline output).
+ * Recursively walk `dir`, returning the full path of every file underneath.
+ */
+function walk(dir) {
+  if (!existsSync(dir)) return []
+  const out = []
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    const s = statSync(full)
+    if (s.isDirectory()) out.push(...walk(full))
+    else if (s.isFile()) out.push(full)
+  }
+  return out
+}
+
+/**
+ * Find a single file under `dir` (recursively) whose basename matches
+ * `predicate`. Returns undefined if no match. If multiple match, throws
+ * (we want unambiguous pipeline output).
  */
 function findFile(dir, predicate) {
-  if (!existsSync(dir)) return undefined
-  const matches = readdirSync(dir).filter((name) => {
-    const full = join(dir, name)
-    return statSync(full).isFile() && predicate(name)
-  })
+  const matches = walk(dir).filter((p) => predicate(p.split('/').pop() ?? p))
   if (matches.length === 0) return undefined
   if (matches.length > 1) {
     throw new Error(`Ambiguous match in ${dir}: ${matches.join(', ')}`)
   }
-  return join(dir, matches[0])
+  return matches[0]
 }
 
 async function uploadFile(blobPath, filePath, contentType) {
