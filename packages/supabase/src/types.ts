@@ -171,12 +171,17 @@ export interface Database {
           sort_order: number
           dietary_type: string | null
           calorie_count: number | null
-          food_allergens: string | null
+          food_allergens: string[] | null
+          may_contain_allergens: string[] | null
+          ingredients: string | null
+          is_ppds: boolean
           product_type: 'simple' | 'configurable' | 'combo'
           has_option_groups: boolean
           min_variation_price: number | null
           max_variation_price: number | null
           location_ids: string[] | null
+          vat_category: 'standard' | 'reduced' | 'zero' | 'exempt' | null
+          is_hot: boolean
           created_at: string
           updated_at: string
         }
@@ -195,12 +200,17 @@ export interface Database {
           sort_order?: number
           dietary_type?: string | null
           calorie_count?: number | null
-          food_allergens?: string | null
+          food_allergens?: string[] | null
+          may_contain_allergens?: string[] | null
+          ingredients?: string | null
+          is_ppds?: boolean
           product_type?: 'simple' | 'configurable' | 'combo'
           has_option_groups?: boolean
           min_variation_price?: number | null
           max_variation_price?: number | null
           location_ids?: string[] | null
+          vat_category?: 'standard' | 'reduced' | 'zero' | 'exempt' | null
+          is_hot?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -217,12 +227,17 @@ export interface Database {
           sort_order?: number
           dietary_type?: string | null
           calorie_count?: number | null
-          food_allergens?: string | null
+          food_allergens?: string[] | null
+          may_contain_allergens?: string[] | null
+          ingredients?: string | null
+          is_ppds?: boolean
           product_type?: 'simple' | 'configurable' | 'combo'
           has_option_groups?: boolean
           min_variation_price?: number | null
           max_variation_price?: number | null
           location_ids?: string[] | null
+          vat_category?: 'standard' | 'reduced' | 'zero' | 'exempt' | null
+          is_hot?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -248,13 +263,19 @@ export interface Database {
           is_kot: boolean
           kot_number: string | null
           token_number: number | null
-          order_source: 'pos' | 'swiggy' | 'zomato' | 'kiosk' | 'customer_app'
+          order_source: 'pos' | 'kiosk' | 'customer_app' | 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat'
           external_order_id: string | null
           external_data: Json | null
           delivery_partner_name: string | null
           delivery_partner_phone: string | null
           aggregator_confirmed_at: string | null
           accept_deadline: string | null
+          dining_mode: 'eat_in' | 'takeaway' | null
+          allergens_confirmed_at: string | null
+          allergens_confirmed_by: string | null
+          allergens_flagged_snapshot: string[] | null
+          tip_amount: number
+          tip_method: 'cash' | 'card' | 'other' | null
           created_at: string
           updated_at: string
           served_at: string | null
@@ -285,13 +306,19 @@ export interface Database {
           is_kot?: boolean
           kot_number?: string | null
           token_number?: number | null
-          order_source?: 'pos' | 'swiggy' | 'zomato' | 'kiosk' | 'customer_app'
+          order_source?: 'pos' | 'kiosk' | 'customer_app' | 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat'
           external_order_id?: string | null
           external_data?: Json | null
           delivery_partner_name?: string | null
           delivery_partner_phone?: string | null
           aggregator_confirmed_at?: string | null
           accept_deadline?: string | null
+          dining_mode?: 'eat_in' | 'takeaway' | null
+          allergens_confirmed_at?: string | null
+          allergens_confirmed_by?: string | null
+          allergens_flagged_snapshot?: string[] | null
+          tip_amount?: number
+          tip_method?: 'cash' | 'card' | 'other' | null
           created_at?: string
           updated_at?: string
         }
@@ -310,6 +337,12 @@ export interface Database {
           paid_at?: string | null
           cleared_at?: string | null
           aggregator_confirmed_at?: string | null
+          dining_mode?: 'eat_in' | 'takeaway' | null
+          allergens_confirmed_at?: string | null
+          allergens_confirmed_by?: string | null
+          allergens_flagged_snapshot?: string[] | null
+          tip_amount?: number
+          tip_method?: 'cash' | 'card' | 'other' | null
           updated_at?: string
         }
         Relationships: []
@@ -324,6 +357,8 @@ export interface Database {
           total_price: number
           special_instructions: string | null
           status: 'pending' | 'preparing' | 'ready' | 'served'
+          vat_amount: number | null
+          vat_rate_applied: number | null
           created_at: string
           updated_at: string
         }
@@ -336,6 +371,8 @@ export interface Database {
           total_price: number
           special_instructions?: string | null
           status?: 'pending' | 'preparing' | 'ready' | 'served'
+          vat_amount?: number | null
+          vat_rate_applied?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -345,6 +382,8 @@ export interface Database {
           total_price?: number
           special_instructions?: string | null
           status?: 'pending' | 'preparing' | 'ready' | 'served'
+          vat_amount?: number | null
+          vat_rate_applied?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -435,6 +474,11 @@ export interface Database {
           total_orders: number
           total_spent: number
           last_order_at: string | null
+          marketing_consent: boolean
+          marketing_consent_at: string | null
+          marketing_consent_source: string | null
+          anonymised_at: string | null
+          anonymisation_reason: string | null
           created_at: string
           updated_at: string
         }
@@ -449,6 +493,11 @@ export interface Database {
           total_orders?: number
           total_spent?: number
           last_order_at?: string | null
+          marketing_consent?: boolean
+          marketing_consent_at?: string | null
+          marketing_consent_source?: string | null
+          anonymised_at?: string | null
+          anonymisation_reason?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -461,7 +510,160 @@ export interface Database {
           total_orders?: number
           total_spent?: number
           last_order_at?: string | null
+          marketing_consent?: boolean
+          marketing_consent_at?: string | null
+          marketing_consent_source?: string | null
+          anonymised_at?: string | null
+          anonymisation_reason?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_data_requests: {
+        Row: {
+          id: string
+          org_id: string
+          customer_id: string | null
+          request_type: 'access' | 'erasure' | 'rectification' | 'portability' | 'retention_policy'
+          requested_at: string
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          notes: string | null
+          customer_phone_snapshot: string | null
+          customer_name_snapshot: string | null
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          customer_id?: string | null
+          request_type: 'access' | 'erasure' | 'rectification' | 'portability' | 'retention_policy'
+          requested_at?: string
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          notes?: string | null
+          customer_phone_snapshot?: string | null
+          customer_name_snapshot?: string | null
+        }
+        Update: {
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      eod_reconciliations: {
+        Row: {
+          id: string
+          org_id: string
+          location_id: string
+          business_date: string
+          recorded_by: string | null
+          ped_settlement_total: number | null
+          cash_drawer_counted: number | null
+          opening_float: number | null
+          pos_card_total: number | null
+          pos_cash_total: number | null
+          card_variance: number | null
+          cash_variance: number | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          location_id: string
+          business_date: string
+          recorded_by?: string | null
+          ped_settlement_total?: number | null
+          cash_drawer_counted?: number | null
+          opening_float?: number | null
+          pos_card_total?: number | null
+          pos_cash_total?: number | null
+          card_variance?: number | null
+          cash_variance?: number | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          ped_settlement_total?: number | null
+          cash_drawer_counted?: number | null
+          opening_float?: number | null
+          pos_card_total?: number | null
+          pos_cash_total?: number | null
+          card_variance?: number | null
+          cash_variance?: number | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tip_allocations: {
+        Row: {
+          id: string
+          org_id: string
+          location_id: string | null
+          period_start: string
+          period_end: string
+          total_tips: number
+          allocation_method: 'equal' | 'hours_weighted' | 'manual'
+          allocated_by: string | null
+          allocated_at: string
+          locked_at: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          location_id?: string | null
+          period_start: string
+          period_end: string
+          total_tips?: number
+          allocation_method: 'equal' | 'hours_weighted' | 'manual'
+          allocated_by?: string | null
+          allocated_at?: string
+          locked_at?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          total_tips?: number
+          allocation_method?: 'equal' | 'hours_weighted' | 'manual'
+          allocated_by?: string | null
+          allocated_at?: string
+          locked_at?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      tip_allocation_lines: {
+        Row: {
+          id: string
+          allocation_id: string
+          user_id: string
+          amount: number
+          share_percent: number | null
+          hours_worked: number | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          allocation_id: string
+          user_id: string
+          amount: number
+          share_percent?: number | null
+          hours_worked?: number | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          amount?: number
+          share_percent?: number | null
+          hours_worked?: number | null
+          notes?: string | null
         }
         Relationships: []
       }
@@ -495,7 +697,7 @@ export interface Database {
           id: string
           org_id: string
           location_id: string | null
-          platform: 'swiggy' | 'zomato'
+          platform: 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat'
           is_enabled: boolean
           api_key: string | null
           api_secret: string | null
@@ -509,7 +711,7 @@ export interface Database {
           id?: string
           org_id: string
           location_id?: string | null
-          platform: 'swiggy' | 'zomato'
+          platform: 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat'
           is_enabled?: boolean
           api_key?: string | null
           api_secret?: string | null
@@ -940,6 +1142,9 @@ export interface Database {
           p_create_as_kot?: boolean
           p_order_source?: string
           p_initial_status?: string | null
+          p_dining_mode?: string | null
+          p_allergens_confirmed?: boolean
+          p_allergens_acknowledged_codes?: string[] | null
         }
         Returns: Json
       }
@@ -1030,6 +1235,72 @@ export interface Database {
           p_currency_symbol?: string
           p_tax_rate?: string
         }
+        Returns: Json
+      }
+      anonymise_customer: {
+        Args: { p_customer_id: string; p_reason?: string | null }
+        Returns: Json
+      }
+      export_customer_data: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      apply_retention_policy: {
+        Args: { p_dry_run?: boolean }
+        Returns: Json
+      }
+      get_eod_reconciliation: {
+        Args: { p_date?: string | null; p_location_id?: string | null }
+        Returns: Json
+      }
+      record_eod_reconciliation: {
+        Args: {
+          p_business_date: string
+          p_ped_settlement_total?: number | null
+          p_cash_drawer_counted?: number | null
+          p_opening_float?: number | null
+          p_notes?: string | null
+          p_location_id?: string | null
+        }
+        Returns: Json
+      }
+      record_tip: {
+        Args: { p_order_id: string; p_amount: number; p_method?: string }
+        Returns: Json
+      }
+      get_tip_pool: {
+        Args: { p_period_start: string; p_period_end: string; p_location_id?: string | null }
+        Returns: Json
+      }
+      allocate_tips: {
+        Args: {
+          p_period_start: string
+          p_period_end: string
+          p_method: string
+          p_allocations: Json
+          p_location_id?: string | null
+          p_notes?: string | null
+        }
+        Returns: Json
+      }
+      get_vat_export: {
+        Args: {
+          p_period_start: string
+          p_period_end: string
+          p_location_id?: string | null
+        }
+        Returns: Json
+      }
+      check_trial_status: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      verify_pin: {
+        Args: { p_pin: string }
+        Returns: Json
+      }
+      update_pin: {
+        Args: { p_current_pin: string; p_new_pin: string }
         Returns: Json
       }
     }

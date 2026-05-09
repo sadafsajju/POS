@@ -78,6 +78,11 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
         food_allergens: product.food_allergens || '',
         product_type: product.product_type || 'simple',
         location_ids: product.location_ids || undefined,
+        vat_category: product.vat_category,
+        is_hot: product.is_hot ?? false,
+        may_contain_allergens: product.may_contain_allergens || undefined,
+        ingredients: product.ingredients || '',
+        is_ppds: product.is_ppds ?? false,
       }
     : {
         name: '',
@@ -89,9 +94,14 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
         preparation_time: 5,
         dietary_type: undefined,
         calorie_count: undefined,
-        food_allergens: '',
+        food_allergens: undefined,
+        may_contain_allergens: undefined,
+        ingredients: '',
+        is_ppds: false,
         product_type: 'simple' as const,
         location_ids: undefined,
+        vat_category: undefined,
+        is_hot: false,
       }
 
   const form = useForm({
@@ -361,8 +371,61 @@ export function ProductForm({ product, onSuccess, onCreated, onCancel, mode = 'c
                       <AllergenMultiSelectField
                         control={form.control as any}
                         name="food_allergens"
-                        label="Food Allergens"
+                        label="Contains allergens"
                         description="Select all allergens present in this product"
+                      />
+                      {settings.showAllergens && (
+                        <>
+                          <AllergenMultiSelectField
+                            control={form.control as any}
+                            name="may_contain_allergens"
+                            label="May contain (cross-contamination)"
+                            description="Allergens not in the recipe but possible from shared equipment / production line"
+                            variant="mayContain"
+                          />
+                          <SwitchField
+                            control={form.control as any}
+                            name="is_ppds"
+                            label="Pre-packed for direct sale (PPDS)"
+                            description="Pre-made and packaged on-site. Triggers full ingredient label per Natasha's Law."
+                          />
+                          <TextareaField
+                            control={form.control as any}
+                            name="ingredients"
+                            label="Ingredient statement"
+                            placeholder="e.g. Wheat flour, water, salt, yeast, MILK, EGG..."
+                            description="Required for PPDS items. Allergens will be emphasised on the receipt."
+                          />
+                        </>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {/* UK VAT — only shown when org is on uk_vat regime */}
+                {!isCombo && settings.taxRegime === 'uk_vat' && (
+                  <section className="rounded-lg border border-zinc-800 bg-zinc-900 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-zinc-800">
+                      <h3 className="text-sm font-semibold text-zinc-300">VAT (UK)</h3>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <SelectField
+                        control={form.control as any}
+                        name="vat_category"
+                        label="VAT category"
+                        options={[
+                          { value: 'standard', label: 'Standard rate' },
+                          { value: 'reduced',  label: 'Reduced rate' },
+                          { value: 'zero',     label: 'Zero rate' },
+                          { value: 'exempt',   label: 'Exempt' },
+                        ]}
+                        description="Used for cold takeaway. Hot food and eat-in cold food default to standard rate."
+                      />
+                      <SwitchField
+                        control={form.control as any}
+                        name="is_hot"
+                        label="Hot food/drink"
+                        description="Hot items are always standard-rated regardless of eat-in or takeaway"
                       />
                     </div>
                   </section>

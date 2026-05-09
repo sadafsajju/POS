@@ -82,6 +82,56 @@ export async function deleteOrder(id: string): Promise<ApiResponse<null>> {
 }
 
 // Complex operations via RPC
+export async function recordTip(params: {
+  order_id: string
+  amount: number
+  method: 'cash' | 'card' | 'other'
+}): Promise<ApiResponse<any>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('record_tip', {
+    p_order_id: params.order_id,
+    p_amount: params.amount,
+    p_method: params.method,
+  })
+  return wrapRpc(data, error)
+}
+
+export async function getTipPool(params: {
+  period_start: string
+  period_end: string
+  location_id?: string | null
+}): Promise<ApiResponse<any>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('get_tip_pool', {
+    p_period_start: params.period_start,
+    p_period_end: params.period_end,
+    p_location_id: params.location_id ?? null,
+  })
+  if (error) return { success: false, message: error.message, error: error.code }
+  const inner = (data as any)?.data ?? data
+  return { success: true, message: 'Success', data: inner }
+}
+
+export async function allocateTips(params: {
+  period_start: string
+  period_end: string
+  method: 'equal' | 'hours_weighted' | 'manual'
+  allocations: Array<{ user_id: string; amount: number; hours_worked?: number; notes?: string }>
+  location_id?: string | null
+  notes?: string | null
+}): Promise<ApiResponse<any>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('allocate_tips', {
+    p_period_start: params.period_start,
+    p_period_end: params.period_end,
+    p_method: params.method,
+    p_allocations: params.allocations as any,
+    p_location_id: params.location_id ?? null,
+    p_notes: params.notes ?? null,
+  })
+  return wrapRpc(data, error)
+}
+
 export async function createOrder(params: {
   table_id?: string | null
   customer_id?: string | null
@@ -93,6 +143,9 @@ export async function createOrder(params: {
   create_as_kot?: boolean
   order_source?: string
   initial_status?: string | null
+  dining_mode?: string | null
+  allergens_confirmed?: boolean
+  allergens_acknowledged_codes?: string[] | null
 }): Promise<ApiResponse<any>> {
   const sb = getSupabase()
   const { data, error } = await sb.rpc('create_order', {
@@ -106,6 +159,9 @@ export async function createOrder(params: {
     p_create_as_kot: params.create_as_kot ?? false,
     p_order_source: params.order_source ?? 'pos',
     p_initial_status: params.initial_status ?? null,
+    p_dining_mode: params.dining_mode ?? null,
+    p_allergens_confirmed: params.allergens_confirmed ?? false,
+    p_allergens_acknowledged_codes: params.allergens_acknowledged_codes ?? null,
   })
   return wrapRpc(data, error)
 }

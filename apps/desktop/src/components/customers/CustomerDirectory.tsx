@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import apiClient from '@/api/client'
 import { useSettingsStore } from '@pos/core'
+import { customersDb } from '@pos/supabase'
 import type { Customer, Order } from '@pos/types'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -91,9 +92,14 @@ export function CustomerDirectory() {
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [createForm, setCreateForm] = useState({ name: '', phone: '', email: '' })
+  const [createForm, setCreateForm] = useState({ name: '', phone: '', email: '', marketing_consent: false })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  // GDPR — erase confirmation dialog state
+  const [eraseDialogCustomer, setEraseDialogCustomer] = useState<Customer | null>(null)
+  const [eraseReason, setEraseReason] = useState('')
+  const [isErasing, setIsErasing] = useState(false)
 
   // Messages
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -263,9 +269,65 @@ export function CustomerDirectory() {
   }
 
   const openCreateDialog = () => {
-    setCreateForm({ name: '', phone: '', email: '' })
+    setCreateForm({ name: '', phone: '', email: '', marketing_consent: false })
     setCreateError(null)
     setCreateDialogOpen(true)
+  }
+
+  const handleExportCustomer = async (customer: Customer) => {
+    try {
+      const response = await customersDb.exportCustomerData(customer.id)
+      if (!response.success || !response.data) {
+        setErrorMessage(response.message || 'Failed to export customer data')
+        setTimeout(() => setErrorMessage(null), 5000)
+        return
+      }
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safeName = (customer.name || customer.phone || customer.id).replace(/[^a-z0-9]/gi, '-').toLowerCase()
+      a.download = `customer-${safeName}-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setSuccessMessage('Customer data exported. Subject access request logged for audit.')
+      setTimeout(() => setSuccessMessage(null), 4000)
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to export customer data')
+      setTimeout(() => setErrorMessage(null), 5000)
+    }
+  }
+
+  const handleEraseCustomerConfirm = async () => {
+    if (!eraseDialogCustomer) return
+    setIsErasing(true)
+    try {
+      const response = await customersDb.anonymiseCustomer(
+        eraseDialogCustomer.id,
+        eraseReason || 'Customer erasure request'
+      )
+      if (!response.success) {
+        setErrorMessage(response.message || 'Failed to erase customer')
+        setTimeout(() => setErrorMessage(null), 5000)
+        return
+      }
+      setSuccessMessage('Customer PII anonymised. Order history retained per UK tax law.')
+      setTimeout(() => setSuccessMessage(null), 4000)
+      setEraseDialogCustomer(null)
+      setEraseReason('')
+      fetchCustomers()
+      if (selectedCustomerId === eraseDialogCustomer.id) {
+        setSelectedCustomer(null)
+        setSelectedCustomerId(null)
+      }
+    } catch (error: any) {
+      setErrorMessage(error?.message || 'Failed to erase customer')
+      setTimeout(() => setErrorMessage(null), 5000)
+    } finally {
+      setIsErasing(false)
+    }
   }
 
   const handleCreate = async () => {
@@ -279,8 +341,10 @@ export function CustomerDirectory() {
       const response = await apiClient.createCustomer({
         phone: createForm.phone,
         name: createForm.name || undefined,
-        email: createForm.email || undefined
-      })
+        email: createForm.email || undefined,
+        marketing_consent: createForm.marketing_consent,
+        marketing_consent_source: createForm.marketing_consent ? 'pos_admin' : undefined,
+      } as any)
       if ((response as any)?.success) {
         setCreateDialogOpen(false)
         setSuccessMessage('Customer created successfully')
@@ -347,6 +411,8 @@ export function CustomerDirectory() {
             ordersTotalPages={ordersTotalPages}
             onOrdersPageChange={setOrdersPage}
             onEditCustomer={openEditDialog}
+            onExportCustomer={handleExportCustomer}
+            onEraseCustomer={(c) => { setEraseDialogCustomer(c); setEraseReason('') }}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
             formatDateTime={formatDateTime}
@@ -461,12 +527,94 @@ export function CustomerDirectory() {
                 />
               </div>
             </div>
+            <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+              <input
+                type="checkbox"
+                checked={createForm.marketing_consent}
+                onChange={(e) => setCreateForm({ ...createForm, marketing_consent: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-zinc-600 bg-zinc-800 text-emerald-500 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-zinc-300 leading-relaxed">
+                Customer agrees to receive marketing communications.
+                {settings.privacyPolicyUrl ? (
+                  <>
+                    {' '}
+                    <a
+                      href={settings.privacyPolicyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-400 underline hover:text-emerald-300"
+                    >
+                      Privacy notice
+                    </a>
+                  </>
+                ) : null}
+              </span>
+            </label>
             {createError && <p className="text-base text-red-400">{createError}</p>}
           </div>
           <DialogFooter className="gap-3 sm:gap-3">
             <Button variant="outline" className="h-12 text-base px-6 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
             <Button className="h-12 text-base px-6 bg-emerald-500 text-white hover:bg-emerald-400" onClick={handleCreate} disabled={isCreating}>
               {isCreating ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Creating...</> : 'Create Customer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Erase Customer (GDPR Article 17) Dialog */}
+      <Dialog open={!!eraseDialogCustomer} onOpenChange={(open) => { if (!open) setEraseDialogCustomer(null) }}>
+        <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-red-400">Erase customer data</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Right to erasure (GDPR Article 17 / UK DPA 2018)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {eraseDialogCustomer && (
+              <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5 text-sm text-zinc-300">
+                <div><span className="text-zinc-500">Name:</span> {eraseDialogCustomer.name || '—'}</div>
+                <div><span className="text-zinc-500">Phone:</span> {eraseDialogCustomer.phone}</div>
+                {eraseDialogCustomer.email && <div><span className="text-zinc-500">Email:</span> {eraseDialogCustomer.email}</div>}
+              </div>
+            )}
+            <div className="text-sm text-zinc-400 space-y-2 leading-relaxed">
+              <p>
+                Name, email, address, phone, notes and marketing-consent state will be wiped immediately.
+              </p>
+              <p className="text-amber-400">
+                Order and payment records are <strong>retained</strong> per UK tax law (HMRC requires 6 years), but
+                customer name on those orders will be cleared.
+              </p>
+              <p>This action cannot be undone.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="erase-reason" className="text-base text-zinc-300">Reason (logged for audit)</Label>
+              <Input
+                id="erase-reason"
+                value={eraseReason}
+                onChange={(e) => setEraseReason(e.target.value)}
+                placeholder="e.g. Customer requested erasure via email"
+                className="h-11 bg-zinc-800 border-zinc-700 text-zinc-100"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-3 sm:gap-3">
+            <Button
+              variant="outline"
+              className="h-12 text-base px-6 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+              onClick={() => setEraseDialogCustomer(null)}
+              disabled={isErasing}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="h-12 text-base px-6 bg-red-600 text-white hover:bg-red-700"
+              onClick={handleEraseCustomerConfirm}
+              disabled={isErasing}
+            >
+              {isErasing ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Erasing...</> : 'Erase data'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -646,6 +794,8 @@ interface CustomerDetailPanelProps {
   ordersTotalPages: number
   onOrdersPageChange: (page: number) => void
   onEditCustomer: (customer: Customer, e?: React.MouseEvent) => void
+  onExportCustomer?: (customer: Customer) => void
+  onEraseCustomer?: (customer: Customer) => void
   formatCurrency: (amount: number) => string
   formatDate: (dateString: string | null | undefined) => string
   formatDateTime: (dateString: string | null | undefined) => string
@@ -659,6 +809,8 @@ function CustomerDetailPanel({
   ordersTotalPages,
   onOrdersPageChange,
   onEditCustomer,
+  onExportCustomer,
+  onEraseCustomer,
   formatCurrency,
   formatDate,
   formatDateTime
@@ -701,11 +853,39 @@ function CustomerDetailPanel({
               </div>
             </div>
           </div>
-          <Button variant="outline" className="h-11 text-sm px-4 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100" onClick={(e) => onEditCustomer(customer, e)}>
-            <Edit2 className="w-4 h-4 mr-1.5" />
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="h-11 text-sm px-4 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100" onClick={(e) => onEditCustomer(customer, e)}>
+              <Edit2 className="w-4 h-4 mr-1.5" />
+              Edit
+            </Button>
+            {onExportCustomer && !customer.anonymised_at && (
+              <Button
+                variant="outline"
+                className="h-11 text-sm px-3 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                onClick={() => onExportCustomer(customer)}
+                title="Download customer data (GDPR Articles 15 & 20)"
+              >
+                Export
+              </Button>
+            )}
+            {onEraseCustomer && !customer.anonymised_at && (
+              <Button
+                variant="outline"
+                className="h-11 text-sm px-3 bg-red-500/10 border-red-500/40 text-red-400 hover:bg-red-500/20"
+                onClick={() => onEraseCustomer(customer)}
+                title="Anonymise customer data (GDPR Article 17)"
+              >
+                Erase
+              </Button>
+            )}
+          </div>
         </div>
+
+        {customer.anonymised_at && (
+          <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+            This customer's PII was anonymised on {formatDate(customer.anonymised_at)}. Order history is retained per UK tax law.
+          </div>
+        )}
 
         {/* Stats Row */}
         <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-zinc-800">

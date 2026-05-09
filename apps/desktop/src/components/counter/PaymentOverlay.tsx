@@ -9,7 +9,8 @@ import {
   User,
   MapPin,
 } from 'lucide-react'
-import { useCustomerDisplayBroadcast } from '@pos/core'
+import { useCustomerDisplayBroadcast, useSettingsStore } from '@pos/core'
+import { ordersDb } from '@pos/supabase'
 import type { DiningTable, Order, BillSummary } from './types'
 import type { PaidPaymentDetails } from './types'
 import { consolidateItems } from './utils/orderUtils'
@@ -39,6 +40,7 @@ export function PaymentOverlay({
   onClose,
   onPaymentComplete
 }: PaymentOverlayProps) {
+  const { settings } = useSettingsStore()
   const [step, setStep] = useState<PaymentStep>('customer')
   const [selectedMethod, setSelectedMethod] = useState<SelectedMethod | null>(null)
   const [cashReceived, setCashReceived] = useState<string>('')
@@ -48,11 +50,17 @@ export function PaymentOverlay({
   const [linkedCustomerName, setLinkedCustomerName] = useState<string | null>(null)
   const [linkedCustomerAddress, setLinkedCustomerAddress] = useState<string | null>(null)
   const [paidTotal, setPaidTotal] = useState<number | null>(null) // Captured at payment time
+  const [tipAmount, setTipAmount] = useState<number>(0)
   const { broadcastPaymentStart, broadcastPaymentComplete } = useCustomerDisplayBroadcast()
 
   const billTotal = activeBill.aggregated_total
   const paidAmount = activeBill.paid_amount || 0
   const total = paidTotal ?? Math.max(0, billTotal - paidAmount)
+  const tipShown = settings.tippingEnabled ? tipAmount : 0
+  // Total the cashier collects (bill due + tip). Payment row records the bill
+  // portion only — tip is logged separately via record_tip so reports keep
+  // sales/VATable totals untouched.
+  const grandTotal = total + tipShown
 
   // Consolidate all items from all KOTs + parent bill
   const allItems = [
@@ -63,7 +71,7 @@ export function PaymentOverlay({
 
   const isDelivery = activeBill.bill?.order_type === 'delivery'
   const cashReceivedNum = parseFloat(cashReceived) || 0
-  const changeAmount = cashReceivedNum > total ? cashReceivedNum - total : 0
+  const changeAmount = cashReceivedNum > total + tipShown ? cashReceivedNum - (total + tipShown) : 0
 
   // Payment API call
   const processPayment = async (method: 'cash' | 'credit_card' | 'digital_wallet') => {
@@ -83,7 +91,7 @@ export function PaymentOverlay({
       }
       if (method === 'cash' && cashReceivedNum > 0) {
         paymentData.cash_received = cashReceivedNum
-        paymentData.change_amount = cashReceivedNum > total ? cashReceivedNum - total : 0
+        paymentData.change_amount = cashReceivedNum > grandTotal ? cashReceivedNum - grandTotal : 0
       }
       if (linkedCustomerId) {
         paymentData.customer_id = linkedCustomerId
@@ -96,9 +104,25 @@ export function PaymentOverlay({
       } else {
         await apiClient.processCounterPayment(activeBill.bill.id, paymentData as any)
       }
-      const change = selectedMethod === 'cash' && cashReceivedNum > total ? cashReceivedNum - total : undefined
+      // Record the tip after the bill is paid. Tip method follows the
+      // payment method ('digital_wallet' tips fall under 'other').
+      if (settings.tippingEnabled && tipShown > 0) {
+        const tipMethodForRpc: 'cash' | 'card' | 'other' =
+          method === 'cash' ? 'cash' : method === 'credit_card' ? 'card' : 'other'
+        const tipRes = await ordersDb.recordTip({
+          order_id: activeBill.bill.id,
+          amount: tipShown,
+          method: tipMethodForRpc,
+        })
+        if (!tipRes.success) {
+          // Don't fail the whole payment — payment is recorded, surface a
+          // soft warning so the manager can re-add via Bills if needed.
+          console.warn('Tip not recorded:', tipRes.message)
+        }
+      }
+      const change = selectedMethod === 'cash' && cashReceivedNum > grandTotal ? cashReceivedNum - grandTotal : undefined
       setPaidTotal(total) // Lock the amount before activeBill refetches
-      broadcastPaymentComplete(total, change)
+      broadcastPaymentComplete(grandTotal, change)
       setStep('complete')
     } catch (error: any) {
       setPaymentError(error.message || 'Payment failed. Please try again.')
@@ -128,7 +152,7 @@ export function PaymentOverlay({
 
   // Handle cash continue
   const handleCashContinue = () => {
-    if (cashReceivedNum < total) return
+    if (cashReceivedNum < grandTotal) return
     processPayment('cash')
   }
 
@@ -147,9 +171,15 @@ export function PaymentOverlay({
       ...activeBill.bill,
       items: allItems,
       total_amount: total,
-    }
+      // activeBill won't have refetched the tip yet — inject so the receipt
+      // prints the tip line and grand total inclusive of it.
+      tip_amount: settings.tippingEnabled ? tipShown : 0,
+      tip_method: settings.tippingEnabled && tipShown > 0
+        ? (selectedMethod === 'cash' ? 'cash' : selectedMethod === 'card' ? 'card' : 'other')
+        : null,
+    } as any
 
-    await printThermalReceipt(orderForPrint, paidDetails, formatCurrency)
+    await printThermalReceipt(orderForPrint, paidDetails, formatCurrency, settings)
     onPaymentComplete()
   }
 
@@ -245,9 +275,21 @@ export function PaymentOverlay({
               </div>
             </div>
           )}
+          {settings.tippingEnabled && tipShown > 0 && (
+            <div className="space-y-1 mb-3">
+              <div className="flex justify-between text-sm text-zinc-500">
+                <span>Subtotal</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-emerald-400">
+                <span>Tip</span>
+                <span>+{formatCurrency(tipShown)}</span>
+              </div>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-lg text-zinc-400">{paidAmount > 0 ? 'Due' : 'Total'}</span>
-            <span className="text-3xl font-black text-zinc-100">{formatCurrency(total)}</span>
+            <span className="text-3xl font-black text-zinc-100">{formatCurrency(grandTotal)}</span>
           </div>
         </div>
       </div>
@@ -289,13 +331,16 @@ export function PaymentOverlay({
               onMethodSelect={handleMethodSelect}
               onBack={handleMethodBack}
               isDelivery={isDelivery}
+              tipEnabled={settings.tippingEnabled && !isDelivery}
+              tipAmount={tipAmount}
+              onTipChange={setTipAmount}
             />
           )}
 
           {step === 'cash-amount' && (
             <CashAmountStep
               formatCurrency={formatCurrency}
-              total={total}
+              total={grandTotal}
               isProcessing={isProcessing}
               cashReceived={cashReceived}
               onCashReceivedChange={setCashReceived}

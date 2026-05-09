@@ -59,6 +59,14 @@ export const dietaryTypeConfig = {
   'vegan': { label: 'Vegan', color: '#16A34A', description: 'No animal products' },
 } as const
 
+export const vatCategorySchema = z.enum(['standard', 'reduced', 'zero', 'exempt']).optional()
+
+export const allergenCodeSchema = z.enum([
+  'celery','crustaceans','eggs','fish','gluten','lupin','milk',
+  'molluscs','mustard','nuts','peanuts','sesame','soya','sulphites',
+])
+export type AllergenCode = z.infer<typeof allergenCodeSchema>
+
 export const createProductSchema = z.object({
   name: requiredStringSchema.min(2, 'Product name must be at least 2 characters'),
   description: z.string().optional(),
@@ -69,9 +77,14 @@ export const createProductSchema = z.object({
   preparation_time: z.number().min(0).max(120).default(5), // minutes
   dietary_type: dietaryTypeSchema,
   calorie_count: z.number().min(0).optional(),
-  food_allergens: z.string().optional(),
+  food_allergens: z.array(allergenCodeSchema).optional(),
+  may_contain_allergens: z.array(allergenCodeSchema).optional(),
+  ingredients: z.string().optional(),
+  is_ppds: z.boolean().optional(),
   product_type: productTypeSchema.default('simple'),
   location_ids: z.array(z.string()).optional(),
+  vat_category: vatCategorySchema,
+  is_hot: z.boolean().optional(),
 })
 
 // Option group/item schemas for validation

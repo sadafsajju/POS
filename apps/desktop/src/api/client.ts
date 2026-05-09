@@ -140,6 +140,9 @@ class APIClient {
       create_as_kot: o.create_as_kot,
       order_source: o.order_source,
       initial_status: o.initial_status,
+      dining_mode: o.dining_mode,
+      allergens_confirmed: o.allergens_confirmed,
+      allergens_acknowledged_codes: o.allergens_acknowledged_codes,
     }) as any
   }
 

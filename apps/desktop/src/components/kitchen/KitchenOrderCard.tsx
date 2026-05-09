@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { Order, OrderItem } from '@/types'
+import { getPlatform } from '@/lib/platforms'
 
 interface KitchenOrderCardProps {
   order: Order
@@ -84,22 +85,20 @@ export function KitchenOrderCard({ order, onStatusUpdate, onItemStatusUpdate }: 
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-1">
               {/* Aggregator platform badge */}
-              {order.order_source && order.order_source !== 'pos' && (
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-bold ${
-                    order.order_source === 'kiosk'
-                      ? 'bg-cyan-500 text-white border-cyan-500'
-                      : order.order_source === 'swiggy'
-                        ? 'bg-orange-500 text-white border-orange-500'
-                        : order.order_source === 'zomato'
-                          ? 'bg-red-500 text-white border-red-500'
-                          : 'bg-gray-500 text-white border-gray-500'
-                  }`}
-                >
-                  {order.order_source === 'kiosk' ? 'Kiosk' : order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
-                </Badge>
-              )}
+              {order.order_source && order.order_source !== 'pos' && (() => {
+                if (order.order_source === 'kiosk') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-cyan-500 text-white border-cyan-500">Kiosk</Badge>
+                }
+                if (order.order_source === 'customer_app') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-indigo-500 text-white border-indigo-500">App</Badge>
+                }
+                const p = getPlatform(order.order_source)
+                return (
+                  <Badge variant="outline" className={`text-xs font-bold ${p?.badgeClass ?? 'bg-zinc-700/40 text-zinc-200 border-zinc-600'}`}>
+                    {p?.label ?? order.order_source}
+                  </Badge>
+                )
+              })()}
               {/* Show KOT number prominently if this is a KOT */}
               {order.is_kot && order.kot_number ? (
                 <>

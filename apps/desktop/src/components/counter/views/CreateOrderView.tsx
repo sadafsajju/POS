@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { ImageOff, Clock, Barcode, Settings2 } from 'lucide-react'
+import { Clock, Barcode, Settings2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import type { Product, CartItem, Category } from '../types'
 import { imageUrl } from '@/lib/utils'
@@ -214,6 +214,11 @@ export function CreateOrderView({
               <p className="text-xs text-zinc-500 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {product.preparation_time} min
+              </p>
+            )}
+            {settings.showCalories && product.calorie_count != null && product.calorie_count > 0 && (
+              <p className="text-[10px] sm:text-xs text-zinc-400 tabular-nums mt-0.5">
+                {product.calorie_count} kcal
               </p>
             )}
           </div>

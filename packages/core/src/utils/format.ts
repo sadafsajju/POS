@@ -1,14 +1,42 @@
 // Formatting utilities
 
+/**
+ * Map a currency code to a sensible locale for Intl formatting.
+ * Defaults to en-GB so anyone outside the explicit list still gets
+ * thousands separators and a leading currency prefix.
+ */
+export function localeForCurrency(currency: string | undefined | null): string {
+  switch ((currency ?? '').toUpperCase()) {
+    case 'INR': return 'en-IN';
+    case 'USD': return 'en-US';
+    case 'GBP': return 'en-GB';
+    case 'EUR': return 'en-IE';
+    case 'AUD': return 'en-AU';
+    case 'CAD': return 'en-CA';
+    case 'JPY': return 'ja-JP';
+    default:    return 'en-GB';
+  }
+}
+
 export function formatCurrency(
   amount: number,
-  currency: string = 'INR',
-  locale: string = 'en-IN'
+  currency: string = 'GBP',
+  locale?: string
 ): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-  }).format(amount);
+  const resolvedLocale = locale ?? localeForCurrency(currency);
+  try {
+    return new Intl.NumberFormat(resolvedLocale, {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  } catch {
+    // Currency code unrecognised — fall back to manual format with thousands separators.
+    const numeric = new Intl.NumberFormat(resolvedLocale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    return `${currency} ${numeric}`;
+  }
 }
 
 export function formatDate(
@@ -18,7 +46,7 @@ export function formatDate(
     month: 'short',
     day: 'numeric',
   },
-  locale: string = 'en-US'
+  locale: string = 'en-GB'
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat(locale, options).format(d);
@@ -30,7 +58,7 @@ export function formatTime(
     hour: '2-digit',
     minute: '2-digit',
   },
-  locale: string = 'en-US'
+  locale: string = 'en-GB'
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat(locale, options).format(d);
@@ -38,7 +66,7 @@ export function formatTime(
 
 export function formatDateTime(
   date: Date | string,
-  locale: string = 'en-US'
+  locale: string = 'en-GB'
 ): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat(locale, {

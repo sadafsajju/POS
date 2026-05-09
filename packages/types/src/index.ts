@@ -51,8 +51,8 @@ export interface Location {
   org_id: string;
   name: string;
   code: string;
-  address?: string;
-  phone?: string;
+  address?: string | null;
+  phone?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -187,18 +187,55 @@ export interface Product {
   sort_order: number;
   dietary_type?: DietaryType;
   calorie_count?: number;
-  food_allergens?: string;
+  food_allergens?: AllergenCode[];
+  may_contain_allergens?: AllergenCode[];
+  ingredients?: string;
+  is_ppds?: boolean;
   product_type: ProductType;
   has_option_groups?: boolean;
   min_variation_price?: number;
   max_variation_price?: number;
   location_ids?: string[]; // null/undefined = all locations, array = specific locations
+  vat_category?: VatCategory;
+  is_hot?: boolean;
   created_at: string;
   updated_at: string;
   category?: Category;
   option_groups?: ProductOptionGroup[];
   combo_slots?: ComboSlot[];
 }
+
+export type VatCategory = 'standard' | 'reduced' | 'zero' | 'exempt';
+export type TaxRegime = 'flat' | 'uk_vat';
+export type DiningMode = 'eat_in' | 'takeaway';
+export interface VatRates { standard: number; reduced: number; zero: number; }
+
+// 14 statutory UK allergens (FIC Regs / Natasha's Law)
+export type AllergenCode =
+  | 'celery' | 'crustaceans' | 'eggs' | 'fish' | 'gluten' | 'lupin' | 'milk'
+  | 'molluscs' | 'mustard' | 'nuts' | 'peanuts' | 'sesame' | 'soya' | 'sulphites';
+
+export const STATUTORY_UK_ALLERGENS: readonly AllergenCode[] = [
+  'celery','crustaceans','eggs','fish','gluten','lupin','milk',
+  'molluscs','mustard','nuts','peanuts','sesame','soya','sulphites',
+] as const;
+
+export const ALLERGEN_LABELS: Record<AllergenCode, string> = {
+  celery: 'Celery',
+  crustaceans: 'Crustaceans',
+  eggs: 'Eggs',
+  fish: 'Fish',
+  gluten: 'Gluten',
+  lupin: 'Lupin',
+  milk: 'Milk',
+  molluscs: 'Molluscs',
+  mustard: 'Mustard',
+  nuts: 'Nuts (tree)',
+  peanuts: 'Peanuts',
+  sesame: 'Sesame',
+  soya: 'Soya',
+  sulphites: 'Sulphites',
+};
 
 export interface ProductOptionGroup {
   id: string;
@@ -477,6 +514,15 @@ export interface Order {
   accept_deadline?: string;
   // Customer app order fields
   session_id?: string;
+  // UK VAT
+  dining_mode?: DiningMode;
+  // UK allergen audit
+  allergens_confirmed_at?: string;
+  allergens_confirmed_by?: string;
+  allergens_flagged_snapshot?: AllergenCode[];
+  // UK Tipping Act 2023
+  tip_amount?: number;
+  tip_method?: TipMethod;
   // Relations
   table?: Table;
   user?: User;
@@ -489,7 +535,8 @@ export interface Order {
 
 export type OrderType = 'dine_in' | 'takeout' | 'delivery';
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled';
-export type OrderSource = 'pos' | 'swiggy' | 'zomato' | 'kiosk' | 'customer_app';
+export type OrderSource = 'pos' | 'kiosk' | 'customer_app' | 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat';
+export type AggregatorPlatform = 'swiggy' | 'zomato' | 'deliveroo' | 'uber_eats' | 'just_eat';
 
 export interface OrderItem {
   id: string;
@@ -501,6 +548,8 @@ export interface OrderItem {
   special_instructions?: string;
   notes?: string;
   status: OrderItemStatus;
+  vat_amount?: number;
+  vat_rate_applied?: number;
   created_at: string;
   updated_at: string;
   product?: Product;
@@ -527,6 +576,11 @@ export interface CreateOrderRequest {
   // KOT support fields (for dine-in orders)
   parent_order_id?: string;  // For subsequent KOTs: link to existing bill
   create_as_kot?: boolean;   // If true for dine_in, creates bill + KOT structure
+  // UK VAT — only used when org tax_regime = 'uk_vat'
+  dining_mode?: DiningMode;
+  // UK allergen interlock — only enforced when settings.show_allergens = true
+  allergens_confirmed?: boolean;
+  allergens_acknowledged_codes?: AllergenCode[];
 }
 
 export interface CreateOrderItem {
@@ -594,6 +648,12 @@ export interface Customer {
   total_orders: number;
   total_spent: number;
   last_order_at?: string;
+  // GDPR
+  marketing_consent?: boolean;
+  marketing_consent_at?: string;
+  marketing_consent_source?: string;
+  anonymised_at?: string;
+  anonymisation_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -604,6 +664,124 @@ export interface CreateCustomerRequest {
   email?: string;
   address?: string;
   notes?: string;
+  marketing_consent?: boolean;
+  marketing_consent_source?: string;
+}
+
+export type DataRequestType = 'access' | 'erasure' | 'rectification' | 'portability' | 'retention_policy';
+
+// =============================================
+// UK Tipping Act 2023
+// =============================================
+export type TipMethod = 'cash' | 'card' | 'other';
+export type TipAllocationMethod = 'equal' | 'hours_weighted' | 'manual';
+
+export interface TipPoolByMethod {
+  tip_method: TipMethod | null;
+  count: number;
+  amount: number;
+}
+
+export interface TipAllocationLine {
+  user_id: string;
+  amount: number;
+  share_percent?: number;
+  hours_worked?: number;
+  notes?: string;
+  // Joined user fields when returned by get_tip_pool
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  role?: string;
+}
+
+export interface TipAllocationRecord {
+  id: string;
+  org_id: string;
+  location_id?: string;
+  period_start: string;
+  period_end: string;
+  total_tips: number;
+  allocation_method: TipAllocationMethod;
+  allocated_by?: string;
+  allocated_at: string;
+  locked_at?: string;
+  notes?: string;
+}
+
+export interface TipPoolData {
+  period_start: string;
+  period_end: string;
+  total_tips: number;
+  by_method: TipPoolByMethod[];
+  allocation?: TipAllocationRecord;
+  lines: TipAllocationLine[];
+}
+
+// =============================================
+// End-of-day reconciliation
+// =============================================
+export interface EodPaymentMethodBreakdown {
+  payment_method: 'cash' | 'credit_card' | 'debit_card' | 'digital_wallet';
+  count: number;
+  amount: number;
+  cash_received: number;
+  change_given: number;
+}
+
+export interface EodOrderSourceBreakdown {
+  order_source: OrderSource;
+  count: number;
+  amount: number;
+}
+
+export interface EodSummary {
+  orders_count: number;
+  subtotal: number;
+  tax_total: number;
+  discount_total: number;
+  revenue: number;
+}
+
+export interface EodReconciliationRecord {
+  id: string;
+  org_id: string;
+  location_id: string;
+  business_date: string;
+  recorded_by?: string;
+  ped_settlement_total?: number;
+  cash_drawer_counted?: number;
+  opening_float?: number;
+  pos_card_total?: number;
+  pos_cash_total?: number;
+  card_variance?: number;
+  cash_variance?: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EodReconciliationData {
+  business_date: string;
+  location_id?: string;
+  summary: EodSummary;
+  payment_methods: EodPaymentMethodBreakdown[];
+  order_sources: EodOrderSourceBreakdown[];
+  voids: Array<{ id: string; order_number: string; total_amount: number; customer_name?: string; notes?: string; created_at: string }>;
+  refunds: Array<{ id: string; order_id: string; order_number: string; payment_method: string; amount: number; processed_at: string }>;
+  recorded?: EodReconciliationRecord;
+}
+
+export interface CustomerDataRequest {
+  id: string;
+  customer_id?: string;
+  request_type: DataRequestType;
+  requested_at: string;
+  fulfilled_at?: string;
+  fulfilled_by?: string;
+  notes?: string;
+  customer_phone_snapshot?: string;
+  customer_name_snapshot?: string;
 }
 
 export interface UpdateCustomerRequest {
@@ -809,6 +987,28 @@ export interface StoreSettings {
   taxRate: number;
   serviceCharge: number;
 
+  // Tax regime — 'flat' uses taxRate, 'uk_vat' uses vatRates + per-product VAT
+  taxRegime: TaxRegime;
+  vatRates: VatRates;
+  vatNumber?: string;
+
+  // Allergen surfacing + interlock (UK Natasha's Law / FIC Regs)
+  showAllergens: boolean;
+
+  // Calorie labelling (UK Calorie Labelling Regs 2021 — mandatory for businesses
+  // with 250+ employees in England). Off by default; smaller venues and Indian
+  // customers leave it off.
+  showCalories: boolean;
+
+  // GDPR / UK DPA
+  privacyPolicyUrl?: string;
+  customerRetentionMonths?: number; // null/undefined = no auto-policy
+
+  // UK Tipping Act 2023
+  tippingEnabled: boolean;
+  tippingPolicyUrl?: string;
+  tipDefaultAllocationMethod?: TipAllocationMethod;
+
   // Receipt
   receiptHeader?: string;
   receiptFooter?: string;
@@ -816,6 +1016,8 @@ export interface StoreSettings {
   // System
   theme: 'light' | 'dark' | 'system';
   language: string;
+  // IANA timezone (e.g. 'Europe/London', 'Asia/Kolkata') — drives every business-day boundary
+  timezone: string;
   backupFrequency: 'hourly' | 'daily' | 'weekly' | 'manual';
   notificationEmail?: string;
 

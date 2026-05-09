@@ -30,6 +30,28 @@ const currencyOptions = [
   { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
 ]
 
+// IANA names — the runtime needs the full ID (no abbreviations) for DST handling.
+const timezoneOptions = [
+  { value: 'Europe/London', label: 'London — GMT/BST' },
+  { value: 'Europe/Dublin', label: 'Dublin — GMT/IST' },
+  { value: 'Europe/Paris', label: 'Paris — CET/CEST' },
+  { value: 'Europe/Berlin', label: 'Berlin — CET/CEST' },
+  { value: 'Europe/Madrid', label: 'Madrid — CET/CEST' },
+  { value: 'Europe/Rome', label: 'Rome — CET/CEST' },
+  { value: 'Asia/Kolkata', label: 'India — IST' },
+  { value: 'Asia/Dubai', label: 'Dubai — GST' },
+  { value: 'Asia/Singapore', label: 'Singapore — SGT' },
+  { value: 'Asia/Hong_Kong', label: 'Hong Kong — HKT' },
+  { value: 'Asia/Tokyo', label: 'Tokyo — JST' },
+  { value: 'Australia/Sydney', label: 'Sydney — AEST/AEDT' },
+  { value: 'America/New_York', label: 'New York — EST/EDT' },
+  { value: 'America/Chicago', label: 'Chicago — CST/CDT' },
+  { value: 'America/Denver', label: 'Denver — MST/MDT' },
+  { value: 'America/Los_Angeles', label: 'Los Angeles — PST/PDT' },
+  { value: 'America/Toronto', label: 'Toronto — EST/EDT' },
+  { value: 'UTC', label: 'UTC' },
+]
+
 export function AdminSettings() {
   const { settings, isLoading, saveSettings } = useSettingsStore()
   const [localSettings, setLocalSettings] = useState<StoreSettings>(settings)
@@ -230,29 +252,156 @@ export function AdminSettings() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Tax Rate (%)</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={localSettings.taxRate}
-                  onChange={(e) => setLocalSettings({...localSettings, taxRate: parseFloat(e.target.value) || 0})}
-                />
+            <div>
+              <label className="text-sm font-medium mb-2 block">Tax regime</label>
+              <Select
+                value={localSettings.taxRegime ?? 'flat'}
+                onValueChange={(v) => setLocalSettings({ ...localSettings, taxRegime: v as 'flat' | 'uk_vat' })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flat">Flat tax (single rate)</SelectItem>
+                  <SelectItem value="uk_vat">UK VAT (multi-rate, eat-in/takeaway)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-zinc-500 mt-1">
+                Flat applies one rate to subtotal. UK VAT uses per-product VAT category and the eat-in/takeaway rule.
+              </p>
+            </div>
+
+            {localSettings.taxRegime !== 'uk_vat' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Tax Rate (%)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={localSettings.taxRate}
+                    onChange={(e) => setLocalSettings({...localSettings, taxRate: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Service Charge (%)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={localSettings.serviceCharge}
+                    onChange={(e) => setLocalSettings({...localSettings, serviceCharge: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Service Charge (%)</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={localSettings.serviceCharge}
-                  onChange={(e) => setLocalSettings({...localSettings, serviceCharge: parseFloat(e.target.value) || 0})}
-                />
+            )}
+
+            {localSettings.taxRegime === 'uk_vat' && (
+              <div className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+                <div className="text-xs uppercase tracking-wide text-zinc-500">UK VAT</div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">VAT registration number</label>
+                  <Input
+                    value={localSettings.vatNumber ?? ''}
+                    onChange={(e) => setLocalSettings({ ...localSettings, vatNumber: e.target.value })}
+                    placeholder="GB123456789"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">Printed on every VAT invoice/receipt.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Standard (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={localSettings.vatRates?.standard ?? 20}
+                      onChange={(e) => setLocalSettings({
+                        ...localSettings,
+                        vatRates: { ...localSettings.vatRates, standard: parseFloat(e.target.value) || 0 },
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Reduced (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={localSettings.vatRates?.reduced ?? 5}
+                      onChange={(e) => setLocalSettings({
+                        ...localSettings,
+                        vatRates: { ...localSettings.vatRates, reduced: parseFloat(e.target.value) || 0 },
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Zero (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={localSettings.vatRates?.zero ?? 0}
+                      onChange={(e) => setLocalSettings({
+                        ...localSettings,
+                        vatRates: { ...localSettings.vatRates, zero: parseFloat(e.target.value) || 0 },
+                      })}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Per-product VAT category and "Hot food" toggle live on each product. Hot food and eat-in cold food are
+                  always standard-rated; cold takeaway uses the product's VAT category.
+                </p>
               </div>
+            )}
+
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-zinc-100">Allergen surfacing &amp; staff confirmation</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  Shows allergen warnings on cart, KOT and receipts. Requires staff to confirm allergens with the customer
+                  before any order containing flagged allergens can be sent (UK Natasha's Law / FIC Regs).
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocalSettings({ ...localSettings, showAllergens: !localSettings.showAllergens })}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all ${
+                  localSettings.showAllergens
+                    ? 'border-red-500/60 bg-red-500/10 text-red-300'
+                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                }`}
+              >
+                {localSettings.showAllergens ? 'On' : 'Off'}
+              </button>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-zinc-100">Calorie labelling</div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  Shows kcal per item on the menu, cart and receipts, plus the "Adults need around 2000 kcal a day" note
+                  on receipts. Mandatory in England for businesses with 250+ employees (Calorie Labelling Regs 2021).
+                  Set the kcal value on each product.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocalSettings({ ...localSettings, showCalories: !localSettings.showCalories })}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all ${
+                  localSettings.showCalories
+                    ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
+                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                }`}
+              >
+                {localSettings.showCalories ? 'On' : 'Off'}
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -315,6 +464,25 @@ export function AdminSettings() {
                   <SelectItem value="system">System</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Timezone</label>
+              <Select
+                value={localSettings.timezone || 'Europe/London'}
+                onValueChange={(value) => setLocalSettings({ ...localSettings, timezone: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timezoneOptions.map(tz => (
+                    <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-zinc-500 mt-1">
+                Defines the business day for order numbering, dashboard, EOD and reports. Crosses midnight here, not UTC.
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Backup Frequency</label>
@@ -405,6 +573,117 @@ export function AdminSettings() {
               <p className="text-sm text-muted-foreground mt-1">v1.0.0</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Privacy & Data Retention (GDPR / UK DPA) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Privacy &amp; data retention
+          </CardTitle>
+          <CardDescription>
+            GDPR / UK DPA settings for customer data handling
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Privacy notice URL</label>
+            <Input
+              type="url"
+              value={localSettings.privacyPolicyUrl ?? ''}
+              onChange={(e) => setLocalSettings({ ...localSettings, privacyPolicyUrl: e.target.value })}
+              placeholder="https://example.com/privacy"
+            />
+            <p className="text-xs text-zinc-500 mt-1">
+              Linked from the customer-create dialog so staff can show the notice when capturing consent.
+            </p>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Customer retention (months)</label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={localSettings.customerRetentionMonths ?? ''}
+              onChange={(e) => {
+                const v = e.target.value === '' ? undefined : parseInt(e.target.value, 10)
+                setLocalSettings({ ...localSettings, customerRetentionMonths: Number.isFinite(v as number) ? (v as number) : undefined })
+              }}
+              placeholder="e.g. 36"
+            />
+            <p className="text-xs text-zinc-500 mt-1">
+              Customers with no activity past this window can be bulk-anonymised from the customers screen. Leave blank for no auto-policy.
+              Order history is always retained for HMRC tax compliance (6 years).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tipping (UK Tipping Act 2023) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5" />
+            Tipping
+          </CardTitle>
+          <CardDescription>
+            Employment (Allocation of Tips) Act 2023 — capture tips per order and allocate to staff.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-zinc-100">Enable tipping</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                Shows tip controls on each bill, totals on the day-end report, and unlocks the staff allocation page.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocalSettings({ ...localSettings, tippingEnabled: !localSettings.tippingEnabled })}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-all ${
+                localSettings.tippingEnabled
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                  : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+              }`}
+            >
+              {localSettings.tippingEnabled ? 'On' : 'Off'}
+            </button>
+          </div>
+          {localSettings.tippingEnabled && (
+            <>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Tipping policy URL</label>
+                <Input
+                  type="url"
+                  value={localSettings.tippingPolicyUrl ?? ''}
+                  onChange={(e) => setLocalSettings({ ...localSettings, tippingPolicyUrl: e.target.value })}
+                  placeholder="https://example.com/tipping-policy"
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  The Act requires a written tipping policy. Linked from the cart and the staff allocation page.
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Default allocation method</label>
+                <Select
+                  value={localSettings.tipDefaultAllocationMethod ?? 'equal'}
+                  onValueChange={(v) =>
+                    setLocalSettings({ ...localSettings, tipDefaultAllocationMethod: v as 'equal' | 'hours_weighted' | 'manual' })
+                  }
+                >
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equal">Equal — split evenly across all staff</SelectItem>
+                    <SelectItem value="hours_weighted">Hours-weighted — by hours worked</SelectItem>
+                    <SelectItem value="manual">Manual — enter amounts directly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,11 +1,13 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronRight, ClipboardCheck } from 'lucide-react'
 import apiClient from '@/api/client'
 import { BillsList } from './BillsList'
 import { BillDetailPanel } from './BillDetailPanel'
-import { useSettingsStore, useRequirePin } from '@pos/core'
+import { useSettingsStore, useRequirePin, useAuthStore } from '@pos/core'
 import { printThermalReceipt } from '@/components/counter/utils/printUtils'
+import { todayInTz } from '@/lib/utils'
+import { EodReconciliation } from '@/components/admin/EodReconciliation'
 import type { Order, BillsFilters } from './types'
 
 /**
@@ -16,6 +18,10 @@ import type { Order, BillsFilters } from './types'
 export function BillsInterface() {
   const queryClient = useQueryClient()
   const { settings } = useSettingsStore()
+  const { user } = useAuthStore()
+  const today = todayInTz(settings.timezone)
+  const canSeeReconciliation = user?.role === 'admin' || user?.role === 'manager'
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   // Filter state — default to today's date
   const [filters, setFilters] = useState<BillsFilters>({
@@ -25,7 +31,7 @@ export function BillsInterface() {
     search: '',
     sortBy: 'created_at',
     sortOrder: 'desc',
-    date: new Date().toISOString().split('T')[0],
+    date: today,
   })
 
   // Selection state
@@ -36,7 +42,7 @@ export function BillsInterface() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // Fetch all orders (including completed and cancelled)
-  const isToday = filters.date === new Date().toISOString().split('T')[0]
+  const isToday = filters.date === today
 
   const { data: ordersResponse, isLoading, error } = useQuery({
     queryKey: ['bills-orders', filters.status, filters.date],
@@ -178,6 +184,7 @@ export function BillsInterface() {
       selectedOrder as any,
       null,
       formatCurrency,
+      settings,
       () => {
         setSuccessMessage('Bill sent to printer')
         setTimeout(() => setSuccessMessage(null), 3000)
@@ -220,31 +227,57 @@ export function BillsInterface() {
         </div>
       )}
 
-      {/* Main Content — Split View */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Orders List — Left Panel */}
-        <div className="flex-1 overflow-hidden flex flex-col border-r border-zinc-800">
-          <BillsList
-            orders={filteredOrders}
-            isLoading={isLoading}
-            filters={filters}
-            selectedOrderId={selectedOrderId}
-            onSelectOrder={handleSelectOrder}
-            onFilterChange={handleFilterChange}
-            onRefresh={invalidateQueries}
-            formatCurrency={formatCurrency}
-          />
+      {/* Daily Summary toggle (admin/manager only) */}
+      {canSeeReconciliation && (
+        <div className="flex-shrink-0 border-b border-zinc-800 bg-zinc-900/40">
+          <button
+            type="button"
+            onClick={() => setSummaryOpen(o => !o)}
+            className="w-full max-w-5xl mx-auto flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800/40 transition-colors"
+          >
+            {summaryOpen ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
+            <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+            <span className="font-medium">Daily summary &amp; reconciliation</span>
+            <span className="text-xs text-zinc-500 ml-1">
+              · {filters.date === today ? 'today' : new Date(filters.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </span>
+          </button>
+          {summaryOpen && (
+            <div className="max-w-5xl mx-auto px-4 pb-4 max-h-[60vh] overflow-y-auto">
+              <EodReconciliation date={filters.date} embedded />
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Order Detail — Right Panel */}
-        <div className="w-[480px] flex-shrink-0 flex flex-col bg-zinc-900 overflow-hidden">
-          <BillDetailPanel
-            selectedOrder={selectedOrder}
-            onCancelOrder={handleCancelOrder}
-            onPrintBill={handlePrintBill}
-            isCancelling={cancelOrderMutation.isPending}
-            formatCurrency={formatCurrency}
-          />
+      {/* Main Content — Split View (centered, narrow) */}
+      <div className="flex-1 flex overflow-hidden justify-center">
+        <div className="flex w-full max-w-5xl overflow-hidden border-x border-zinc-800/60">
+          {/* Orders List — Left Panel */}
+          <div className="flex-1 min-w-0 overflow-hidden flex flex-col border-r border-zinc-800">
+            <BillsList
+              orders={filteredOrders}
+              isLoading={isLoading}
+              filters={filters}
+              selectedOrderId={selectedOrderId}
+              onSelectOrder={handleSelectOrder}
+              onFilterChange={handleFilterChange}
+              onRefresh={invalidateQueries}
+              formatCurrency={formatCurrency}
+              today={today}
+            />
+          </div>
+
+          {/* Order Detail — Right Panel */}
+          <div className="w-[420px] flex-shrink-0 flex flex-col bg-zinc-900 overflow-hidden">
+            <BillDetailPanel
+              selectedOrder={selectedOrder}
+              onCancelOrder={handleCancelOrder}
+              onPrintBill={handlePrintBill}
+              isCancelling={cancelOrderMutation.isPending}
+              formatCurrency={formatCurrency}
+            />
+          </div>
         </div>
       </div>
     </div>

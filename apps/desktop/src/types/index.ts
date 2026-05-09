@@ -36,8 +36,8 @@ export interface Location {
   org_id: string;
   name: string;
   code: string;
-  address?: string;
-  phone?: string;
+  address?: string | null;
+  phone?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -113,18 +113,32 @@ export interface Product {
   sort_order: number;
   dietary_type?: DietaryType;
   calorie_count?: number;
-  food_allergens?: string;
+  food_allergens?: AllergenCode[];
+  may_contain_allergens?: AllergenCode[];
+  ingredients?: string;
+  is_ppds?: boolean;
   product_type: ProductType;
   has_option_groups?: boolean;
   min_variation_price?: number;
   max_variation_price?: number;
   location_ids?: string[];
+  vat_category?: VatCategory;
+  is_hot?: boolean;
   created_at: string;
   updated_at: string;
   category?: Category;
   option_groups?: ProductOptionGroup[];
   combo_slots?: ComboSlot[];
 }
+
+export type VatCategory = 'standard' | 'reduced' | 'zero' | 'exempt';
+export type TaxRegime = 'flat' | 'uk_vat';
+export type DiningMode = 'eat_in' | 'takeaway';
+export interface VatRates { standard: number; reduced: number; zero: number; }
+
+export type AllergenCode =
+  | 'celery' | 'crustaceans' | 'eggs' | 'fish' | 'gluten' | 'lupin' | 'milk'
+  | 'molluscs' | 'mustard' | 'nuts' | 'peanuts' | 'sesame' | 'soya' | 'sulphites';
 
 export interface ProductOptionGroup {
   id: string;
@@ -337,6 +351,14 @@ export interface Order {
   kot_number?: string;       // Sequential KOT number (KOT001, KOT002)
   token_number?: number;     // Daily sequential token for customer display (1, 2, 3...)
   order_source?: string;     // Order origin: pos, kiosk, swiggy, zomato
+  dining_mode?: DiningMode;  // UK VAT: eat_in vs takeaway
+  // UK allergen audit
+  allergens_confirmed_at?: string;
+  allergens_confirmed_by?: string;
+  allergens_flagged_snapshot?: AllergenCode[];
+  // UK Tipping Act 2023
+  tip_amount?: number;
+  tip_method?: 'cash' | 'card' | 'other';
   // Relations
   table?: DiningTable;
   user?: User;
@@ -355,6 +377,8 @@ export interface OrderItem {
   total_price: number;
   special_instructions?: string;
   status: 'pending' | 'preparing' | 'ready' | 'served';
+  vat_amount?: number;
+  vat_rate_applied?: number;
   created_at: string;
   updated_at: string;
   product?: Product;
@@ -370,6 +394,9 @@ export interface CreateOrderRequest {
   items: CreateOrderItem[];
   notes?: string;
   order_source?: string;
+  dining_mode?: DiningMode;
+  allergens_confirmed?: boolean;
+  allergens_acknowledged_codes?: AllergenCode[];
 }
 
 export interface CreateOptionGroupRequest {
@@ -555,6 +582,12 @@ export interface Customer {
   notes?: string;
   total_orders?: number;
   total_spent?: number;
+  // GDPR
+  marketing_consent?: boolean;
+  marketing_consent_at?: string;
+  marketing_consent_source?: string;
+  anonymised_at?: string;
+  anonymisation_reason?: string;
   created_at: string;
   updated_at: string;
 }

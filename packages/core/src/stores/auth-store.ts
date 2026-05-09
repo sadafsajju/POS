@@ -117,7 +117,7 @@ export const useAuthStore = create<AuthStore>()(
         set({ plan, subscriptionStatus, trialEndsAt });
       },
 
-      isTrialExpired: () => {
+      isTrialExpired: (): boolean => {
         const state = useAuthStore.getState();
         if (state.plan !== 'trial') return false;
         if (!state.trialEndsAt) return false;
@@ -125,10 +125,10 @@ export const useAuthStore = create<AuthStore>()(
         return new Date(state.trialEndsAt) < new Date();
       },
 
-      trialDaysRemaining: () => {
+      trialDaysRemaining: (): number => {
         const state = useAuthStore.getState();
         if (!state.trialEndsAt) return 0;
-        const diff = new Date(state.trialEndsAt).getTime() - Date.now();
+        const diff: number = new Date(state.trialEndsAt).getTime() - Date.now();
         return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
       },
     }),

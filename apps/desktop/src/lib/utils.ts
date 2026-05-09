@@ -6,26 +6,70 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'INR', symbol?: string): string {
-  // If a symbol is provided, use simple formatting
-  if (symbol) {
-    return `${symbol}${amount.toFixed(2)}`
-  }
-
-  // Use Intl.NumberFormat for proper locale-aware formatting
-  try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: currency,
-    }).format(amount)
-  } catch {
-    // Fallback for unsupported currencies
-    return `${currency} ${amount.toFixed(2)}`
+/**
+ * Map a currency code to a sensible locale for Intl formatting.
+ * Defaults to en-GB so anyone outside the explicit list still gets
+ * thousands separators and a leading currency prefix.
+ */
+export function localeForCurrency(currency: string | undefined | null): string {
+  switch ((currency ?? '').toUpperCase()) {
+    case 'INR': return 'en-IN'
+    case 'USD': return 'en-US'
+    case 'GBP': return 'en-GB'
+    case 'EUR': return 'en-IE'
+    case 'AUD': return 'en-AU'
+    case 'CAD': return 'en-CA'
+    case 'JPY': return 'ja-JP'
+    default:    return 'en-GB'
   }
 }
 
-export function formatDate(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+/**
+ * Format a numeric amount as currency, locale-aware.
+ *
+ * Intl.NumberFormat is the source of truth — it produces correct symbols,
+ * thousands separators, and decimal places for the given currency + locale.
+ *
+ * The `symbol` argument is honoured only as an override: if the caller has
+ * a custom symbol set (e.g. "Rs." instead of "₹") we swap Intl's symbol for
+ * the custom one, preserving the locale's number formatting around it.
+ */
+export function formatCurrency(amount: number, currency = 'GBP', symbol?: string): string {
+  const locale = localeForCurrency(currency)
+  let formatted: string
+  try {
+    formatted = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+    }).format(amount)
+  } catch {
+    // Currency code unrecognised — fall back to manual format with thousands separators.
+    const numeric = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+    return symbol ? `${symbol}${numeric}` : `${currency} ${numeric}`
+  }
+
+  // Preserve the user's custom currency symbol if they set one that differs
+  // from what Intl produces (e.g. legacy "Rs." instead of "₹").
+  if (symbol) {
+    try {
+      const parts = new Intl.NumberFormat(locale, { style: 'currency', currency }).formatToParts(amount)
+      const intlSymbol = parts.find(p => p.type === 'currency')?.value
+      if (intlSymbol && intlSymbol !== symbol) {
+        // Replace only the symbol part, leave the digits/punctuation alone
+        formatted = formatted.replace(intlSymbol, symbol)
+      }
+    } catch {
+      // formatToParts unsupported — leave the Intl-formatted string as-is
+    }
+  }
+  return formatted
+}
+
+export function formatDate(dateString: string, locale: string = 'en-GB'): string {
+  return new Intl.DateTimeFormat(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -34,11 +78,38 @@ export function formatDate(dateString: string): string {
   }).format(new Date(dateString))
 }
 
-export function formatTime(dateString: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+export function formatTime(dateString: string, locale: string = 'en-GB'): string {
+  return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(dateString))
+}
+
+/**
+ * Returns today's date as YYYY-MM-DD in the given IANA timezone.
+ *
+ * Replaces `new Date().toISOString().split('T')[0]`, which uses UTC and
+ * silently rolls a UK 00:30 BST tap to "yesterday" — wrong for every
+ * non-UTC org. Built from `Intl.DateTimeFormat` parts so it works for
+ * any timezone the runtime knows about, with a UTC fallback if the TZ
+ * is rejected (defensive — `get_org_timezone` already validates server-side).
+ */
+export function todayInTz(timezone: string = 'Europe/London'): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date())
+    const y = parts.find(p => p.type === 'year')?.value
+    const m = parts.find(p => p.type === 'month')?.value
+    const d = parts.find(p => p.type === 'day')?.value
+    if (y && m && d) return `${y}-${m}-${d}`
+  } catch {
+    // Bad TZ — fall through
+  }
+  return new Date().toISOString().split('T')[0]
 }
 
 export function getOrderStatusColor(status: string): string {

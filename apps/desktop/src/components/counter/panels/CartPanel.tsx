@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import type { DiningTable, Order, CartItem, OrderType, BillSummary } from '../types'
 import type { CartSettings } from '@pos/types'
-import { useSettingsStore } from '@pos/core'
+import { useSettingsStore, computeUkVatBreakdown } from '@pos/core'
 import { consolidateItems, getTableOrders } from '../utils/orderUtils'
 
 // Minimal product interface that works with both Product and CartItem.product
@@ -506,6 +506,20 @@ export function CartPanel({
                       <div className="text-sm text-zinc-400">
                         {formatCurrency(unitPrice)} × {item.quantity} = <span className="font-semibold text-zinc-100">{formatCurrency(unitPrice * item.quantity)}</span>
                       </div>
+                      {settings.showAllergens && Array.isArray(item.product.food_allergens) && item.product.food_allergens.length > 0 && (
+                        <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-300 text-[10px] font-medium uppercase tracking-wide">
+                          <AlertTriangle className="w-3 h-3" />
+                          {item.product.food_allergens.join(' · ')}
+                        </div>
+                      )}
+                      {settings.showCalories && item.product.calorie_count != null && item.product.calorie_count > 0 && (
+                        <div className="text-xs text-zinc-500 tabular-nums mt-0.5">
+                          {item.product.calorie_count} kcal
+                          {item.quantity > 1 && (
+                            <span className="text-zinc-600"> · {item.product.calorie_count * item.quantity} kcal total</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {cartSettings?.showSpecialInstructions !== false && (
                     <Button
@@ -682,8 +696,23 @@ export function CartPanel({
           {/* Summary rows */}
           {(() => {
             const subtotal = getTotalAmount()
-            const tax = subtotal * (taxRate / 100)
-            const totalWithTax = getTotalAmount() * (1 + taxRate / 100)
+            const isUkVat = settings.taxRegime === 'uk_vat'
+            const diningMode: 'eat_in' | 'takeaway' = orderType === 'dine_in' ? 'eat_in' : 'takeaway'
+
+            // UK VAT preview: per-line VAT mirrors the server-side rule in create_order
+            const ukVat = isUkVat
+              ? computeUkVatBreakdown(
+                  cart.map(item => ({
+                    product: { vat_category: item.product.vat_category, is_hot: item.product.is_hot },
+                    lineNet: getItemUnitPrice(item) * item.quantity,
+                  })),
+                  diningMode,
+                  settings.vatRates,
+                )
+              : null
+
+            const tax = isUkVat ? (ukVat?.totalVat ?? 0) : subtotal * (taxRate / 100)
+            const totalWithTax = subtotal + tax
             const previousBalance = hasActiveBill
               ? Math.max(0, (activeBill?.aggregated_total || 0) - (activeBill?.paid_amount || 0))
               : tableOrders.filter(o => o.status !== 'paid').reduce((sum, order) => sum + order.total_amount, 0)
@@ -697,7 +726,21 @@ export function CartPanel({
             return (
               <div className="border-b border-zinc-800">
                 <div className="border-b border-zinc-800">
-                  {hasNewItems && taxRate > 0 && (
+                  {hasNewItems && isUkVat && ukVat && ukVat.totalVat > 0 && (
+                    <div className="px-3 pt-2.5 space-y-0.5">
+                      <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                        <span>{diningMode === 'eat_in' ? 'Eat-in' : 'Takeaway'} · VAT</span>
+                        <span>{formatCurrency(ukVat.totalVat)}</span>
+                      </div>
+                      {ukVat.byRate.filter(r => r.vat > 0).map(r => (
+                        <div key={r.rate} className="flex justify-between text-[10px] text-zinc-600 font-mono">
+                          <span>  @ {r.rate}%</span>
+                          <span>{formatCurrency(r.vat)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {hasNewItems && !isUkVat && taxRate > 0 && (
                     <div className="flex justify-between text-[10px] text-zinc-600 px-3 pt-2.5 font-mono">
                       <span>incl. Tax ({taxRate}%)</span>
                       <span>{formatCurrency(tax)}</span>
@@ -806,6 +849,7 @@ export function CartPanel({
                 }
                 size="lg"
                 onClick={onOpenPayment}
+                disabled={isCreating}
               >
                 <CreditCard className="w-5 h-5 mr-2" />
                 Pay

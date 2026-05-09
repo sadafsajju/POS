@@ -291,6 +291,9 @@ export const serverApi = {
       create_as_kot: order.create_as_kot,
       order_source: (order as any).order_source,
       initial_status: (order as any).initial_status,
+      dining_mode: (order as any).dining_mode,
+      allergens_confirmed: (order as any).allergens_confirmed,
+      allergens_acknowledged_codes: (order as any).allergens_acknowledged_codes,
     }) as any,
 
   addItems: (orderId: string, items: Array<{ product_id: string; quantity: number; special_instructions?: string }>) =>

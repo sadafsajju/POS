@@ -33,6 +33,13 @@ export interface CartItem {
     preparation_time?: number
     is_available?: boolean
     product_type?: string
+    vat_category?: 'standard' | 'reduced' | 'zero' | 'exempt'
+    is_hot?: boolean
+    calorie_count?: number
+    food_allergens?: Array<
+      'celery' | 'crustaceans' | 'eggs' | 'fish' | 'gluten' | 'lupin' | 'milk'
+      | 'molluscs' | 'mustard' | 'nuts' | 'peanuts' | 'sesame' | 'soya' | 'sulphites'
+    >
   }
   quantity: number
   special_instructions?: string
@@ -134,6 +141,14 @@ export interface CreateOrderRequest {
   // KOT support fields (for dine-in orders)
   parent_order_id?: string  // For subsequent KOTs: link to existing bill
   create_as_kot?: boolean   // If true for dine_in, creates bill + KOT structure
+  // UK VAT — only used when org tax_regime = 'uk_vat'
+  dining_mode?: 'eat_in' | 'takeaway'
+  // UK allergen interlock — only enforced when settings.show_allergens = true
+  allergens_confirmed?: boolean
+  allergens_acknowledged_codes?: Array<
+    'celery' | 'crustaceans' | 'eggs' | 'fish' | 'gluten' | 'lupin' | 'milk'
+    | 'molluscs' | 'mustard' | 'nuts' | 'peanuts' | 'sesame' | 'soya' | 'sulphites'
+  >
 }
 
 // Order item from API response

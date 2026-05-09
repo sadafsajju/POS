@@ -1,5 +1,5 @@
 import { getSupabase } from '../client'
-import { wrapMany, wrapOne, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
+import { wrapMany, wrapOne, wrapRpc, paginationRange, getMyOrgId, type ApiResponse } from '../helpers'
 import type { Database } from '../types'
 
 type CustomerRow = Database['public']['Tables']['customers']['Row']
@@ -66,4 +66,27 @@ export async function updateCustomer(id: string, updates: CustomerUpdate): Promi
   const sb = getSupabase()
   const { data, error } = await sb.from('customers').update(updates).eq('id', id).select().single()
   return wrapOne(data, error, 'Customer')
+}
+
+export async function anonymiseCustomer(customerId: string, reason?: string): Promise<ApiResponse<{ message: string }>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('anonymise_customer', {
+    p_customer_id: customerId,
+    p_reason: reason ?? null,
+  })
+  return wrapRpc(data, error) as ApiResponse<{ message: string }>
+}
+
+export async function exportCustomerData(customerId: string): Promise<ApiResponse<{ export_generated_at: string; customer: CustomerRow; orders: any[]; payments: any[] }>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('export_customer_data', {
+    p_customer_id: customerId,
+  })
+  return wrapRpc(data, error) as ApiResponse<{ export_generated_at: string; customer: CustomerRow; orders: any[]; payments: any[] }>
+}
+
+export async function applyRetentionPolicy(dryRun: boolean): Promise<ApiResponse<any>> {
+  const sb = getSupabase()
+  const { data, error } = await sb.rpc('apply_retention_policy', { p_dry_run: dryRun })
+  return wrapRpc(data, error)
 }

@@ -24,31 +24,33 @@ import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
-import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminPosRouteImport } from './routes/admin/pos'
+import { Route as AdminMoreRouteImport } from './routes/admin/more'
 import { Route as AdminKitchenRouteImport } from './routes/admin/kitchen'
 import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminBillsRouteImport } from './routes/admin/bills'
-import { Route as AdminSettingsIndexRouteImport } from './routes/admin/settings/index'
-import { Route as AdminSettingsTablesRouteImport } from './routes/admin/settings/tables'
-import { Route as AdminSettingsSystemRouteImport } from './routes/admin/settings/system'
-import { Route as AdminSettingsStaffRouteImport } from './routes/admin/settings/staff'
-import { Route as AdminSettingsReceiptsRouteImport } from './routes/admin/settings/receipts'
-import { Route as AdminSettingsQrCodesRouteImport } from './routes/admin/settings/qr-codes'
-import { Route as AdminSettingsPromosRouteImport } from './routes/admin/settings/promos'
-import { Route as AdminSettingsProductsRouteImport } from './routes/admin/settings/products'
-import { Route as AdminSettingsPlatformsRouteImport } from './routes/admin/settings/platforms'
-import { Route as AdminSettingsMenuRouteImport } from './routes/admin/settings/menu'
-import { Route as AdminSettingsMediaRouteImport } from './routes/admin/settings/media'
-import { Route as AdminSettingsLocationsRouteImport } from './routes/admin/settings/locations'
-import { Route as AdminSettingsImportRouteImport } from './routes/admin/settings/import'
-import { Route as AdminSettingsGeneralRouteImport } from './routes/admin/settings/general'
-import { Route as AdminSettingsFinancialRouteImport } from './routes/admin/settings/financial'
-import { Route as AdminSettingsCartRouteImport } from './routes/admin/settings/cart'
-import { Route as AdminSettingsAccountRouteImport } from './routes/admin/settings/account'
-import { Route as AdminSettingsAboutRouteImport } from './routes/admin/settings/about'
-import { Route as AdminSettingsMenuIndexRouteImport } from './routes/admin/settings/menu/index'
+import { Route as AdminMoreIndexRouteImport } from './routes/admin/more/index'
+import { Route as AdminMoreVatExportRouteImport } from './routes/admin/more/vat-export'
+import { Route as AdminMoreTipsRouteImport } from './routes/admin/more/tips'
+import { Route as AdminMoreTablesRouteImport } from './routes/admin/more/tables'
+import { Route as AdminMoreSystemRouteImport } from './routes/admin/more/system'
+import { Route as AdminMoreStaffRouteImport } from './routes/admin/more/staff'
+import { Route as AdminMoreReportsRouteImport } from './routes/admin/more/reports'
+import { Route as AdminMoreReceiptsRouteImport } from './routes/admin/more/receipts'
+import { Route as AdminMoreQrCodesRouteImport } from './routes/admin/more/qr-codes'
+import { Route as AdminMorePromosRouteImport } from './routes/admin/more/promos'
+import { Route as AdminMoreProductsRouteImport } from './routes/admin/more/products'
+import { Route as AdminMorePlatformsRouteImport } from './routes/admin/more/platforms'
+import { Route as AdminMoreMenuRouteImport } from './routes/admin/more/menu'
+import { Route as AdminMoreMediaRouteImport } from './routes/admin/more/media'
+import { Route as AdminMoreLocationsRouteImport } from './routes/admin/more/locations'
+import { Route as AdminMoreImportRouteImport } from './routes/admin/more/import'
+import { Route as AdminMoreGeneralRouteImport } from './routes/admin/more/general'
+import { Route as AdminMoreFinancialRouteImport } from './routes/admin/more/financial'
+import { Route as AdminMoreCartRouteImport } from './routes/admin/more/cart'
+import { Route as AdminMoreAccountRouteImport } from './routes/admin/more/account'
+import { Route as AdminMoreAboutRouteImport } from './routes/admin/more/about'
+import { Route as AdminMoreMenuIndexRouteImport } from './routes/admin/more/menu/index'
 
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
@@ -125,19 +127,14 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminSettingsRoute = AdminSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminReportsRoute = AdminReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminPosRoute = AdminPosRouteImport.update({
   id: '/pos',
   path: '/pos',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMoreRoute = AdminMoreRouteImport.update({
+  id: '/more',
+  path: '/more',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminKitchenRoute = AdminKitchenRouteImport.update({
@@ -155,100 +152,115 @@ const AdminBillsRoute = AdminBillsRouteImport.update({
   path: '/bills',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
+const AdminMoreIndexRoute = AdminMoreIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsTablesRoute = AdminSettingsTablesRouteImport.update({
+const AdminMoreVatExportRoute = AdminMoreVatExportRouteImport.update({
+  id: '/vat-export',
+  path: '/vat-export',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
+const AdminMoreTipsRoute = AdminMoreTipsRouteImport.update({
+  id: '/tips',
+  path: '/tips',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
+const AdminMoreTablesRoute = AdminMoreTablesRouteImport.update({
   id: '/tables',
   path: '/tables',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsSystemRoute = AdminSettingsSystemRouteImport.update({
+const AdminMoreSystemRoute = AdminMoreSystemRouteImport.update({
   id: '/system',
   path: '/system',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsStaffRoute = AdminSettingsStaffRouteImport.update({
+const AdminMoreStaffRoute = AdminMoreStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsReceiptsRoute = AdminSettingsReceiptsRouteImport.update({
+const AdminMoreReportsRoute = AdminMoreReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
+const AdminMoreReceiptsRoute = AdminMoreReceiptsRouteImport.update({
   id: '/receipts',
   path: '/receipts',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsQrCodesRoute = AdminSettingsQrCodesRouteImport.update({
+const AdminMoreQrCodesRoute = AdminMoreQrCodesRouteImport.update({
   id: '/qr-codes',
   path: '/qr-codes',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsPromosRoute = AdminSettingsPromosRouteImport.update({
+const AdminMorePromosRoute = AdminMorePromosRouteImport.update({
   id: '/promos',
   path: '/promos',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsProductsRoute = AdminSettingsProductsRouteImport.update({
+const AdminMoreProductsRoute = AdminMoreProductsRouteImport.update({
   id: '/products',
   path: '/products',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsPlatformsRoute = AdminSettingsPlatformsRouteImport.update({
+const AdminMorePlatformsRoute = AdminMorePlatformsRouteImport.update({
   id: '/platforms',
   path: '/platforms',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsMenuRoute = AdminSettingsMenuRouteImport.update({
+const AdminMoreMenuRoute = AdminMoreMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsMediaRoute = AdminSettingsMediaRouteImport.update({
+const AdminMoreMediaRoute = AdminMoreMediaRouteImport.update({
   id: '/media',
   path: '/media',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsLocationsRoute = AdminSettingsLocationsRouteImport.update({
+const AdminMoreLocationsRoute = AdminMoreLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsImportRoute = AdminSettingsImportRouteImport.update({
+const AdminMoreImportRoute = AdminMoreImportRouteImport.update({
   id: '/import',
   path: '/import',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
+const AdminMoreGeneralRoute = AdminMoreGeneralRouteImport.update({
   id: '/general',
   path: '/general',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsFinancialRoute = AdminSettingsFinancialRouteImport.update({
+const AdminMoreFinancialRoute = AdminMoreFinancialRouteImport.update({
   id: '/financial',
   path: '/financial',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsCartRoute = AdminSettingsCartRouteImport.update({
+const AdminMoreCartRoute = AdminMoreCartRouteImport.update({
   id: '/cart',
   path: '/cart',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsAccountRoute = AdminSettingsAccountRouteImport.update({
+const AdminMoreAccountRoute = AdminMoreAccountRouteImport.update({
   id: '/account',
   path: '/account',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsAboutRoute = AdminSettingsAboutRouteImport.update({
+const AdminMoreAboutRoute = AdminMoreAboutRouteImport.update({
   id: '/about',
   path: '/about',
-  getParentRoute: () => AdminSettingsRoute,
+  getParentRoute: () => AdminMoreRoute,
 } as any)
-const AdminSettingsMenuIndexRoute = AdminSettingsMenuIndexRouteImport.update({
+const AdminMoreMenuIndexRoute = AdminMoreMenuIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AdminSettingsMenuRoute,
+  getParentRoute: () => AdminMoreMenuRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -269,29 +281,31 @@ export interface FileRoutesByFullPath {
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
+  '/admin/more': typeof AdminMoreRouteWithChildren
   '/admin/pos': typeof AdminPosRoute
-  '/admin/reports': typeof AdminReportsRoute
-  '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
-  '/admin/settings/about': typeof AdminSettingsAboutRoute
-  '/admin/settings/account': typeof AdminSettingsAccountRoute
-  '/admin/settings/cart': typeof AdminSettingsCartRoute
-  '/admin/settings/financial': typeof AdminSettingsFinancialRoute
-  '/admin/settings/general': typeof AdminSettingsGeneralRoute
-  '/admin/settings/import': typeof AdminSettingsImportRoute
-  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
-  '/admin/settings/media': typeof AdminSettingsMediaRoute
-  '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
-  '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
-  '/admin/settings/products': typeof AdminSettingsProductsRoute
-  '/admin/settings/promos': typeof AdminSettingsPromosRoute
-  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
-  '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
-  '/admin/settings/staff': typeof AdminSettingsStaffRoute
-  '/admin/settings/system': typeof AdminSettingsSystemRoute
-  '/admin/settings/tables': typeof AdminSettingsTablesRoute
-  '/admin/settings/': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu/': typeof AdminSettingsMenuIndexRoute
+  '/admin/more/about': typeof AdminMoreAboutRoute
+  '/admin/more/account': typeof AdminMoreAccountRoute
+  '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/financial': typeof AdminMoreFinancialRoute
+  '/admin/more/general': typeof AdminMoreGeneralRoute
+  '/admin/more/import': typeof AdminMoreImportRoute
+  '/admin/more/locations': typeof AdminMoreLocationsRoute
+  '/admin/more/media': typeof AdminMoreMediaRoute
+  '/admin/more/menu': typeof AdminMoreMenuRouteWithChildren
+  '/admin/more/platforms': typeof AdminMorePlatformsRoute
+  '/admin/more/products': typeof AdminMoreProductsRoute
+  '/admin/more/promos': typeof AdminMorePromosRoute
+  '/admin/more/qr-codes': typeof AdminMoreQrCodesRoute
+  '/admin/more/receipts': typeof AdminMoreReceiptsRoute
+  '/admin/more/reports': typeof AdminMoreReportsRoute
+  '/admin/more/staff': typeof AdminMoreStaffRoute
+  '/admin/more/system': typeof AdminMoreSystemRoute
+  '/admin/more/tables': typeof AdminMoreTablesRoute
+  '/admin/more/tips': typeof AdminMoreTipsRoute
+  '/admin/more/vat-export': typeof AdminMoreVatExportRoute
+  '/admin/more/': typeof AdminMoreIndexRoute
+  '/admin/more/menu/': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -311,26 +325,28 @@ export interface FileRoutesByTo {
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
   '/admin/pos': typeof AdminPosRoute
-  '/admin/reports': typeof AdminReportsRoute
   '/admin': typeof AdminIndexRoute
-  '/admin/settings/about': typeof AdminSettingsAboutRoute
-  '/admin/settings/account': typeof AdminSettingsAccountRoute
-  '/admin/settings/cart': typeof AdminSettingsCartRoute
-  '/admin/settings/financial': typeof AdminSettingsFinancialRoute
-  '/admin/settings/general': typeof AdminSettingsGeneralRoute
-  '/admin/settings/import': typeof AdminSettingsImportRoute
-  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
-  '/admin/settings/media': typeof AdminSettingsMediaRoute
-  '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
-  '/admin/settings/products': typeof AdminSettingsProductsRoute
-  '/admin/settings/promos': typeof AdminSettingsPromosRoute
-  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
-  '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
-  '/admin/settings/staff': typeof AdminSettingsStaffRoute
-  '/admin/settings/system': typeof AdminSettingsSystemRoute
-  '/admin/settings/tables': typeof AdminSettingsTablesRoute
-  '/admin/settings': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu': typeof AdminSettingsMenuIndexRoute
+  '/admin/more/about': typeof AdminMoreAboutRoute
+  '/admin/more/account': typeof AdminMoreAccountRoute
+  '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/financial': typeof AdminMoreFinancialRoute
+  '/admin/more/general': typeof AdminMoreGeneralRoute
+  '/admin/more/import': typeof AdminMoreImportRoute
+  '/admin/more/locations': typeof AdminMoreLocationsRoute
+  '/admin/more/media': typeof AdminMoreMediaRoute
+  '/admin/more/platforms': typeof AdminMorePlatformsRoute
+  '/admin/more/products': typeof AdminMoreProductsRoute
+  '/admin/more/promos': typeof AdminMorePromosRoute
+  '/admin/more/qr-codes': typeof AdminMoreQrCodesRoute
+  '/admin/more/receipts': typeof AdminMoreReceiptsRoute
+  '/admin/more/reports': typeof AdminMoreReportsRoute
+  '/admin/more/staff': typeof AdminMoreStaffRoute
+  '/admin/more/system': typeof AdminMoreSystemRoute
+  '/admin/more/tables': typeof AdminMoreTablesRoute
+  '/admin/more/tips': typeof AdminMoreTipsRoute
+  '/admin/more/vat-export': typeof AdminMoreVatExportRoute
+  '/admin/more': typeof AdminMoreIndexRoute
+  '/admin/more/menu': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -351,29 +367,31 @@ export interface FileRoutesById {
   '/admin/bills': typeof AdminBillsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
+  '/admin/more': typeof AdminMoreRouteWithChildren
   '/admin/pos': typeof AdminPosRoute
-  '/admin/reports': typeof AdminReportsRoute
-  '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/': typeof AdminIndexRoute
-  '/admin/settings/about': typeof AdminSettingsAboutRoute
-  '/admin/settings/account': typeof AdminSettingsAccountRoute
-  '/admin/settings/cart': typeof AdminSettingsCartRoute
-  '/admin/settings/financial': typeof AdminSettingsFinancialRoute
-  '/admin/settings/general': typeof AdminSettingsGeneralRoute
-  '/admin/settings/import': typeof AdminSettingsImportRoute
-  '/admin/settings/locations': typeof AdminSettingsLocationsRoute
-  '/admin/settings/media': typeof AdminSettingsMediaRoute
-  '/admin/settings/menu': typeof AdminSettingsMenuRouteWithChildren
-  '/admin/settings/platforms': typeof AdminSettingsPlatformsRoute
-  '/admin/settings/products': typeof AdminSettingsProductsRoute
-  '/admin/settings/promos': typeof AdminSettingsPromosRoute
-  '/admin/settings/qr-codes': typeof AdminSettingsQrCodesRoute
-  '/admin/settings/receipts': typeof AdminSettingsReceiptsRoute
-  '/admin/settings/staff': typeof AdminSettingsStaffRoute
-  '/admin/settings/system': typeof AdminSettingsSystemRoute
-  '/admin/settings/tables': typeof AdminSettingsTablesRoute
-  '/admin/settings/': typeof AdminSettingsIndexRoute
-  '/admin/settings/menu/': typeof AdminSettingsMenuIndexRoute
+  '/admin/more/about': typeof AdminMoreAboutRoute
+  '/admin/more/account': typeof AdminMoreAccountRoute
+  '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/financial': typeof AdminMoreFinancialRoute
+  '/admin/more/general': typeof AdminMoreGeneralRoute
+  '/admin/more/import': typeof AdminMoreImportRoute
+  '/admin/more/locations': typeof AdminMoreLocationsRoute
+  '/admin/more/media': typeof AdminMoreMediaRoute
+  '/admin/more/menu': typeof AdminMoreMenuRouteWithChildren
+  '/admin/more/platforms': typeof AdminMorePlatformsRoute
+  '/admin/more/products': typeof AdminMoreProductsRoute
+  '/admin/more/promos': typeof AdminMorePromosRoute
+  '/admin/more/qr-codes': typeof AdminMoreQrCodesRoute
+  '/admin/more/receipts': typeof AdminMoreReceiptsRoute
+  '/admin/more/reports': typeof AdminMoreReportsRoute
+  '/admin/more/staff': typeof AdminMoreStaffRoute
+  '/admin/more/system': typeof AdminMoreSystemRoute
+  '/admin/more/tables': typeof AdminMoreTablesRoute
+  '/admin/more/tips': typeof AdminMoreTipsRoute
+  '/admin/more/vat-export': typeof AdminMoreVatExportRoute
+  '/admin/more/': typeof AdminMoreIndexRoute
+  '/admin/more/menu/': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -395,29 +413,31 @@ export interface FileRouteTypes {
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
+    | '/admin/more'
     | '/admin/pos'
-    | '/admin/reports'
-    | '/admin/settings'
     | '/admin/'
-    | '/admin/settings/about'
-    | '/admin/settings/account'
-    | '/admin/settings/cart'
-    | '/admin/settings/financial'
-    | '/admin/settings/general'
-    | '/admin/settings/import'
-    | '/admin/settings/locations'
-    | '/admin/settings/media'
-    | '/admin/settings/menu'
-    | '/admin/settings/platforms'
-    | '/admin/settings/products'
-    | '/admin/settings/promos'
-    | '/admin/settings/qr-codes'
-    | '/admin/settings/receipts'
-    | '/admin/settings/staff'
-    | '/admin/settings/system'
-    | '/admin/settings/tables'
-    | '/admin/settings/'
-    | '/admin/settings/menu/'
+    | '/admin/more/about'
+    | '/admin/more/account'
+    | '/admin/more/cart'
+    | '/admin/more/financial'
+    | '/admin/more/general'
+    | '/admin/more/import'
+    | '/admin/more/locations'
+    | '/admin/more/media'
+    | '/admin/more/menu'
+    | '/admin/more/platforms'
+    | '/admin/more/products'
+    | '/admin/more/promos'
+    | '/admin/more/qr-codes'
+    | '/admin/more/receipts'
+    | '/admin/more/reports'
+    | '/admin/more/staff'
+    | '/admin/more/system'
+    | '/admin/more/tables'
+    | '/admin/more/tips'
+    | '/admin/more/vat-export'
+    | '/admin/more/'
+    | '/admin/more/menu/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -437,26 +457,28 @@ export interface FileRouteTypes {
     | '/admin/customers'
     | '/admin/kitchen'
     | '/admin/pos'
-    | '/admin/reports'
     | '/admin'
-    | '/admin/settings/about'
-    | '/admin/settings/account'
-    | '/admin/settings/cart'
-    | '/admin/settings/financial'
-    | '/admin/settings/general'
-    | '/admin/settings/import'
-    | '/admin/settings/locations'
-    | '/admin/settings/media'
-    | '/admin/settings/platforms'
-    | '/admin/settings/products'
-    | '/admin/settings/promos'
-    | '/admin/settings/qr-codes'
-    | '/admin/settings/receipts'
-    | '/admin/settings/staff'
-    | '/admin/settings/system'
-    | '/admin/settings/tables'
-    | '/admin/settings'
-    | '/admin/settings/menu'
+    | '/admin/more/about'
+    | '/admin/more/account'
+    | '/admin/more/cart'
+    | '/admin/more/financial'
+    | '/admin/more/general'
+    | '/admin/more/import'
+    | '/admin/more/locations'
+    | '/admin/more/media'
+    | '/admin/more/platforms'
+    | '/admin/more/products'
+    | '/admin/more/promos'
+    | '/admin/more/qr-codes'
+    | '/admin/more/receipts'
+    | '/admin/more/reports'
+    | '/admin/more/staff'
+    | '/admin/more/system'
+    | '/admin/more/tables'
+    | '/admin/more/tips'
+    | '/admin/more/vat-export'
+    | '/admin/more'
+    | '/admin/more/menu'
   id:
     | '__root__'
     | '/'
@@ -476,29 +498,31 @@ export interface FileRouteTypes {
     | '/admin/bills'
     | '/admin/customers'
     | '/admin/kitchen'
+    | '/admin/more'
     | '/admin/pos'
-    | '/admin/reports'
-    | '/admin/settings'
     | '/admin/'
-    | '/admin/settings/about'
-    | '/admin/settings/account'
-    | '/admin/settings/cart'
-    | '/admin/settings/financial'
-    | '/admin/settings/general'
-    | '/admin/settings/import'
-    | '/admin/settings/locations'
-    | '/admin/settings/media'
-    | '/admin/settings/menu'
-    | '/admin/settings/platforms'
-    | '/admin/settings/products'
-    | '/admin/settings/promos'
-    | '/admin/settings/qr-codes'
-    | '/admin/settings/receipts'
-    | '/admin/settings/staff'
-    | '/admin/settings/system'
-    | '/admin/settings/tables'
-    | '/admin/settings/'
-    | '/admin/settings/menu/'
+    | '/admin/more/about'
+    | '/admin/more/account'
+    | '/admin/more/cart'
+    | '/admin/more/financial'
+    | '/admin/more/general'
+    | '/admin/more/import'
+    | '/admin/more/locations'
+    | '/admin/more/media'
+    | '/admin/more/menu'
+    | '/admin/more/platforms'
+    | '/admin/more/products'
+    | '/admin/more/promos'
+    | '/admin/more/qr-codes'
+    | '/admin/more/receipts'
+    | '/admin/more/reports'
+    | '/admin/more/staff'
+    | '/admin/more/system'
+    | '/admin/more/tables'
+    | '/admin/more/tips'
+    | '/admin/more/vat-export'
+    | '/admin/more/'
+    | '/admin/more/menu/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -625,25 +649,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/settings': {
-      id: '/admin/settings'
-      path: '/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AdminSettingsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/reports': {
-      id: '/admin/reports'
-      path: '/reports'
-      fullPath: '/admin/reports'
-      preLoaderRoute: typeof AdminReportsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/pos': {
       id: '/admin/pos'
       path: '/pos'
       fullPath: '/admin/pos'
       preLoaderRoute: typeof AdminPosRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/more': {
+      id: '/admin/more'
+      path: '/more'
+      fullPath: '/admin/more'
+      preLoaderRoute: typeof AdminMoreRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/kitchen': {
@@ -667,206 +684,233 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBillsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/settings/': {
-      id: '/admin/settings/'
+    '/admin/more/': {
+      id: '/admin/more/'
       path: '/'
-      fullPath: '/admin/settings/'
-      preLoaderRoute: typeof AdminSettingsIndexRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/'
+      preLoaderRoute: typeof AdminMoreIndexRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/tables': {
-      id: '/admin/settings/tables'
+    '/admin/more/vat-export': {
+      id: '/admin/more/vat-export'
+      path: '/vat-export'
+      fullPath: '/admin/more/vat-export'
+      preLoaderRoute: typeof AdminMoreVatExportRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
+    '/admin/more/tips': {
+      id: '/admin/more/tips'
+      path: '/tips'
+      fullPath: '/admin/more/tips'
+      preLoaderRoute: typeof AdminMoreTipsRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
+    '/admin/more/tables': {
+      id: '/admin/more/tables'
       path: '/tables'
-      fullPath: '/admin/settings/tables'
-      preLoaderRoute: typeof AdminSettingsTablesRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/tables'
+      preLoaderRoute: typeof AdminMoreTablesRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/system': {
-      id: '/admin/settings/system'
+    '/admin/more/system': {
+      id: '/admin/more/system'
       path: '/system'
-      fullPath: '/admin/settings/system'
-      preLoaderRoute: typeof AdminSettingsSystemRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/system'
+      preLoaderRoute: typeof AdminMoreSystemRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/staff': {
-      id: '/admin/settings/staff'
+    '/admin/more/staff': {
+      id: '/admin/more/staff'
       path: '/staff'
-      fullPath: '/admin/settings/staff'
-      preLoaderRoute: typeof AdminSettingsStaffRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/staff'
+      preLoaderRoute: typeof AdminMoreStaffRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/receipts': {
-      id: '/admin/settings/receipts'
+    '/admin/more/reports': {
+      id: '/admin/more/reports'
+      path: '/reports'
+      fullPath: '/admin/more/reports'
+      preLoaderRoute: typeof AdminMoreReportsRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
+    '/admin/more/receipts': {
+      id: '/admin/more/receipts'
       path: '/receipts'
-      fullPath: '/admin/settings/receipts'
-      preLoaderRoute: typeof AdminSettingsReceiptsRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/receipts'
+      preLoaderRoute: typeof AdminMoreReceiptsRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/qr-codes': {
-      id: '/admin/settings/qr-codes'
+    '/admin/more/qr-codes': {
+      id: '/admin/more/qr-codes'
       path: '/qr-codes'
-      fullPath: '/admin/settings/qr-codes'
-      preLoaderRoute: typeof AdminSettingsQrCodesRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/qr-codes'
+      preLoaderRoute: typeof AdminMoreQrCodesRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/promos': {
-      id: '/admin/settings/promos'
+    '/admin/more/promos': {
+      id: '/admin/more/promos'
       path: '/promos'
-      fullPath: '/admin/settings/promos'
-      preLoaderRoute: typeof AdminSettingsPromosRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/promos'
+      preLoaderRoute: typeof AdminMorePromosRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/products': {
-      id: '/admin/settings/products'
+    '/admin/more/products': {
+      id: '/admin/more/products'
       path: '/products'
-      fullPath: '/admin/settings/products'
-      preLoaderRoute: typeof AdminSettingsProductsRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/products'
+      preLoaderRoute: typeof AdminMoreProductsRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/platforms': {
-      id: '/admin/settings/platforms'
+    '/admin/more/platforms': {
+      id: '/admin/more/platforms'
       path: '/platforms'
-      fullPath: '/admin/settings/platforms'
-      preLoaderRoute: typeof AdminSettingsPlatformsRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/platforms'
+      preLoaderRoute: typeof AdminMorePlatformsRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/menu': {
-      id: '/admin/settings/menu'
+    '/admin/more/menu': {
+      id: '/admin/more/menu'
       path: '/menu'
-      fullPath: '/admin/settings/menu'
-      preLoaderRoute: typeof AdminSettingsMenuRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/menu'
+      preLoaderRoute: typeof AdminMoreMenuRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/media': {
-      id: '/admin/settings/media'
+    '/admin/more/media': {
+      id: '/admin/more/media'
       path: '/media'
-      fullPath: '/admin/settings/media'
-      preLoaderRoute: typeof AdminSettingsMediaRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/media'
+      preLoaderRoute: typeof AdminMoreMediaRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/locations': {
-      id: '/admin/settings/locations'
+    '/admin/more/locations': {
+      id: '/admin/more/locations'
       path: '/locations'
-      fullPath: '/admin/settings/locations'
-      preLoaderRoute: typeof AdminSettingsLocationsRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/locations'
+      preLoaderRoute: typeof AdminMoreLocationsRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/import': {
-      id: '/admin/settings/import'
+    '/admin/more/import': {
+      id: '/admin/more/import'
       path: '/import'
-      fullPath: '/admin/settings/import'
-      preLoaderRoute: typeof AdminSettingsImportRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/import'
+      preLoaderRoute: typeof AdminMoreImportRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/general': {
-      id: '/admin/settings/general'
+    '/admin/more/general': {
+      id: '/admin/more/general'
       path: '/general'
-      fullPath: '/admin/settings/general'
-      preLoaderRoute: typeof AdminSettingsGeneralRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/general'
+      preLoaderRoute: typeof AdminMoreGeneralRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/financial': {
-      id: '/admin/settings/financial'
+    '/admin/more/financial': {
+      id: '/admin/more/financial'
       path: '/financial'
-      fullPath: '/admin/settings/financial'
-      preLoaderRoute: typeof AdminSettingsFinancialRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/financial'
+      preLoaderRoute: typeof AdminMoreFinancialRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/cart': {
-      id: '/admin/settings/cart'
+    '/admin/more/cart': {
+      id: '/admin/more/cart'
       path: '/cart'
-      fullPath: '/admin/settings/cart'
-      preLoaderRoute: typeof AdminSettingsCartRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/cart'
+      preLoaderRoute: typeof AdminMoreCartRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/account': {
-      id: '/admin/settings/account'
+    '/admin/more/account': {
+      id: '/admin/more/account'
       path: '/account'
-      fullPath: '/admin/settings/account'
-      preLoaderRoute: typeof AdminSettingsAccountRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/account'
+      preLoaderRoute: typeof AdminMoreAccountRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/about': {
-      id: '/admin/settings/about'
+    '/admin/more/about': {
+      id: '/admin/more/about'
       path: '/about'
-      fullPath: '/admin/settings/about'
-      preLoaderRoute: typeof AdminSettingsAboutRouteImport
-      parentRoute: typeof AdminSettingsRoute
+      fullPath: '/admin/more/about'
+      preLoaderRoute: typeof AdminMoreAboutRouteImport
+      parentRoute: typeof AdminMoreRoute
     }
-    '/admin/settings/menu/': {
-      id: '/admin/settings/menu/'
+    '/admin/more/menu/': {
+      id: '/admin/more/menu/'
       path: '/'
-      fullPath: '/admin/settings/menu/'
-      preLoaderRoute: typeof AdminSettingsMenuIndexRouteImport
-      parentRoute: typeof AdminSettingsMenuRoute
+      fullPath: '/admin/more/menu/'
+      preLoaderRoute: typeof AdminMoreMenuIndexRouteImport
+      parentRoute: typeof AdminMoreMenuRoute
     }
   }
 }
 
-interface AdminSettingsMenuRouteChildren {
-  AdminSettingsMenuIndexRoute: typeof AdminSettingsMenuIndexRoute
+interface AdminMoreMenuRouteChildren {
+  AdminMoreMenuIndexRoute: typeof AdminMoreMenuIndexRoute
 }
 
-const AdminSettingsMenuRouteChildren: AdminSettingsMenuRouteChildren = {
-  AdminSettingsMenuIndexRoute: AdminSettingsMenuIndexRoute,
+const AdminMoreMenuRouteChildren: AdminMoreMenuRouteChildren = {
+  AdminMoreMenuIndexRoute: AdminMoreMenuIndexRoute,
 }
 
-const AdminSettingsMenuRouteWithChildren =
-  AdminSettingsMenuRoute._addFileChildren(AdminSettingsMenuRouteChildren)
+const AdminMoreMenuRouteWithChildren = AdminMoreMenuRoute._addFileChildren(
+  AdminMoreMenuRouteChildren,
+)
 
-interface AdminSettingsRouteChildren {
-  AdminSettingsAboutRoute: typeof AdminSettingsAboutRoute
-  AdminSettingsAccountRoute: typeof AdminSettingsAccountRoute
-  AdminSettingsCartRoute: typeof AdminSettingsCartRoute
-  AdminSettingsFinancialRoute: typeof AdminSettingsFinancialRoute
-  AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
-  AdminSettingsImportRoute: typeof AdminSettingsImportRoute
-  AdminSettingsLocationsRoute: typeof AdminSettingsLocationsRoute
-  AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
-  AdminSettingsMenuRoute: typeof AdminSettingsMenuRouteWithChildren
-  AdminSettingsPlatformsRoute: typeof AdminSettingsPlatformsRoute
-  AdminSettingsProductsRoute: typeof AdminSettingsProductsRoute
-  AdminSettingsPromosRoute: typeof AdminSettingsPromosRoute
-  AdminSettingsQrCodesRoute: typeof AdminSettingsQrCodesRoute
-  AdminSettingsReceiptsRoute: typeof AdminSettingsReceiptsRoute
-  AdminSettingsStaffRoute: typeof AdminSettingsStaffRoute
-  AdminSettingsSystemRoute: typeof AdminSettingsSystemRoute
-  AdminSettingsTablesRoute: typeof AdminSettingsTablesRoute
-  AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
+interface AdminMoreRouteChildren {
+  AdminMoreAboutRoute: typeof AdminMoreAboutRoute
+  AdminMoreAccountRoute: typeof AdminMoreAccountRoute
+  AdminMoreCartRoute: typeof AdminMoreCartRoute
+  AdminMoreFinancialRoute: typeof AdminMoreFinancialRoute
+  AdminMoreGeneralRoute: typeof AdminMoreGeneralRoute
+  AdminMoreImportRoute: typeof AdminMoreImportRoute
+  AdminMoreLocationsRoute: typeof AdminMoreLocationsRoute
+  AdminMoreMediaRoute: typeof AdminMoreMediaRoute
+  AdminMoreMenuRoute: typeof AdminMoreMenuRouteWithChildren
+  AdminMorePlatformsRoute: typeof AdminMorePlatformsRoute
+  AdminMoreProductsRoute: typeof AdminMoreProductsRoute
+  AdminMorePromosRoute: typeof AdminMorePromosRoute
+  AdminMoreQrCodesRoute: typeof AdminMoreQrCodesRoute
+  AdminMoreReceiptsRoute: typeof AdminMoreReceiptsRoute
+  AdminMoreReportsRoute: typeof AdminMoreReportsRoute
+  AdminMoreStaffRoute: typeof AdminMoreStaffRoute
+  AdminMoreSystemRoute: typeof AdminMoreSystemRoute
+  AdminMoreTablesRoute: typeof AdminMoreTablesRoute
+  AdminMoreTipsRoute: typeof AdminMoreTipsRoute
+  AdminMoreVatExportRoute: typeof AdminMoreVatExportRoute
+  AdminMoreIndexRoute: typeof AdminMoreIndexRoute
 }
 
-const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
-  AdminSettingsAboutRoute: AdminSettingsAboutRoute,
-  AdminSettingsAccountRoute: AdminSettingsAccountRoute,
-  AdminSettingsCartRoute: AdminSettingsCartRoute,
-  AdminSettingsFinancialRoute: AdminSettingsFinancialRoute,
-  AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
-  AdminSettingsImportRoute: AdminSettingsImportRoute,
-  AdminSettingsLocationsRoute: AdminSettingsLocationsRoute,
-  AdminSettingsMediaRoute: AdminSettingsMediaRoute,
-  AdminSettingsMenuRoute: AdminSettingsMenuRouteWithChildren,
-  AdminSettingsPlatformsRoute: AdminSettingsPlatformsRoute,
-  AdminSettingsProductsRoute: AdminSettingsProductsRoute,
-  AdminSettingsPromosRoute: AdminSettingsPromosRoute,
-  AdminSettingsQrCodesRoute: AdminSettingsQrCodesRoute,
-  AdminSettingsReceiptsRoute: AdminSettingsReceiptsRoute,
-  AdminSettingsStaffRoute: AdminSettingsStaffRoute,
-  AdminSettingsSystemRoute: AdminSettingsSystemRoute,
-  AdminSettingsTablesRoute: AdminSettingsTablesRoute,
-  AdminSettingsIndexRoute: AdminSettingsIndexRoute,
+const AdminMoreRouteChildren: AdminMoreRouteChildren = {
+  AdminMoreAboutRoute: AdminMoreAboutRoute,
+  AdminMoreAccountRoute: AdminMoreAccountRoute,
+  AdminMoreCartRoute: AdminMoreCartRoute,
+  AdminMoreFinancialRoute: AdminMoreFinancialRoute,
+  AdminMoreGeneralRoute: AdminMoreGeneralRoute,
+  AdminMoreImportRoute: AdminMoreImportRoute,
+  AdminMoreLocationsRoute: AdminMoreLocationsRoute,
+  AdminMoreMediaRoute: AdminMoreMediaRoute,
+  AdminMoreMenuRoute: AdminMoreMenuRouteWithChildren,
+  AdminMorePlatformsRoute: AdminMorePlatformsRoute,
+  AdminMoreProductsRoute: AdminMoreProductsRoute,
+  AdminMorePromosRoute: AdminMorePromosRoute,
+  AdminMoreQrCodesRoute: AdminMoreQrCodesRoute,
+  AdminMoreReceiptsRoute: AdminMoreReceiptsRoute,
+  AdminMoreReportsRoute: AdminMoreReportsRoute,
+  AdminMoreStaffRoute: AdminMoreStaffRoute,
+  AdminMoreSystemRoute: AdminMoreSystemRoute,
+  AdminMoreTablesRoute: AdminMoreTablesRoute,
+  AdminMoreTipsRoute: AdminMoreTipsRoute,
+  AdminMoreVatExportRoute: AdminMoreVatExportRoute,
+  AdminMoreIndexRoute: AdminMoreIndexRoute,
 }
 
-const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
-  AdminSettingsRouteChildren,
+const AdminMoreRouteWithChildren = AdminMoreRoute._addFileChildren(
+  AdminMoreRouteChildren,
 )
 
 interface AdminRouteChildren {
   AdminBillsRoute: typeof AdminBillsRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
   AdminKitchenRoute: typeof AdminKitchenRoute
+  AdminMoreRoute: typeof AdminMoreRouteWithChildren
   AdminPosRoute: typeof AdminPosRoute
-  AdminReportsRoute: typeof AdminReportsRoute
-  AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -874,9 +918,8 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminBillsRoute: AdminBillsRoute,
   AdminCustomersRoute: AdminCustomersRoute,
   AdminKitchenRoute: AdminKitchenRoute,
+  AdminMoreRoute: AdminMoreRouteWithChildren,
   AdminPosRoute: AdminPosRoute,
-  AdminReportsRoute: AdminReportsRoute,
-  AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
 }
 

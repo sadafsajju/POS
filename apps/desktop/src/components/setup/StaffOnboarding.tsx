@@ -275,7 +275,7 @@ export function StaffOnboarding() {
           </div>
           <span className="text-sm font-bold tracking-tight text-zinc-800">STAFF ONBOARDING</span>
           <div className="h-4 w-px bg-zinc-300" />
-          {(['profile', 'pin'] as const).map((s, i) => {
+          {(['profile', 'pin'] as const).map((s) => {
             const labels = { profile: 'PROFILE', pin: 'PIN' }
             const colors = { profile: 'bg-amber-500', pin: 'bg-violet-500' }
             const textColors = { profile: 'text-amber-600', pin: 'text-violet-600' }

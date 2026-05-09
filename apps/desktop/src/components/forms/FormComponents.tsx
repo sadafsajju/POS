@@ -440,21 +440,22 @@ export function DietaryIndicator({ type, size = 'md', showLabel = false }: Dieta
   )
 }
 
-// Allergen Multi-Select Field
+// Allergen Multi-Select Field — 14 statutory UK allergens (FIC Regs / Natasha's Law)
 const allergenOptions = [
-  { value: 'gluten', label: 'Gluten' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'nuts', label: 'Nuts' },
-  { value: 'peanuts', label: 'Peanuts' },
-  { value: 'soy', label: 'Soy' },
-  { value: 'eggs', label: 'Eggs' },
-  { value: 'fish', label: 'Fish' },
-  { value: 'shellfish', label: 'Shellfish' },
-  { value: 'sesame', label: 'Sesame' },
-  { value: 'celery', label: 'Celery' },
-  { value: 'mustard', label: 'Mustard' },
-  { value: 'lupin', label: 'Lupin' },
-  { value: 'sulphites', label: 'Sulphites' },
+  { value: 'celery',      label: 'Celery' },
+  { value: 'crustaceans', label: 'Crustaceans' },
+  { value: 'eggs',        label: 'Eggs' },
+  { value: 'fish',        label: 'Fish' },
+  { value: 'gluten',      label: 'Gluten' },
+  { value: 'lupin',       label: 'Lupin' },
+  { value: 'milk',        label: 'Milk' },
+  { value: 'molluscs',    label: 'Molluscs' },
+  { value: 'mustard',     label: 'Mustard' },
+  { value: 'nuts',        label: 'Nuts (tree)' },
+  { value: 'peanuts',     label: 'Peanuts' },
+  { value: 'sesame',      label: 'Sesame' },
+  { value: 'soya',        label: 'Soya' },
+  { value: 'sulphites',   label: 'Sulphites' },
 ] as const
 
 interface AllergenMultiSelectFieldProps<T extends FieldValues> {
@@ -462,6 +463,8 @@ interface AllergenMultiSelectFieldProps<T extends FieldValues> {
   name: FieldPath<T>
   label: string
   description?: string
+  // Visual variant — 'contains' (red, "this product contains") vs 'mayContain' (amber, cross-contamination)
+  variant?: 'contains' | 'mayContain'
 }
 
 export function AllergenMultiSelectField<T extends FieldValues>({
@@ -469,21 +472,31 @@ export function AllergenMultiSelectField<T extends FieldValues>({
   name,
   label,
   description,
+  variant = 'contains',
 }: AllergenMultiSelectFieldProps<T>) {
+  const activeClasses = variant === 'mayContain'
+    ? 'border-amber-500/60 bg-amber-500/10 text-amber-300 font-medium'
+    : 'border-red-500/60 bg-red-500/10 text-red-300 font-medium'
+
   return (
     <FormField
       control={control}
       name={name}
       render={({ field }) => {
-        const selected: string[] = field.value
-          ? String(field.value).split(',').map((s: string) => s.trim()).filter(Boolean)
-          : []
+        // Field stores AllergenCode[] (array). Tolerate legacy comma-string at read time
+        // so products saved before the array migration still display correctly.
+        const raw: unknown = field.value
+        const selected: string[] = Array.isArray(raw)
+          ? (raw as string[])
+          : typeof raw === 'string' && raw
+            ? raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : []
 
         const toggle = (value: string) => {
           const next = selected.includes(value)
             ? selected.filter((v) => v !== value)
             : [...selected, value]
-          field.onChange(next.join(', ') || undefined)
+          field.onChange(next.length ? next : undefined)
         }
 
         return (
@@ -501,7 +514,7 @@ export function AllergenMultiSelectField<T extends FieldValues>({
                       className={`
                         px-3 py-1.5 rounded-lg border-2 text-sm transition-all
                         ${isSelected
-                          ? 'border-red-500/60 bg-red-500/10 text-red-300 font-medium'
+                          ? activeClasses
                           : 'border-zinc-700 hover:border-zinc-500 text-zinc-400'
                         }
                       `}

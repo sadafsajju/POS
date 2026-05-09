@@ -16,6 +16,8 @@ import { counterApi, adminApi } from '@pos/api-client'
 
 // Types
 import type { DiningTable, Order, ActiveTab, OrderType, CreateOrderRequest, KOTItem, BillSummary, Product, ProductOptionGroup, SelectedOption, SelectedComboChoice, ComboSlot, InlineConfigState } from './types'
+import type { AllergenCode } from '@/types'
+import { AllergenConfirmDialog } from './dialogs/AllergenConfirmDialog'
 
 // --- Helpers to reduce repetition ---
 
@@ -179,6 +181,13 @@ export function CounterInterface() {
 
   // Print workflow state — ref to avoid stale closure in mutation callbacks
   const pendingPrintCartRef = useRef<typeof cart.cart>([])
+
+  // Allergen interlock — only used when settings.showAllergens is true
+  const [allergenDialog, setAllergenDialog] = useState<{
+    allergens: AllergenCode[]
+    pendingShouldPrint: boolean
+  } | null>(null)
+  const [isAllergenSubmitting, setIsAllergenSubmitting] = useState(false)
 
   // Currency formatter
   const format = (amount: number) => formatCurrency(amount, settings.currency, settings.currencySymbol)
@@ -485,10 +494,23 @@ export function CounterInterface() {
     onError: (error: Error) => handleMutationError(error, 'Failed to remove item. Please try again.')
   })
 
+  // Distinct allergens across the current cart (across all line items)
+  const collectCartAllergens = useCallback((): AllergenCode[] => {
+    const set = new Set<AllergenCode>()
+    for (const item of cart.cart) {
+      const allergens = (item.product as { food_allergens?: AllergenCode[] }).food_allergens
+      if (Array.isArray(allergens)) allergens.forEach(a => set.add(a))
+    }
+    return Array.from(set)
+  }, [cart.cart])
+
   // Handle order creation
   // When KDS is enabled: all order types use KOT mode (creates bill + KOT structure)
   // When KDS is disabled: simple order creation, no kitchen workflow
-  const handleCreateOrder = async (shouldPrint: boolean = false) => {
+  //
+  // allergensConfirmed=true means the user just dismissed AllergenConfirmDialog;
+  // we replay the submission and pass the confirmation flag to create_order.
+  const handleCreateOrder = async (shouldPrint: boolean = false, allergensConfirmed: boolean = false) => {
     if (cart.cart.length === 0) return
     if (orderType === 'dine_in' && !selectedTable) return
 
@@ -512,6 +534,38 @@ export function CounterInterface() {
       }
     }
 
+    // Derive UK dining_mode: dine_in → eat_in, otherwise takeaway.
+    // Server-side ignores this when org tax_regime != 'uk_vat'.
+    const diningMode = orderType === 'dine_in' ? 'eat_in' : 'takeaway'
+
+    // Allergen interlock — fire when settings.showAllergens, in-person order
+    // (non-aggregator), and there are flagged allergens that have NOT already
+    // been confirmed on this bill (KOT delta).
+    const cartAllergens = collectCartAllergens()
+    if (
+      !allergensConfirmed &&
+      settings.showAllergens &&
+      cartAllergens.length > 0
+    ) {
+      // Allergens already confirmed on parent bill or any sibling KOT
+      const alreadyConfirmed = new Set<AllergenCode>()
+      const billCandidate = activeBill?.bill
+      if (billCandidate?.allergens_flagged_snapshot) {
+        billCandidate.allergens_flagged_snapshot.forEach((a: AllergenCode) => alreadyConfirmed.add(a))
+      }
+      for (const kot of (activeBill?.kots ?? [])) {
+        if (kot.allergens_confirmed_at && kot.allergens_flagged_snapshot) {
+          kot.allergens_flagged_snapshot.forEach((a: AllergenCode) => alreadyConfirmed.add(a))
+        }
+      }
+
+      const newAllergens = cartAllergens.filter(a => !alreadyConfirmed.has(a))
+      if (newAllergens.length > 0) {
+        setAllergenDialog({ allergens: newAllergens, pendingShouldPrint: shouldPrint })
+        return
+      }
+    }
+
     // Build order data — KOT mode for all order types when KDS enabled
     const orderData: CreateOrderRequest = {
       table_id: orderType === 'dine_in' ? selectedTable?.id : undefined,
@@ -521,6 +575,9 @@ export function CounterInterface() {
       notes: orderNotes || undefined,
       create_as_kot: kdsEnabled,
       parent_order_id: currentActiveBillId,
+      dining_mode: diningMode,
+      allergens_confirmed: allergensConfirmed,
+      allergens_acknowledged_codes: cartAllergens.length > 0 ? cartAllergens : undefined,
     }
 
     // Offline handling
@@ -537,6 +594,17 @@ export function CounterInterface() {
     }
 
     createOrderMutation.mutate({ ...orderData, shouldPrint })
+  }
+
+  const handleAllergenConfirm = async () => {
+    if (!allergenDialog) return
+    setIsAllergenSubmitting(true)
+    try {
+      await handleCreateOrder(allergenDialog.pendingShouldPrint, true)
+    } finally {
+      setIsAllergenSubmitting(false)
+      setAllergenDialog(null)
+    }
   }
 
   // Handle cancel order confirmation
@@ -1200,6 +1268,14 @@ export function CounterInterface() {
         onConfirm={handleCancelOrderConfirm}
         onCancel={() => setOrderToCancel(null)}
         formatCurrency={format}
+      />
+
+      <AllergenConfirmDialog
+        open={!!allergenDialog}
+        allergens={allergenDialog?.allergens ?? []}
+        isSubmitting={isAllergenSubmitting || createOrderMutation.isPending}
+        onConfirm={handleAllergenConfirm}
+        onCancel={() => setAllergenDialog(null)}
       />
 
       {orderToEdit && (

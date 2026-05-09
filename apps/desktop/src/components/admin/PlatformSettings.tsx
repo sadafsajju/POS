@@ -16,25 +16,7 @@ import {
 import { adminApi } from '@pos/api-client'
 import { useRequirePin } from '@pos/core'
 import type { PlatformConfig, CreatePlatformConfigRequest } from '@pos/types'
-
-const PLATFORMS = [
-  {
-    id: 'swiggy' as const,
-    name: 'Swiggy',
-    color: 'bg-orange-500',
-    textColor: 'text-orange-700',
-    bgColor: 'bg-orange-50',
-    description: 'Receive orders from Swiggy delivery platform',
-  },
-  {
-    id: 'zomato' as const,
-    name: 'Zomato',
-    color: 'bg-red-500',
-    textColor: 'text-red-700',
-    bgColor: 'bg-red-50',
-    description: 'Receive orders from Zomato delivery platform',
-  },
-]
+import { PLATFORMS, type PlatformDescriptor } from '@/lib/platforms'
 
 export function PlatformSettings() {
   const queryClient = useQueryClient()
@@ -60,16 +42,16 @@ export function PlatformSettings() {
       <div>
         <h2 className="text-lg font-semibold">Platform Integrations</h2>
         <p className="text-sm text-muted-foreground">
-          Configure Swiggy and Zomato order integrations. Orders from these platforms
-          will appear in your POS and kitchen display automatically.
+          Configure delivery aggregator integrations. Orders from enabled platforms will appear in your POS
+          and kitchen display automatically.
         </p>
       </div>
 
       {PLATFORMS.map((platform) => {
-        const config = configs.find((c) => c.platform === platform.id)
+        const config = configs.find((c) => c.platform === platform.code)
         return (
           <PlatformCard
-            key={platform.id}
+            key={platform.code}
             platform={platform}
             config={config}
             queryClient={queryClient}
@@ -82,28 +64,23 @@ export function PlatformSettings() {
         <CardHeader>
           <CardTitle className="text-base">Webhook Configuration</CardTitle>
           <CardDescription>
-            After vendor approval, configure these webhook URLs in your platform dashboard.
-            The cloud relay server will forward orders to your local POS.
+            After vendor approval, configure these webhook URLs in each platform's dashboard.
+            All platforms route through a single Supabase Edge Function with platform-specific HMAC verification.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-sm space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Swiggy</Badge>
-              <code className="text-xs bg-muted px-2 py-1 rounded flex-1">
-                {'<relay-url>/api/v1/webhooks/swiggy/order'}
-              </code>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Zomato</Badge>
-              <code className="text-xs bg-muted px-2 py-1 rounded flex-1">
-                {'<relay-url>/api/v1/webhooks/zomato/order'}
-              </code>
-            </div>
+            {PLATFORMS.map((p) => (
+              <div key={p.code} className="flex items-center gap-2">
+                <Badge variant="outline" className={p.badgeClass}>{p.label}</Badge>
+                <code className="text-xs bg-muted px-2 py-1 rounded flex-1">
+                  {`<supabase-url>/functions/v1/aggregator-webhook?platform=${p.code}`}
+                </code>
+              </div>
+            ))}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Replace <code>{'<relay-url>'}</code> with your cloud relay server address.
-            Status and cancellation endpoints follow the same pattern with <code>/status</code> and <code>/cancel</code>.
+            Replace <code>{'<supabase-url>'}</code> with your project URL.
           </p>
         </CardContent>
       </Card>
@@ -112,7 +89,7 @@ export function PlatformSettings() {
 }
 
 interface PlatformCardProps {
-  platform: (typeof PLATFORMS)[0]
+  platform: PlatformDescriptor
   config?: PlatformConfig
   queryClient: ReturnType<typeof useQueryClient>
 }
@@ -122,7 +99,7 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
   const [showSecrets, setShowSecrets] = useState(false)
   const requirePin = useRequirePin()
   const [formData, setFormData] = useState<CreatePlatformConfigRequest>({
-    platform: platform.id,
+    platform: platform.code as any,
     is_enabled: config?.is_enabled ?? false,
     api_key: '',
     api_secret: '',
@@ -140,7 +117,7 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: () => adminApi.deletePlatformConfig(platform.id),
+    mutationFn: () => adminApi.deletePlatformConfig(platform.code),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform-configs'] })
     },
@@ -148,7 +125,7 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
 
   const toggleEnabled = () => {
     saveMutation.mutate({
-      platform: platform.id,
+      platform: platform.code as any,
       is_enabled: !config?.is_enabled,
     })
   }
@@ -156,7 +133,7 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
   const handleSave = () => {
     // Only send non-empty credential fields
     const data: CreatePlatformConfigRequest = {
-      platform: platform.id,
+      platform: platform.code as any,
       is_enabled: formData.is_enabled,
     }
     if (formData.api_key) data.api_key = formData.api_key
@@ -168,15 +145,15 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
   }
 
   return (
-    <Card className={config?.is_enabled ? platform.bgColor : ''}>
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Badge
-              variant="outline"
-              className={`${platform.color} text-white border-0 font-bold text-sm px-3 py-1`}
-            >
-              {platform.name}
+            <Badge variant="outline" className={`${platform.badgeClass} font-bold text-sm px-3 py-1`}>
+              {platform.label}
+            </Badge>
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              {platform.region}
             </Badge>
             {config ? (
               <Badge variant={config.is_enabled ? 'default' : 'secondary'}>
@@ -223,14 +200,14 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
               Platform Restaurant ID
             </label>
             <Input
-              placeholder={`Your ${platform.name} restaurant ID`}
+              placeholder={`Your ${platform.label} restaurant ID`}
               value={formData.restaurant_id || ''}
               onChange={(e) =>
                 setFormData({ ...formData, restaurant_id: e.target.value })
               }
             />
             <p className="text-xs text-muted-foreground mt-1">
-              The restaurant ID assigned by {platform.name}
+              The restaurant ID assigned by {platform.label}
             </p>
           </div>
 
@@ -330,7 +307,7 @@ function PlatformCard({ platform, config, queryClient }: PlatformCardProps) {
                 variant="destructive"
                 size="sm"
                 onClick={async () => {
-                  const verified = await requirePin('Remove Platform', `Enter PIN to remove ${platform.name} configuration`)
+                  const verified = await requirePin('Remove Platform', `Enter PIN to remove ${platform.label} configuration`)
                   if (verified) {
                     deleteMutation.mutate()
                   }

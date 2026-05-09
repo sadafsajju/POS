@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react"
+import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Edit,
@@ -60,14 +60,6 @@ export function AdminMenuTable({
     },
   })
 
-  const locationMap = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const loc of locations) {
-      map[loc.id] = loc.name
-    }
-    return map
-  }, [locations])
-
   const openLocationDialog = useCallback((product: Product) => {
     setLocationDialogProduct(product)
     setPendingLocationIds(product.location_ids || [])
@@ -95,7 +87,7 @@ export function AdminMenuTable({
     },
   })
 
-  const getCategoryName = (categoryId: string | null) => {
+  const getCategoryName = (categoryId: string | null | undefined) => {
     if (!categoryId) return "Uncategorized"
     const category = categories.find(cat => cat.id === categoryId)
     return category?.name || "Unknown"

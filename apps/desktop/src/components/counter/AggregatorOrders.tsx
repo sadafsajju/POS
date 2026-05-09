@@ -17,6 +17,7 @@ import { counterApi, adminApi } from '@pos/api-client'
 import { formatCurrency } from '@/lib/utils'
 import { useSettingsStore } from '@pos/core'
 import type { AggregatorOrder, OrderSource } from '@pos/types'
+import { getPlatform } from '@/lib/platforms'
 
 // Check if user is admin/manager
 function isAdminRole(): boolean {
@@ -203,16 +204,25 @@ function CountdownTimer({ deadline }: { deadline: string }) {
 function PlatformBadge({ source }: { source: OrderSource }) {
   if (source === 'pos') return null
 
-  const config: Record<string, { label: string; bg: string; text: string }> = {
-    kiosk: { label: 'Kiosk', bg: 'bg-cyan-500', text: 'text-white' },
-    swiggy: { label: 'Swiggy', bg: 'bg-orange-500', text: 'text-white' },
-    zomato: { label: 'Zomato', bg: 'bg-red-500', text: 'text-white' },
+  if (source === 'kiosk') {
+    return (
+      <Badge variant="outline" className="bg-cyan-500 text-white border-0 text-xs font-bold">
+        Kiosk
+      </Badge>
+    )
   }
-  const c = config[source] || { label: source, bg: 'bg-gray-500', text: 'text-white' }
+  if (source === 'customer_app') {
+    return (
+      <Badge variant="outline" className="bg-indigo-500 text-white border-0 text-xs font-bold">
+        Customer app
+      </Badge>
+    )
+  }
 
+  const platform = getPlatform(source)
   return (
-    <Badge variant="outline" className={`${c.bg} ${c.text} border-0 text-xs font-bold`}>
-      {c.label}
+    <Badge variant="outline" className={`${platform?.badgeClass ?? 'bg-zinc-700/40 text-zinc-200 border-zinc-600'} text-xs font-bold`}>
+      {platform?.label ?? source}
     </Badge>
   )
 }

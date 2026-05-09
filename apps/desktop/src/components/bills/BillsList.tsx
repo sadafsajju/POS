@@ -1,6 +1,9 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import {
   Search,
   Users,
@@ -24,6 +27,7 @@ interface BillsListProps {
   onFilterChange: (key: keyof BillsFilters, value: any) => void
   onRefresh: () => void
   formatCurrency: (amount: number) => string
+  today: string
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -71,29 +75,31 @@ export function BillsList({
   onSelectOrder,
   onFilterChange,
   onRefresh,
-  formatCurrency
+  formatCurrency,
+  today,
 }: BillsListProps) {
   return (
     <>
       {/* Filter Bar */}
       <div className="p-3 border-b border-zinc-800 space-y-3 bg-zinc-900">
-        {/* Status Filters + Date Nav */}
+        {/* Status Filter + Date Nav */}
         <div className="flex items-center gap-2">
-          <div className="flex gap-1.5 flex-wrap flex-1">
-            {filterStatuses.map(({ value, label }) => (
-              <Button
-                key={value}
-                size="sm"
-                onClick={() => onFilterChange('status', value)}
-                className={`h-9 text-sm px-3 ${
-                  filters.status === value
-                    ? 'bg-zinc-700 text-white border border-zinc-600 hover:bg-zinc-600'
-                    : 'bg-zinc-800/50 text-zinc-400 border border-transparent hover:bg-zinc-700 hover:text-zinc-200'
-                }`}
-              >
-                {label}
-              </Button>
-            ))}
+          <div className="flex-1 min-w-0">
+            <Select
+              value={filters.status}
+              onValueChange={(v) => onFilterChange('status', v as BillsFilterStatus)}
+            >
+              <SelectTrigger className="h-9 bg-zinc-800/50 border-zinc-700 text-zinc-200 hover:bg-zinc-700 focus:ring-0 focus:ring-offset-0">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-200">
+                {filterStatuses.map(({ value, label }) => (
+                  <SelectItem key={value} value={value} className="focus:bg-zinc-800 focus:text-zinc-100">
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date Nav */}
@@ -109,15 +115,41 @@ export function BillsList({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="text-xs font-medium text-zinc-300 min-w-[52px] text-center">
-              {filters.date === new Date().toISOString().split('T')[0]
-                ? 'Today'
-                : new Date(filters.date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}
-            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-zinc-300 min-w-[60px] text-center px-2 py-1.5 rounded hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+                  title="Pick a date"
+                >
+                  {filters.date === today
+                    ? 'Today'
+                    : new Date(filters.date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="center">
+                <Calendar
+                  mode="single"
+                  selected={(() => {
+                    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(filters.date)
+                    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : undefined
+                  })()}
+                  onSelect={(date) => {
+                    if (!date) return
+                    const y = date.getFullYear()
+                    const m = String(date.getMonth() + 1).padStart(2, '0')
+                    const d = String(date.getDate()).padStart(2, '0')
+                    onFilterChange('date', `${y}-${m}-${d}`)
+                  }}
+                  disabled={(d) => d > new Date(today + 'T23:59:59')}
+                  autoFocus
+                />
+              </PopoverContent>
+            </Popover>
             <Button
               size="sm"
               className="h-9 w-9 p-0 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-30"
-              disabled={filters.date >= new Date().toISOString().split('T')[0]}
+              disabled={filters.date >= today}
               onClick={() => {
                 const d = new Date(filters.date)
                 d.setDate(d.getDate() + 1)

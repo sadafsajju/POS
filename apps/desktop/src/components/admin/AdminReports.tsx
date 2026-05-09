@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
+import {
   BarChart3,
   TrendingUp,
   DollarSign,
@@ -12,6 +13,9 @@ import {
   Calendar,
   Download,
   FileBarChart,
+  Coins,
+  FileSpreadsheet,
+  ChevronRight,
 } from 'lucide-react'
 import apiClient from '@/api/client'
 import { formatCurrency } from '@/lib/utils'
@@ -66,47 +70,85 @@ export function AdminReports() {
   )
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-full overflow-y-auto bg-zinc-950 text-zinc-100">
+      <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-          <p className="text-muted-foreground">
+          <p className="text-zinc-500">
             Detailed insights into your restaurant performance
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100">
             <Calendar className="w-4 h-4 mr-2" />
             Custom Range
           </Button>
         </div>
       </div>
 
+      {/* Quick links — staff-allocation tools */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {settings.tippingEnabled && (
+          <Link
+            to="/admin/more/tips"
+            className="group flex items-center gap-4 p-4 rounded-lg border border-zinc-800 bg-zinc-900 hover:border-emerald-500/40 hover:bg-zinc-900/80 transition-all"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Coins className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-zinc-100">Tip allocation</div>
+              <div className="text-xs text-zinc-500 mt-0.5">Split the tip pool to staff (Tipping Act 2023)</div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 transition-colors" />
+          </Link>
+        )}
+        {settings.taxRegime === 'uk_vat' && (
+          <Link
+            to="/admin/more/vat-export"
+            className="group flex items-center gap-4 p-4 rounded-lg border border-zinc-800 bg-zinc-900 hover:border-emerald-500/40 hover:bg-zinc-900/80 transition-all"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-zinc-100">VAT export</div>
+              <div className="text-xs text-zinc-500 mt-0.5">MTD-compatible CSV for the accountant</div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 transition-colors" />
+          </Link>
+        )}
+      </div>
+
       {/* Period Selection */}
       <div className="flex gap-2">
-        <Button 
-          variant={selectedPeriod === 'today' ? 'default' : 'outline'} 
+        <Button
+          variant={selectedPeriod === 'today' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setSelectedPeriod('today')}
+          className={selectedPeriod === 'today' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100'}
         >
           Today
         </Button>
-        <Button 
-          variant={selectedPeriod === 'week' ? 'default' : 'outline'} 
+        <Button
+          variant={selectedPeriod === 'week' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setSelectedPeriod('week')}
+          className={selectedPeriod === 'week' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100'}
         >
           This Week
         </Button>
-        <Button 
-          variant={selectedPeriod === 'month' ? 'default' : 'outline'} 
+        <Button
+          variant={selectedPeriod === 'month' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setSelectedPeriod('month')}
+          className={selectedPeriod === 'month' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100'}
         >
           This Month
         </Button>
@@ -114,59 +156,59 @@ export function AdminReports() {
 
       {/* Summary Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <DollarSign className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-zinc-100">
               {salesLoading ? '...' : format(totalRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-500">
               {selectedPeriod === 'today' ? 'Today' : `This ${selectedPeriod}`}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            <ShoppingCart className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-zinc-100">
               {salesLoading ? '...' : totalOrders}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-500">
               {selectedPeriod === 'today' ? 'Today' : `This ${selectedPeriod}`}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Order</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <BarChart3 className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-zinc-100">
               {salesLoading ? '...' : format(averageOrderValue)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-zinc-500">
               Per order value
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Growth Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-muted-foreground">—</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-zinc-500">—</div>
+            <p className="text-xs text-zinc-500">
               Not enough data yet
             </p>
           </CardContent>
@@ -175,15 +217,15 @@ export function AdminReports() {
 
       {/* Reports Tabs */}
       <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
-        <TabsList>
-          <TabsTrigger value="sales">Sales Report</TabsTrigger>
-          <TabsTrigger value="orders">Orders Report</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsList className="bg-zinc-900 border border-zinc-800">
+          <TabsTrigger value="sales" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 text-zinc-400">Sales Report</TabsTrigger>
+          <TabsTrigger value="orders" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 text-zinc-400">Orders Report</TabsTrigger>
+          <TabsTrigger value="analytics" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 text-zinc-400">Analytics</TabsTrigger>
         </TabsList>
 
         {/* Sales Report Tab */}
         <TabsContent value="sales" className="space-y-4">
-          <Card>
+          <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
@@ -219,7 +261,7 @@ export function AdminReports() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-zinc-500">
                   No sales data available for this period
                 </div>
               )}
@@ -229,7 +271,7 @@ export function AdminReports() {
 
         {/* Orders Report Tab */}
         <TabsContent value="orders" className="space-y-4">
-          <Card>
+          <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
@@ -267,7 +309,7 @@ export function AdminReports() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-zinc-500">
                   No orders data available
                 </div>
               )}
@@ -277,7 +319,7 @@ export function AdminReports() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-4">
-          <Card>
+          <Card className="bg-zinc-900 border-zinc-800 text-zinc-100">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileBarChart className="h-5 w-5" />
@@ -295,25 +337,25 @@ export function AdminReports() {
                       <div className="text-2xl font-bold text-blue-600">
                         {incomeData.summary?.total_orders || 0}
                       </div>
-                      <div className="text-sm text-muted-foreground">Total Orders</div>
+                      <div className="text-sm text-zinc-500">Total Orders</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">
                         {format(incomeData.summary?.gross_income || 0)}
                       </div>
-                      <div className="text-sm text-muted-foreground">Gross Income</div>
+                      <div className="text-sm text-zinc-500">Gross Income</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-orange-600">
                         {format(incomeData.summary?.tax_collected || 0)}
                       </div>
-                      <div className="text-sm text-muted-foreground">Tax Collected</div>
+                      <div className="text-sm text-zinc-500">Tax Collected</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-purple-600">
                         {format(incomeData.summary?.net_income || 0)}
                       </div>
-                      <div className="text-sm text-muted-foreground">Net Income</div>
+                      <div className="text-sm text-zinc-500">Net Income</div>
                     </div>
                   </div>
 
@@ -342,7 +384,7 @@ export function AdminReports() {
                   )}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-zinc-500">
                   No analytics data available
                 </div>
               )}
@@ -350,6 +392,7 @@ export function AdminReports() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   )
 }

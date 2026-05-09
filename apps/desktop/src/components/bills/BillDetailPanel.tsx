@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Receipt,
@@ -14,7 +15,11 @@ import {
   CreditCard,
   Sparkles,
   Printer,
+  Coins,
 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ordersDb } from '@pos/supabase'
+import { useSettingsStore } from '@pos/core'
 import type { Order } from './types'
 
 interface BillDetailPanelProps {
@@ -173,10 +178,43 @@ export function BillDetailPanel({
   formatCurrency
 }: BillDetailPanelProps) {
   const [showPrintConfirm, setShowPrintConfirm] = useState(false)
+  const { settings } = useSettingsStore()
+  const queryClient = useQueryClient()
 
-  // Reset print confirm when order changes
+  const [tipEditing, setTipEditing] = useState(false)
+  const [tipAmount, setTipAmount] = useState('')
+  const [tipMethod, setTipMethod] = useState<'cash' | 'card' | 'other'>('card')
+  const [tipFeedback, setTipFeedback] = useState<string | null>(null)
+
+  const tipMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedOrder) throw new Error('No order selected')
+      const amt = parseFloat(tipAmount) || 0
+      const res = await ordersDb.recordTip({
+        order_id: selectedOrder.id,
+        amount: amt,
+        method: tipMethod,
+      })
+      if (!res.success) throw new Error(res.message || 'Failed to record tip')
+      return res
+    },
+    onSuccess: () => {
+      setTipEditing(false)
+      setTipFeedback('Tip recorded')
+      setTimeout(() => setTipFeedback(null), 2500)
+      queryClient.invalidateQueries({ queryKey: ['bills'] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (e: Error) => setTipFeedback(e.message),
+  })
+
+  // Reset print confirm + tip editor when order changes
   useEffect(() => {
     setShowPrintConfirm(false)
+    setTipEditing(false)
+    setTipAmount(selectedOrder?.tip_amount != null ? String(selectedOrder.tip_amount) : '')
+    setTipMethod((selectedOrder?.tip_method as 'cash' | 'card' | 'other') || 'card')
+    setTipFeedback(null)
   }, [selectedOrder?.id])
 
   // No selection — empty state
@@ -328,6 +366,103 @@ export function BillDetailPanel({
             <span className="text-zinc-100">Total</span>
             <span className="text-zinc-100">{formatCurrency(selectedOrder.total_amount)}</span>
           </div>
+          {settings.tippingEnabled && (
+            <div className="pt-2 mt-2 border-t border-zinc-800/60 space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-zinc-500">
+                  <Coins className="w-3.5 h-3.5" />
+                  Tip
+                </div>
+                {!tipEditing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-zinc-400 hover:text-zinc-100"
+                    onClick={() => {
+                      setTipAmount(selectedOrder.tip_amount != null ? String(selectedOrder.tip_amount) : '')
+                      setTipMethod((selectedOrder.tip_method as 'cash' | 'card' | 'other') || 'card')
+                      setTipEditing(true)
+                    }}
+                  >
+                    {selectedOrder.tip_amount && selectedOrder.tip_amount > 0 ? 'Edit' : 'Add tip'}
+                  </Button>
+                )}
+              </div>
+              {!tipEditing && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-400 capitalize">{selectedOrder.tip_method ?? '—'}</span>
+                  <span className={selectedOrder.tip_amount && selectedOrder.tip_amount > 0 ? 'text-emerald-400 font-semibold' : 'text-zinc-500'}>
+                    {formatCurrency(selectedOrder.tip_amount ?? 0)}
+                  </span>
+                </div>
+              )}
+              {tipEditing && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    {(['cash', 'card', 'other'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setTipMethod(m)}
+                        className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                          tipMethod === m
+                            ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                            : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                        }`}
+                      >
+                        {m === 'cash' ? 'Cash' : m === 'card' ? 'Card (PED)' : 'Other'}
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={tipAmount}
+                    onChange={(e) => setTipAmount(e.target.value)}
+                    placeholder="0.00"
+                    inputMode="decimal"
+                    className="h-9 text-sm bg-zinc-900 border-zinc-700 text-zinc-100"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs bg-zinc-900 border-zinc-700"
+                      onClick={() => {
+                        setTipEditing(false)
+                        setTipAmount(selectedOrder.tip_amount != null ? String(selectedOrder.tip_amount) : '')
+                      }}
+                      disabled={tipMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => tipMutation.mutate()}
+                      disabled={tipMutation.isPending}
+                    >
+                      {tipMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save tip'}
+                    </Button>
+                  </div>
+                  {settings.tippingPolicyUrl && (
+                    <a
+                      href={settings.tippingPolicyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-[10px] text-emerald-400/70 hover:text-emerald-300 underline"
+                    >
+                      How are tips shared?
+                    </a>
+                  )}
+                </div>
+              )}
+              {tipFeedback && !tipEditing && (
+                <div className="text-[11px] text-emerald-400">{tipFeedback}</div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Payment Details */}

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import apiClient from '@/api/client';
 import { kitchenSoundService } from '@/services/soundService';
 import type { Order } from '@/types';
+import { getPlatform } from '@/lib/platforms';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,11 +89,21 @@ function TokenRow({ tokenOrder, isReady }: TokenRowProps) {
   const orderSource = order.order_source;
   const isNonPos = orderSource && orderSource !== 'pos';
 
-  const sourceBadge: Record<string, { bg: string; text: string; label: string }> = {
-    kiosk: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'Kiosk' },
-    swiggy: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Swiggy' },
-    zomato: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Zomato' },
-  };
+  // Resolve display info from the platform catalogue, with fallbacks for non-aggregator sources
+  const sourceInfo = (() => {
+    if (!orderSource || orderSource === 'pos') return null;
+    if (orderSource === 'kiosk') {
+      return { className: 'bg-cyan-500/20 text-cyan-400', label: 'Kiosk' };
+    }
+    if (orderSource === 'customer_app') {
+      return { className: 'bg-indigo-500/20 text-indigo-400', label: 'App' };
+    }
+    const p = getPlatform(orderSource);
+    return {
+      className: p?.badgeClass ?? 'bg-zinc-700/40 text-zinc-200',
+      label: p?.label ?? orderSource,
+    };
+  })();
 
   return (
     <div
@@ -112,15 +123,9 @@ function TokenRow({ tokenOrder, isReady }: TokenRowProps) {
         {tokenNumber}
       </span>
 
-      {isNonPos && orderSource && sourceBadge[orderSource] ? (
-        <span
-          className={cn(
-            'text-xs font-bold px-2.5 py-1 rounded-full',
-            sourceBadge[orderSource].bg,
-            sourceBadge[orderSource].text
-          )}
-        >
-          {sourceBadge[orderSource].label}
+      {isNonPos && sourceInfo ? (
+        <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full', sourceInfo.className)}>
+          {sourceInfo.label}
         </span>
       ) : (
         <span className="text-sm font-medium text-zinc-500">

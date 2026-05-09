@@ -8,6 +8,7 @@ import { Clock, User, MapPin, CheckCircle, Circle, AlertCircle } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { kitchenSoundService } from '@/services/soundService';
 import type { Order, OrderItem } from '@/types';
+import { getPlatform } from '@/lib/platforms';
 
 interface EnhancedKitchenOrderCardProps {
   order: Order;
@@ -167,22 +168,20 @@ export function EnhancedKitchenOrderCard({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               {/* Aggregator platform badge */}
-              {order.order_source && order.order_source !== 'pos' && (
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-bold ${
-                    order.order_source === 'kiosk'
-                      ? 'bg-cyan-500 text-white border-cyan-500'
-                      : order.order_source === 'swiggy'
-                        ? 'bg-orange-500 text-white border-orange-500'
-                        : order.order_source === 'zomato'
-                          ? 'bg-red-500 text-white border-red-500'
-                          : 'bg-gray-500 text-white border-gray-500'
-                  }`}
-                >
-                  {order.order_source === 'kiosk' ? 'Kiosk' : order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
-                </Badge>
-              )}
+              {order.order_source && order.order_source !== 'pos' && (() => {
+                if (order.order_source === 'kiosk') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-cyan-500 text-white border-cyan-500">Kiosk</Badge>
+                }
+                if (order.order_source === 'customer_app') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-indigo-500 text-white border-indigo-500">App</Badge>
+                }
+                const p = getPlatform(order.order_source)
+                return (
+                  <Badge variant="outline" className={`text-xs font-bold ${p?.badgeClass ?? 'bg-zinc-700/40 text-zinc-200 border-zinc-600'}`}>
+                    {p?.label ?? order.order_source}
+                  </Badge>
+                )
+              })()}
               {/* Show KOT number prominently if this is a KOT */}
               {order.is_kot && order.kot_number ? (
                 <>
@@ -302,22 +301,20 @@ export function EnhancedKitchenOrderCard({
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               {/* Aggregator platform badge */}
-              {order.order_source && order.order_source !== 'pos' && (
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-bold ${
-                    order.order_source === 'kiosk'
-                      ? 'bg-cyan-500 text-white border-cyan-500'
-                      : order.order_source === 'swiggy'
-                        ? 'bg-orange-500 text-white border-orange-500'
-                        : order.order_source === 'zomato'
-                          ? 'bg-red-500 text-white border-red-500'
-                          : 'bg-gray-500 text-white border-gray-500'
-                  }`}
-                >
-                  {order.order_source === 'kiosk' ? 'Kiosk' : order.order_source === 'swiggy' ? 'Swiggy' : 'Zomato'}
-                </Badge>
-              )}
+              {order.order_source && order.order_source !== 'pos' && (() => {
+                if (order.order_source === 'kiosk') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-cyan-500 text-white border-cyan-500">Kiosk</Badge>
+                }
+                if (order.order_source === 'customer_app') {
+                  return <Badge variant="outline" className="text-xs font-bold bg-indigo-500 text-white border-indigo-500">App</Badge>
+                }
+                const p = getPlatform(order.order_source)
+                return (
+                  <Badge variant="outline" className={`text-xs font-bold ${p?.badgeClass ?? 'bg-zinc-700/40 text-zinc-200 border-zinc-600'}`}>
+                    {p?.label ?? order.order_source}
+                  </Badge>
+                )
+              })()}
               {/* Show KOT number prominently if this is a KOT */}
               {order.is_kot && order.kot_number ? (
                 <>

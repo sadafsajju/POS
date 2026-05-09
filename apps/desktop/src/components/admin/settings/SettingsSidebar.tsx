@@ -19,21 +19,41 @@ import {
   FileSpreadsheet,
 } from 'lucide-react'
 
-// Reports / tipping / VAT-export sections are temporarily disabled — the
-// /admin/more/{reports,tips,vat-export} routes and their backing components
-// (TipAllocation, VatExport) are still in active development and not yet on
-// main. Restore this block once those land.
-const reportsSections: Array<{
-  id: string
-  label: string
-  icon: JSX.Element
-  description: string
-  href: string
-  accent: string
-  activeText: string
-  activeBg: string
-  requires: 'tipping' | 'uk_vat' | undefined
-}> = []
+const reportsSections = [
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: <BarChart3 className="w-4 h-4" />,
+    description: 'Sales, orders & analytics',
+    href: '/admin/more/reports',
+    accent: 'bg-blue-500',
+    activeText: 'text-blue-400',
+    activeBg: 'bg-blue-500/10',
+    requires: undefined as 'tipping' | 'uk_vat' | undefined,
+  },
+  {
+    id: 'tips',
+    label: 'Tip allocation',
+    icon: <Coins className="w-4 h-4" />,
+    description: 'Split tip pool to staff',
+    href: '/admin/more/tips',
+    accent: 'bg-emerald-500',
+    activeText: 'text-emerald-400',
+    activeBg: 'bg-emerald-500/10',
+    requires: 'tipping' as const,
+  },
+  {
+    id: 'vat-export',
+    label: 'VAT export',
+    icon: <FileSpreadsheet className="w-4 h-4" />,
+    description: 'MTD-compatible CSV',
+    href: '/admin/more/vat-export',
+    accent: 'bg-emerald-500',
+    activeText: 'text-emerald-400',
+    activeBg: 'bg-emerald-500/10',
+    requires: 'uk_vat' as const,
+  },
+]
 
 const settingsSections = [
   {
