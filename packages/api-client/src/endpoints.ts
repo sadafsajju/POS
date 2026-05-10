@@ -13,6 +13,7 @@ import {
   setupDb,
   tenantsDb,
   mediaDb,
+  promosDb,
 } from '@pos/supabase';
 import type { Json } from '@pos/supabase';
 import type {
@@ -531,27 +532,30 @@ export const adminApi = {
   reassignUserLocation: (userId: string, locationId: string) =>
     usersDb.updateUser(userId, { location_id: locationId }) as any,
 
-  // Promo Management — TODO: Move to Supabase Storage in Phase 5
-  getPromos: () =>
-    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
+  // Promo Management — backed by Supabase `promos` bucket + table
+  getPromos: () => promosDb.listPromos() as any,
 
-  uploadPromo: (_formData: FormData) =>
-    Promise.resolve({ success: false, message: 'File uploads not yet migrated' }) as any,
+  uploadPromo: (formData: FormData) => {
+    const file = formData.get('file')
+    if (!(file instanceof File)) {
+      return Promise.resolve({ success: false, message: 'No file provided' }) as any
+    }
+    const title = formData.get('title')
+    return promosDb.uploadPromoFile(file, typeof title === 'string' ? title : undefined) as any
+  },
 
-  createPromoFromMedia: (_file_url: string, _title?: string) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  createPromoFromMedia: (file_url: string, title?: string) =>
+    promosDb.createPromoFromMedia(file_url, title) as any,
 
-  deletePromo: (_id: string) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  deletePromo: (id: string) => promosDb.deletePromo(id) as any,
 
-  reorderPromos: (_items: { id: string; display_order: number }[]) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  reorderPromos: (items: { id: string; display_order: number }[]) =>
+    promosDb.reorderPromos(items) as any,
 
-  togglePromo: (_id: string) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  togglePromo: (id: string) => promosDb.togglePromo(id) as any,
 
-  updatePromoDuration: (_id: string, _duration_seconds: number) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  updatePromoDuration: (id: string, duration_seconds: number) =>
+    promosDb.updatePromoDuration(id, duration_seconds) as any,
 
   // Media Library — backed by Supabase Storage `media` bucket
   getMedia: () => mediaDb.listMedia() as any,

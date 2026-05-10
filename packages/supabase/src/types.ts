@@ -919,40 +919,34 @@ export interface Database {
         Row: {
           id: string
           org_id: string
-          image_url: string
           title: string | null
-          description: string | null
-          start_date: string | null
-          end_date: string | null
+          media_type: 'image' | 'video'
+          file_url: string
+          display_order: number
+          duration_seconds: number
           is_active: boolean
-          sort_order: number
-          duration: number | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           org_id: string
-          image_url: string
           title?: string | null
-          description?: string | null
-          start_date?: string | null
-          end_date?: string | null
+          media_type?: 'image' | 'video'
+          file_url: string
+          display_order?: number
+          duration_seconds?: number
           is_active?: boolean
-          sort_order?: number
-          duration?: number | null
           created_at?: string
           updated_at?: string
         }
         Update: {
-          image_url?: string
           title?: string | null
-          description?: string | null
-          start_date?: string | null
-          end_date?: string | null
+          media_type?: 'image' | 'video'
+          file_url?: string
+          display_order?: number
+          duration_seconds?: number
           is_active?: boolean
-          sort_order?: number
-          duration?: number | null
           updated_at?: string
         }
         Relationships: []
