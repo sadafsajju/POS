@@ -12,6 +12,7 @@ import {
   platformConfigsDb,
   setupDb,
   tenantsDb,
+  mediaDb,
 } from '@pos/supabase';
 import type { Json } from '@pos/supabase';
 import type {
@@ -552,15 +553,18 @@ export const adminApi = {
   updatePromoDuration: (_id: string, _duration_seconds: number) =>
     Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
 
-  // Media Library — TODO: Move to Supabase Storage in Phase 5
-  getMedia: () =>
-    Promise.resolve({ success: true, message: 'Success', data: [] }) as any,
+  // Media Library — backed by Supabase Storage `media` bucket
+  getMedia: () => mediaDb.listMedia() as any,
 
-  uploadMedia: (_formData: FormData) =>
-    Promise.resolve({ success: false, message: 'File uploads not yet migrated' }) as any,
+  uploadMedia: (formData: FormData) => {
+    const file = formData.get('file')
+    if (!(file instanceof File)) {
+      return Promise.resolve({ success: false, message: 'No file provided' }) as any
+    }
+    return mediaDb.uploadMediaFile(file) as any
+  },
 
-  deleteMedia: (_id: string) =>
-    Promise.resolve({ success: false, message: 'Not yet implemented' }) as any,
+  deleteMedia: (id: string) => mediaDb.deleteMediaFile(id) as any,
 
   // QR Code Management — TODO: Implement as Supabase query
   generateQRCode: (_data: { table_id: string; wifi_ssid?: string; wifi_password?: string; pos_hostname?: string; pos_port?: string }) =>

@@ -12,6 +12,7 @@ import {
   optionsDb,
   variationsDb,
   combosDb,
+  mediaDb,
 } from '@pos/supabase'
 import type {
   APIResponse,
@@ -615,17 +616,21 @@ class APIClient {
     return await usersDb.updateUser(userId, { location_id: locationId }) as any
   }
 
-  // Media library — TODO: Move to Supabase Storage in Phase 5
+  // Media library — backed by Supabase Storage `media` bucket
   async getMedia(): Promise<APIResponse<any[]>> {
-    return { success: true, message: 'Success', data: [] }
+    return await mediaDb.listMedia() as any
   }
 
-  async uploadMedia(_formData: FormData): Promise<APIResponse<any>> {
-    return { success: false, message: 'File uploads not yet migrated to Supabase Storage' }
+  async uploadMedia(formData: FormData): Promise<APIResponse<any>> {
+    const file = formData.get('file')
+    if (!(file instanceof File)) {
+      return { success: false, message: 'No file provided' }
+    }
+    return await mediaDb.uploadMediaFile(file) as any
   }
 
-  async deleteMedia(_id: string): Promise<APIResponse> {
-    return { success: false, message: 'File uploads not yet migrated to Supabase Storage' }
+  async deleteMedia(id: string): Promise<APIResponse> {
+    return await mediaDb.deleteMediaFile(id) as any
   }
 
   // Settings management

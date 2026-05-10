@@ -32,6 +32,7 @@ export {
   combosDb,
   setupDb,
   tenantsDb,
+  mediaDb,
 } from './queries'
 
 // Realtime subscriptions
