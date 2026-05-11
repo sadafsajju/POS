@@ -7,8 +7,9 @@ import { authApi } from '@pos/api-client'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
 import { PinInput } from '@/components/ui/pin-input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { StoreSettings } from '@pos/types'
-import { formatCurrencyLabel } from '@/lib/currencies'
+import { currencyOptions, findCurrency } from '@/lib/currencies'
 
 export const Route = createFileRoute('/admin/more/general')({
   component: GeneralSettingsPage,
@@ -159,9 +160,32 @@ function GeneralSettingsPage() {
           <SectionHeading title="Financial" />
           <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-5 mt-3">
             <FieldGroup label="Currency">
-              <div className={inputClass + ' flex items-center text-zinc-400 cursor-not-allowed opacity-70'}>
-                {formatCurrencyLabel(localSettings.currency, localSettings.currencySymbol) || '—'}
-              </div>
+              <Select
+                value={localSettings.currency || ''}
+                onValueChange={(code) => {
+                  const match = findCurrency(code)
+                  setLocalSettings({
+                    ...localSettings,
+                    currency: code,
+                    currencySymbol: match?.symbol ?? localSettings.currencySymbol,
+                  })
+                }}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-700">
+                  {currencyOptions.map((opt) => (
+                    <SelectItem
+                      key={opt.code}
+                      value={opt.code}
+                      className="text-zinc-100 focus:bg-zinc-800 focus:text-zinc-100"
+                    >
+                      {opt.code} ({opt.symbol}) - {opt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FieldGroup>
 
             <FieldGroup label="Tax Rate (%)">

@@ -11,22 +11,22 @@ type PromoInsert = Database['public']['Tables']['promos']['Insert']
 /** List promos for the current org, ordered by display_order. */
 export async function listPromos(): Promise<ApiResponse<Promo[]>> {
   const sb = getSupabase()
-  const result = await sb
+  const { data, error } = await sb
     .from('promos')
     .select('*')
     .order('display_order', { ascending: true })
-  return wrapMany(result)
+  return wrapMany<Promo>((data as any) ?? null, error)
 }
 
 /** List only active promos (used by the customer-display loop). */
 export async function listActivePromos(): Promise<ApiResponse<Promo[]>> {
   const sb = getSupabase()
-  const result = await sb
+  const { data, error } = await sb
     .from('promos')
     .select('*')
     .eq('is_active', true)
     .order('display_order', { ascending: true })
-  return wrapMany(result)
+  return wrapMany<Promo>((data as any) ?? null, error)
 }
 
 function mediaTypeFor(mime: string | undefined): 'image' | 'video' {
@@ -80,8 +80,12 @@ export async function uploadPromoFile(
     display_order: await nextDisplayOrder(orgId),
   }
 
-  const result = await sb.from('promos').insert(insertRow as any).select('*').single()
-  return wrapOne(result)
+  const { data, error } = await sb
+    .from('promos')
+    .insert(insertRow as any)
+    .select('*')
+    .single()
+  return wrapOne<Promo>(data as any, error, 'Promo')
 }
 
 /**
@@ -103,8 +107,12 @@ export async function createPromoFromMedia(
     file_url: fileUrl,
     display_order: await nextDisplayOrder(orgId),
   }
-  const result = await sb.from('promos').insert(insertRow as any).select('*').single()
-  return wrapOne(result)
+  const { data, error } = await sb
+    .from('promos')
+    .insert(insertRow as any)
+    .select('*')
+    .single()
+  return wrapOne<Promo>(data as any, error, 'Promo')
 }
 
 /** Hard-delete a promo row. The storage object stays — same file may be in
@@ -145,13 +153,13 @@ export async function togglePromo(id: string): Promise<ApiResponse<Promo>> {
     .single()
   if (readError) return { success: false, message: readError.message }
 
-  const result = await sb
+  const { data, error } = await sb
     .from('promos')
     .update({ is_active: !(current as any).is_active } as any)
     .eq('id', id)
     .select('*')
     .single()
-  return wrapOne(result)
+  return wrapOne<Promo>(data as any, error, 'Promo')
 }
 
 /** Update how long this promo shows on screen. */
@@ -160,11 +168,11 @@ export async function updatePromoDuration(
   durationSeconds: number,
 ): Promise<ApiResponse<Promo>> {
   const sb = getSupabase()
-  const result = await sb
+  const { data, error } = await sb
     .from('promos')
     .update({ duration_seconds: durationSeconds } as any)
     .eq('id', id)
     .select('*')
     .single()
-  return wrapOne(result)
+  return wrapOne<Promo>(data as any, error, 'Promo')
 }
