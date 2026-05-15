@@ -32,6 +32,7 @@ fn write_temp_bytes(bytes: &[u8], hint: &str) -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
     if printer_name.is_empty() {
         return Err("No printer selected".into());
     }
@@ -39,7 +40,10 @@ fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
     ps_path.push("pos-raw-print.ps1");
     fs::write(&ps_path, RAW_PRINT_PS1).map_err(|e| format!("ps1 write failed: {e}"))?;
 
-    let out = Command::new("powershell.exe")
+    // CREATE_NO_WINDOW (0x08000000) keeps PowerShell headless so the user
+    // doesn't see a console flash on every receipt / KOT / drawer kick.
+    let mut cmd = Command::new("powershell.exe");
+    cmd.creation_flags(0x08000000)
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -51,7 +55,8 @@ fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
         .arg("-PrinterName")
         .arg(printer_name)
         .arg("-BytesPath")
-        .arg(bytes_path)
+        .arg(bytes_path);
+    let out = cmd
         .output()
         .map_err(|e| format!("powershell spawn failed: {e}"))?;
     if !out.status.success() {

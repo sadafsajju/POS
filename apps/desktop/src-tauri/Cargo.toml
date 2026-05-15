@@ -1,6 +1,6 @@
 [package]
 name = "pos-desktop"
-version = "0.1.12"
+version = "0.1.13"
 description = "POS Desktop Application"
 authors = ["POS Team"]
 edition = "2021"

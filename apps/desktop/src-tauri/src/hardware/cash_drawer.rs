@@ -36,6 +36,7 @@ fn write_temp_bytes(bytes: &[u8]) -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
     if printer_name.is_empty() {
         return Err("No printer configured for cash drawer".into());
     }
@@ -43,7 +44,10 @@ fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
     ps_path.push("pos-raw-print.ps1");
     fs::write(&ps_path, RAW_PRINT_PS1).map_err(|e| format!("ps1 write failed: {e}"))?;
 
-    let out = Command::new("powershell.exe")
+    // CREATE_NO_WINDOW (0x08000000) keeps PowerShell headless so the user
+    // doesn't see a console flash on every drawer kick.
+    let mut cmd = Command::new("powershell.exe");
+    cmd.creation_flags(0x08000000)
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -55,7 +59,8 @@ fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
         .arg("-PrinterName")
         .arg(printer_name)
         .arg("-BytesPath")
-        .arg(bytes_path)
+        .arg(bytes_path);
+    let out = cmd
         .output()
         .map_err(|e| format!("powershell spawn failed: {e}"))?;
     if !out.status.success() {
@@ -115,15 +120,15 @@ pub async fn open_cash_drawer(
 pub async fn list_system_printers() -> Result<Vec<String>, String> {
     #[cfg(target_os = "windows")]
     {
-        let out = Command::new("powershell.exe")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Get-Printer | Select-Object -ExpandProperty Name",
-            ])
-            .output()
-            .map_err(|e| format!("Get-Printer failed: {e}"))?;
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new("powershell.exe");
+        cmd.creation_flags(0x08000000).args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-Printer | Select-Object -ExpandProperty Name",
+        ]);
+        let out = cmd.output().map_err(|e| format!("Get-Printer failed: {e}"))?;
         if !out.status.success() {
             return Err(String::from_utf8_lossy(&out.stderr).to_string());
         }
