@@ -35,6 +35,8 @@ const defaultSettings: StoreSettings = {
   tipDefaultAllocationMethod: 'equal',
   receiptHeader: 'Thank you for dining with us!',
   receiptFooter: 'Visit again soon!',
+  autoPrintReceipt: false,
+  receiptCopies: 1,
   theme: 'light',
   language: 'en',
   timezone: 'Europe/London',
@@ -126,6 +128,8 @@ const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
     tipDefaultAllocationMethod: (apiData.tip_default_allocation_method as StoreSettings['tipDefaultAllocationMethod']) || 'equal',
     receiptHeader: apiData.receipt_header || defaultSettings.receiptHeader,
     receiptFooter: apiData.receipt_footer || defaultSettings.receiptFooter,
+    autoPrintReceipt: apiData.auto_print_receipt === 'true' || apiData.auto_print_receipt === '1',
+    receiptCopies: Math.min(5, Math.max(1, parseInt(apiData.receipt_copies ?? '1', 10) || 1)),
     theme: (apiData.theme as StoreSettings['theme']) || defaultSettings.theme,
     language: apiData.language || defaultSettings.language,
     timezone: apiData.timezone || defaultSettings.timezone,
@@ -166,6 +170,8 @@ const storeToApiSettings = (settings: Partial<StoreSettings>): Record<string, st
   if (settings.tipDefaultAllocationMethod !== undefined) result.tip_default_allocation_method = settings.tipDefaultAllocationMethod;
   if (settings.receiptHeader !== undefined) result.receipt_header = settings.receiptHeader;
   if (settings.receiptFooter !== undefined) result.receipt_footer = settings.receiptFooter;
+  if (settings.autoPrintReceipt !== undefined) result.auto_print_receipt = String(settings.autoPrintReceipt);
+  if (settings.receiptCopies !== undefined) result.receipt_copies = String(settings.receiptCopies);
   if (settings.theme !== undefined) result.theme = settings.theme;
   if (settings.language !== undefined) result.language = settings.language;
   if (settings.timezone !== undefined) result.timezone = settings.timezone;

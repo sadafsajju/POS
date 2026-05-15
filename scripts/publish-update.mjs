@@ -143,9 +143,35 @@ if (Object.keys(platforms).length === 0) {
   process.exit(1)
 }
 
+/**
+ * Pull a short, user-facing release note out of the raw commit message.
+ *
+ * The in-app update dialog should show a single human-readable sentence,
+ * not the full conventional-commit body (with type prefix, body, footers,
+ * Co-Authored-By lines, …). So we:
+ *   1. Take the first non-blank line of the commit message.
+ *   2. Strip the "type(scope): " prefix (feat:, fix:, chore:, …).
+ *   3. Strip any trailing " (v0.1.X)" version tag — that's redundant with
+ *      the manifest's `version` field.
+ *   4. Capitalise the first letter so it reads like a headline.
+ * Override by passing a hand-written `RELEASE_NOTES_OVERRIDE` if needed.
+ */
+function cleanReleaseNotes(raw) {
+  if (!raw) return ''
+  const firstLine = raw.split('\n').map((s) => s.trim()).find(Boolean) ?? ''
+  const cleaned = firstLine
+    .replace(/^[a-z]+(\([^)]+\))?: ?/, '')
+    .replace(/\s*\(v[0-9.]+\)\s*$/, '')
+    .trim()
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+}
+
+const releaseNotes =
+  process.env.RELEASE_NOTES_OVERRIDE ?? cleanReleaseNotes(process.env.RELEASE_NOTES)
+
 const manifest = {
   version,
-  notes: process.env.RELEASE_NOTES ?? '',
+  notes: releaseNotes,
   pub_date: new Date().toISOString(),
   platforms,
 }

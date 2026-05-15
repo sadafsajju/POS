@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
-import { ShoppingCart, Loader2, Minus, Plus, Trash2, MessageSquare, ChefHat, Printer, CreditCard, UtensilsCrossed, ShoppingBag, Truck } from 'lucide-react'
+import { ShoppingCart, Loader2, Minus, Trash2, MessageSquare, StickyNote, ChefHat, Printer, CreditCard, UtensilsCrossed, ShoppingBag, Truck } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
@@ -90,7 +90,7 @@ function CartPreview({
   }, [availableTypes.join(',')])
 
   return (
-    <div className="bg-zinc-900 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
+    <div className="bg-zinc-950 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
       <div className="px-5 pt-5 pb-2">
         <div className="flex items-baseline justify-between mb-3">
           <div>
@@ -123,100 +123,84 @@ function CartPreview({
         )}
       </div>
 
-      {/* Cart panel mock - matches CartPanel.tsx structure */}
-      <div className="mx-5 mb-5 bg-card rounded-lg border border-border overflow-hidden flex flex-col">
+      {/* Cart panel mock — visually mirrors components/counter/panels/CartPanel.tsx.
+          Kept structurally close so changes to the real cart UI are easy to
+          back-port here. */}
+      <div className="mx-5 mb-5 bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden flex flex-col">
 
-        {/* New Items header + Clear button - matches CartPanel lines 357-372 */}
-        <div className="flex justify-between items-center px-4 pt-3 pb-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+        {/* Order Items header + Clear button (CartPanel ~line 420) */}
+        <div className="flex justify-between items-center px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
             Order Items
           </p>
-          <button className="h-8 px-2 flex items-center gap-1 text-destructive text-sm hover:bg-destructive/10 rounded-md">
-            <Trash2 className="w-4 h-4" />
+          <button className="h-8 px-2 flex items-center gap-1 text-red-400 hover:bg-red-500/10 rounded-md text-sm font-medium">
+            <Trash2 className="w-4 h-4 mr-1" />
             Clear
           </button>
         </div>
 
-        {/* Cart items - bordered grid matching CartPanel lines 377-506 */}
-        <div className="px-4 pb-4">
-          <div className="border-l border-t border-border">
-            {sampleItems.map((item, i) => (
-              <div key={i} className="border-r border-b border-border bg-card">
-                <div className="flex items-center p-3 gap-3 hover:bg-muted/50">
-                  {/* Delete button */}
-                  <button className="h-10 w-10 p-0 flex items-center justify-center text-muted-foreground hover:text-destructive flex-shrink-0">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                  {/* Item info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {fmt(item.price)} &times; {item.qty} = <span className="font-semibold text-foreground">{fmt(item.price * item.qty)}</span>
-                    </div>
-                  </div>
-                  {/* Special instructions icon */}
-                  {cartSettings.showSpecialInstructions && (
-                    <button className={cn(
-                      'h-10 w-10 p-0 flex items-center justify-center flex-shrink-0',
-                      item.instruction ? 'text-primary' : 'text-muted-foreground'
-                    )}>
-                      <MessageSquare className="h-4 w-4" />
-                    </button>
-                  )}
-                  {/* Quantity controls */}
-                  <div className="flex items-center flex-shrink-0">
-                    <button className="h-10 w-10 p-0 flex items-center justify-center border border-border border-r-0">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="h-10 w-10 flex items-center justify-center text-base font-semibold border border-border">
-                      {item.qty}
-                    </span>
-                    <button className="h-10 w-10 p-0 flex items-center justify-center border border-border border-l-0">
-                      <Plus className="h-4 w-4" />
-                    </button>
+        {/* Cart items — flat list with horizontal dividers (no bordered grid) */}
+        <div>
+          {sampleItems.map((item, i) => (
+            <div key={i} className="border-b border-zinc-800 bg-zinc-900">
+              <div className="flex items-center p-3 gap-3 hover:bg-zinc-800">
+                {/* Item info — left, fills row */}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-base text-zinc-100 truncate">{item.name}</div>
+                  <div className="text-sm text-zinc-400">
+                    {fmt(item.price)} × {item.qty} = <span className="font-semibold text-zinc-100">{fmt(item.price * item.qty)}</span>
                   </div>
                 </div>
-                {/* Special instructions text - matches CartPanel lines 493-503 */}
-                {cartSettings.showSpecialInstructions && item.instruction && (
-                  <div className="px-3 pb-2 pt-0 text-xs text-muted-foreground">
-                    <span className="italic">Note: {item.instruction}</span>
-                  </div>
+                {/* Note button — middle */}
+                {cartSettings.showSpecialInstructions && (
+                  <button className={cn(
+                    'h-12 w-12 p-0 flex items-center justify-center flex-shrink-0 rounded-md',
+                    item.instruction ? 'text-amber-400' : 'text-zinc-500'
+                  )}>
+                    <MessageSquare className="h-5 w-5" />
+                  </button>
                 )}
+                {/* Minus / long-press-to-remove — right (bordered) */}
+                <button className="h-12 w-12 p-0 flex items-center justify-center bg-zinc-900 border border-zinc-700 text-zinc-300 hover:bg-zinc-800 flex-shrink-0 rounded-md">
+                  <Minus className="h-5 w-5" />
+                </button>
               </div>
-            ))}
-          </div>
+              {/* Special-instructions display when set */}
+              {cartSettings.showSpecialInstructions && item.instruction && (
+                <div className="px-3 pb-3 pt-0 text-sm text-zinc-500 bg-zinc-900">
+                  <span className="italic">Note: {item.instruction}</span>
+                </div>
+              )}
+            </div>
+          ))}
 
-          {/* Order Notes - matches CartPanel lines 508-522 */}
+          {/* Order Notes — collapsed "Add note" affordance */}
           {cartSettings.showOrderNotes && (
-            <div className="mt-4">
-              <label className="text-sm font-medium">Order Notes</label>
-              <div className="mt-1 flex min-h-[40px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm cursor-pointer hover:bg-muted/50">
-                <span className="text-muted-foreground">Special requests or notes...</span>
-              </div>
+            <div className="border-b border-zinc-800">
+              <button className="w-full flex items-center justify-center gap-2 px-3 py-3 text-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50">
+                <StickyNote className="h-4 w-4" />
+                Add note
+              </button>
             </div>
           )}
         </div>
 
-        {/* Order Summary - matches CartPanel lines 537-559 */}
-        <div className="border-t border-border bg-card flex-shrink-0">
-          <div className="border-b border-border">
-            <div className="flex justify-between text-sm text-muted-foreground px-4 py-2 border-b border-border">
-              <span>New Items:</span>
-              <span>{fmt(subtotal)}</span>
-            </div>
+        {/* Summary + actions footer */}
+        <div className="border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
+          <div className="border-b border-zinc-800">
             {taxRate > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground px-4 py-2 border-b border-border">
-                <span>Tax ({taxRate}%):</span>
+              <div className="flex justify-between text-[10px] text-zinc-600 px-3 pt-2.5 font-mono">
+                <span>incl. Tax ({taxRate}%)</span>
                 <span>{fmt(tax)}</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-semibold px-4 py-3">
-              <span>Total:</span>
+            <div className="flex justify-between text-base font-black text-zinc-100 px-3 py-2.5 font-mono uppercase">
+              <span>TOTAL</span>
               <span>{fmt(total)}</span>
             </div>
           </div>
 
-          {/* Action Buttons — dynamic layout based on count */}
+          {/* Action Buttons — count-aware layout, mirrors CartPanel */}
           {(() => {
             const btns = [
               buttons?.showSave && 'save',
@@ -225,12 +209,12 @@ function CartPreview({
             ].filter(Boolean) as string[]
             const count = btns.length
 
-            const primaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-blue-600 text-white font-medium'
-            const secondaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-card hover:bg-muted/50 text-foreground font-medium border-r border-border'
+            const primaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold'
+            const secondaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-medium border-r border-zinc-800 last:border-r-0'
 
             if (count === 0) {
               return (
-                <div className="h-12 text-sm flex items-center justify-center text-muted-foreground">
+                <div className="h-12 text-sm flex items-center justify-center text-zinc-500">
                   No action buttons enabled
                 </div>
               )
@@ -250,14 +234,14 @@ function CartPreview({
             }
 
             if (count === 3) {
-              // 2 up (secondary) + 1 down (blue)
+              // Save + KOT on top, full-width Pay below
               return (
                 <div>
                   <div className="flex">
                     {renderBtn('save', false)}
                     {renderBtn('kot', false)}
                   </div>
-                  <div className="flex border-t border-border">
+                  <div className="flex border-t border-zinc-800">
                     {renderBtn('pay', true)}
                   </div>
                 </div>
@@ -265,10 +249,8 @@ function CartPreview({
             }
 
             if (count === 2) {
-              // Side by side, last one is blue
               const topBtns = btns.filter(b => b === 'save' || b === 'kot')
               if (topBtns.length === 2) {
-                // Save + KOT, last (KOT) is blue
                 return (
                   <div className="flex">
                     {renderBtn('save', false)}
@@ -276,7 +258,6 @@ function CartPreview({
                   </div>
                 )
               }
-              // One top + pay, or two side by side
               return (
                 <div className="flex">
                   {btns.map((btn, i) => renderBtn(btn, i === btns.length - 1))}
@@ -284,7 +265,7 @@ function CartPreview({
               )
             }
 
-            // count === 1, full width blue
+            // count === 1, full-width primary
             return (
               <div className="flex">
                 {renderBtn(btns[0], true)}

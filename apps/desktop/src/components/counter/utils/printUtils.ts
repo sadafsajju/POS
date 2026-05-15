@@ -8,6 +8,7 @@ import { loadThermalPrinterConfig, printRawBytes } from '@/lib/thermal-printer'
 export type ReceiptSettings = Partial<Pick<StoreSettings,
   | 'restaurantName' | 'storeAddress' | 'storePhone' | 'receiptHeader' | 'receiptFooter'
   | 'taxRegime' | 'vatNumber' | 'showAllergens' | 'showCalories' | 'tippingEnabled' | 'timezone'
+  | 'autoPrintReceipt' | 'receiptCopies'
 >>
 
 // Extend Window interface for Tauri
@@ -115,6 +116,9 @@ export async function printThermalReceipt(
   onSuccess?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> {
+  // Clamp copies to [1, 5] — a typo of `50` shouldn't unleash a paper-roll
+  // disaster. Default to 1 when unset.
+  const copies = Math.min(5, Math.max(1, settings?.receiptCopies ?? 1))
   try {
     const cfg = loadThermalPrinterConfig()
     if (cfg.enabled && isTauriEnvironment()) {
@@ -122,12 +126,22 @@ export async function printThermalReceipt(
         width: cfg.width,
         drawerKick: cfg.drawerKickOnReceipt && (paidPaymentDetails?.cash ?? 0) > 0,
       })
-      const res = await printRawBytes(bytes, cfg.receiptPrinter)
-      if (!res.ok) throw new Error(res.error || 'print_raw_bytes failed')
+      // Each copy is its own RAW print job — keeps the printer's auto-cut
+      // happening between copies so they tear off cleanly.
+      for (let i = 0; i < copies; i++) {
+        const res = await printRawBytes(bytes, cfg.receiptPrinter)
+        if (!res.ok) throw new Error(res.error || 'print_raw_bytes failed')
+      }
       onSuccess?.()
       return
     }
-    await printViaIframe(generateReceiptHtml(order, paidPaymentDetails, formatCurrency, settings))
+    // Browser / OS-print fallback: kick the dialog `copies` times. The user
+    // can choose Save-as-PDF on the first one and we'll still loop through
+    // the remaining copies the same way.
+    const html = generateReceiptHtml(order, paidPaymentDetails, formatCurrency, settings)
+    for (let i = 0; i < copies; i++) {
+      await printViaIframe(html)
+    }
     onSuccess?.()
   } catch (error) {
     console.error('Failed to print receipt:', error)

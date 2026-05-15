@@ -315,10 +315,10 @@ export function SettingsSidebar() {
           )
         })}
 
-        {/* POS separator */}
+        {/* POS layout separator */}
         <div className="pt-4 pb-2 px-3">
           <div className="border-t border-zinc-800" />
-          <p className="text-[10px] uppercase tracking-wider text-zinc-600 mt-3 font-bold">POS</p>
+          <p className="text-[10px] uppercase tracking-wider text-zinc-600 mt-3 font-bold">POS layout</p>
         </div>
 
         {posSections.map((section) => {

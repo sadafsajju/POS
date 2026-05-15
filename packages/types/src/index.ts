@@ -1012,6 +1012,12 @@ export interface StoreSettings {
   // Receipt
   receiptHeader?: string;
   receiptFooter?: string;
+  // When true, the receipt fires as soon as the payment completes — the
+  // operator never has to tap Print on the completion screen.
+  autoPrintReceipt?: boolean;
+  // How many copies to print per sale (1 = single, 2 = customer + merchant,
+  // capped at 5 to avoid runaway typos).
+  receiptCopies?: number;
 
   // System
   theme: 'light' | 'dark' | 'system';

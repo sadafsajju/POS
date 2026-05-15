@@ -17,6 +17,8 @@ function ReceiptsSettingsPage() {
   const [localSettings, setLocalSettings] = useState<Partial<StoreSettings>>({
     receiptHeader: settings.receiptHeader,
     receiptFooter: settings.receiptFooter,
+    autoPrintReceipt: settings.autoPrintReceipt,
+    receiptCopies: settings.receiptCopies ?? 1,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,13 +28,17 @@ function ReceiptsSettingsPage() {
     setLocalSettings({
       receiptHeader: settings.receiptHeader,
       receiptFooter: settings.receiptFooter,
+      autoPrintReceipt: settings.autoPrintReceipt,
+      receiptCopies: settings.receiptCopies ?? 1,
     })
   }, [settings])
 
   useEffect(() => {
     const changed =
       localSettings.receiptHeader !== settings.receiptHeader ||
-      localSettings.receiptFooter !== settings.receiptFooter
+      localSettings.receiptFooter !== settings.receiptFooter ||
+      !!localSettings.autoPrintReceipt !== !!settings.autoPrintReceipt ||
+      (localSettings.receiptCopies ?? 1) !== (settings.receiptCopies ?? 1)
     setHasChanges(changed)
   }, [localSettings, settings])
 
@@ -54,6 +60,8 @@ function ReceiptsSettingsPage() {
     setLocalSettings({
       receiptHeader: settings.receiptHeader,
       receiptFooter: settings.receiptFooter,
+      autoPrintReceipt: settings.autoPrintReceipt,
+      receiptCopies: settings.receiptCopies ?? 1,
     })
     toastHelpers.info('Changes discarded', 'Settings reset to last saved values.')
   }
@@ -111,10 +119,62 @@ function ReceiptsSettingsPage() {
               This text appears at the bottom of every receipt
             </p>
           </div>
+
+          <div className="pt-3 border-t border-zinc-800 space-y-3">
+            {/* Auto-print toggle */}
+            <button
+              onClick={() => setLocalSettings({ ...localSettings, autoPrintReceipt: !localSettings.autoPrintReceipt })}
+              className={
+                'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left ' +
+                (localSettings.autoPrintReceipt
+                  ? 'bg-emerald-500/10 border-emerald-500/20'
+                  : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800')
+              }
+            >
+              <div>
+                <span className="block text-sm font-medium text-zinc-200">Auto-print receipt</span>
+                <span className="block text-xs text-zinc-500">Fires the receipt automatically when a sale completes. Off = operator has to tap Print.</span>
+              </div>
+              <div className={
+                'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4 ' +
+                (localSettings.autoPrintReceipt ? 'bg-emerald-500' : 'bg-zinc-700')
+              }>
+                <div className={
+                  'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ' +
+                  (localSettings.autoPrintReceipt ? 'translate-x-5' : 'translate-x-1')
+                } />
+              </div>
+            </button>
+
+            {/* Copies stepper */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-800/30">
+              <div>
+                <span className="block text-sm font-medium text-zinc-200">Copies per receipt</span>
+                <span className="block text-xs text-zinc-500">2 is common for restaurants: one for the customer, one for the till.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setLocalSettings({ ...localSettings, receiptCopies: Math.max(1, (localSettings.receiptCopies ?? 1) - 1) })}
+                  disabled={(localSettings.receiptCopies ?? 1) <= 1}
+                  className="h-8 w-8 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-200 disabled:opacity-30 hover:bg-zinc-800"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-zinc-100 font-semibold tabular-nums">{localSettings.receiptCopies ?? 1}</span>
+                <button
+                  onClick={() => setLocalSettings({ ...localSettings, receiptCopies: Math.min(5, (localSettings.receiptCopies ?? 1) + 1) })}
+                  disabled={(localSettings.receiptCopies ?? 1) >= 5}
+                  className="h-8 w-8 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-200 disabled:opacity-30 hover:bg-zinc-800"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── Right: Live Receipt Preview (sticky) ─────────────────────── */}
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
+        <div className="bg-zinc-950 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
           <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
             <div>
               <h3 className="text-sm font-bold text-zinc-300">Live Preview</h3>

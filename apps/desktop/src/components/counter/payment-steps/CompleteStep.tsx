@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { loadCashDrawerConfig, openCashDrawer } from '@/lib/cash-drawer'
 import { toastHelpers } from '@/lib/toast-helpers'
+import { useSettingsStore } from '@pos/core'
 
 type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
@@ -50,6 +51,21 @@ export function CompleteStep({
       }
     })
   }, [selectedMethod])
+
+  // Auto-print once when CompleteStep mounts, if the operator has enabled
+  // "Auto-print receipt" in Settings → Receipts. Number of copies comes
+  // from the same settings group and is honoured inside `onPrint` →
+  // `printThermalReceipt`. We guard with a ref so React StrictMode's
+  // double-effect doesn't double-print.
+  const autoPrintedRef = useRef(false)
+  const { settings } = useSettingsStore()
+  useEffect(() => {
+    if (autoPrintedRef.current) return
+    if (!selectedMethod) return // payment hasn't completed yet
+    if (!settings.autoPrintReceipt) return
+    autoPrintedRef.current = true
+    onPrint()
+  }, [selectedMethod, settings.autoPrintReceipt, onPrint])
 
   return (
     <div className="w-full max-w-sm space-y-6 text-center">
