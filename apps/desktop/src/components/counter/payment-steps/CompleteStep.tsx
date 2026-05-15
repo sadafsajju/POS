@@ -6,6 +6,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { loadCashDrawerConfig, openCashDrawer } from '@/lib/cash-drawer'
+import { toastHelpers } from '@/lib/toast-helpers'
 
 type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
@@ -37,7 +38,17 @@ export function CompleteStep({
     const cfg = loadCashDrawerConfig()
     if (!cfg.enabled || !cfg.autoOpenOnCash) return
     drawerKickedRef.current = true
-    openCashDrawer().catch(() => { /* errors already logged */ })
+    // Surface drawer-kick failures so the operator knows the drawer didn't
+    // actually pop, instead of silently swallowing the error. The most
+    // common cause is the printer name in settings not matching the real
+    // OS queue name (e.g., driver rename after update) or the printer
+    // being offline.
+    openCashDrawer().then((res) => {
+      if (!res.ok) {
+        console.error('Cash drawer kick failed:', res.error)
+        toastHelpers.error('Drawer did not open', res.error || 'Check Settings → Cash drawer.')
+      }
+    })
   }, [selectedMethod])
 
   return (

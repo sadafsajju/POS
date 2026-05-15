@@ -13,10 +13,21 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 
-// ESC p 0 25 250  — Pulse drawer-1 pin (Epson/Star compatible), 25ms on,
-// 250ms off. If the drawer is wired to pin 5 we send ESC p 1 25 250.
-const KICK_PIN_2: [u8; 5] = [0x1B, 0x70, 0x00, 0x19, 0xFA];
-const KICK_PIN_5: [u8; 5] = [0x1B, 0x70, 0x01, 0x19, 0xFA];
+// ESC @ + ESC p <m> 25 250 + LF
+//   ESC @ (1B 40)            — Initialise printer. Ensures the kick command
+//                              isn't dropped because the printer was left in
+//                              a graphics / page mode by a previous job.
+//   ESC p m 25 250 (1B 70 m 19 FA)
+//                            — Pulse the drawer pin: 50 ms on (25 × 2 ms),
+//                              500 ms off. m=0 → drawer 1 (pin 2 in the
+//                              RJ11), m=1 → drawer 2 (pin 5). Epson/Star/
+//                              Citizen/ePOS Now all honour these codes.
+//   LF (0A)                  — Forces the spooler to flush. Without it some
+//                              Windows print drivers buffer the tiny 5-byte
+//                              job and only deliver it on the next page,
+//                              which feels like "the drawer doesn't open."
+const KICK_PIN_2: [u8; 8] = [0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA, 0x0A];
+const KICK_PIN_5: [u8; 8] = [0x1B, 0x40, 0x1B, 0x70, 0x01, 0x19, 0xFA, 0x0A];
 
 #[cfg(target_os = "windows")]
 const RAW_PRINT_PS1: &str = include_str!("raw_print.ps1");
