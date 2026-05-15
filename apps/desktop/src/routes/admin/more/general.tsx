@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat } from 'lucide-react'
+import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat, Banknote } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useSettingsStore, useAuthStore, useCustomerDisplayStore, useTokenDisplayStore } from '@pos/core'
+import { useSettingsStore, useAuthStore, useCustomerDisplayStore, useTokenDisplayStore, savePreferredMonitorName } from '@pos/core'
 import { authApi } from '@pos/api-client'
 import { toastHelpers } from '@/lib/toast-helpers'
 import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
@@ -10,6 +10,7 @@ import { PinInput } from '@/components/ui/pin-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { StoreSettings } from '@pos/types'
 import { currencyOptions, findCurrency } from '@/lib/currencies'
+import { loadCashDrawerConfig, saveCashDrawerConfig, listSystemPrinters, openCashDrawer, isTauri } from '@/lib/cash-drawer'
 
 export const Route = createFileRoute('/admin/more/general')({
   component: GeneralSettingsPage,
@@ -21,6 +22,35 @@ function GeneralSettingsPage() {
   const { settings, isLoading, saveSettings } = useSettingsStore()
   const { isOpen: isDisplayOpen, openWindow: openDisplay, closeWindow: closeDisplay } = useCustomerDisplayStore()
   const { isOpen: isTokenDisplayOpen, openWindow: openTokenDisplay, closeWindow: closeTokenDisplay } = useTokenDisplayStore()
+  const [monitors, setMonitors] = useState<Array<{ name: string; label: string; isPrimary: boolean }>>([])
+  const [customerMonitor, setCustomerMonitor] = useState<string>(() => {
+    try { return localStorage.getItem('pos:display:monitor:customer-display') || 'auto' } catch { return 'auto' }
+  })
+  const [tokenMonitor, setTokenMonitor] = useState<string>(() => {
+    try { return localStorage.getItem('pos:display:monitor:token-display') || 'auto' } catch { return 'auto' }
+  })
+
+  useEffect(() => {
+    if (!('__TAURI__' in window)) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { availableMonitors, primaryMonitor } = await import('@tauri-apps/api/window')
+        const [all, primary] = await Promise.all([availableMonitors(), primaryMonitor()])
+        if (cancelled || !all) return
+        setMonitors(
+          all.map((m, i) => ({
+            name: m.name || `monitor-${i}`,
+            label: `${m.name || `Monitor ${i + 1}`} — ${m.size.width}×${m.size.height}${primary && m.name === primary.name ? ' (primary)' : ''}`,
+            isPrimary: !!(primary && m.name === primary.name),
+          })),
+        )
+      } catch (e) {
+        console.warn('Could not enumerate monitors', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const [localSettings, setLocalSettings] = useState<Partial<StoreSettings>>({
     restaurantName: settings.restaurantName,
     storeAddress: settings.storeAddress,
@@ -284,6 +314,63 @@ function GeneralSettingsPage() {
       {/* Displays */}
       <SectionHeading title="Displays" />
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
+        {monitors.length > 1 && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3 space-y-3">
+            <div className="text-xs text-zinc-500">
+              {monitors.length} monitors detected. Auto-detect uses the first non-primary monitor.
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">Customer Display monitor</label>
+                <Select
+                  value={customerMonitor}
+                  onValueChange={(v) => {
+                    setCustomerMonitor(v)
+                    savePreferredMonitorName('customer-display', v === 'auto' ? null : v)
+                    if (isDisplayOpen) {
+                      closeDisplay()
+                      setTimeout(() => openDisplay(), 200)
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto (secondary monitor)</SelectItem>
+                    {monitors.map((m) => (
+                      <SelectItem key={`cust-${m.name}`} value={m.name}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400">Token Display monitor</label>
+                <Select
+                  value={tokenMonitor}
+                  onValueChange={(v) => {
+                    setTokenMonitor(v)
+                    savePreferredMonitorName('token-display', v === 'auto' ? null : v)
+                    if (isTokenDisplayOpen) {
+                      closeTokenDisplay()
+                      setTimeout(() => openTokenDisplay(), 200)
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto (secondary monitor)</SelectItem>
+                    {monitors.map((m) => (
+                      <SelectItem key={`tok-${m.name}`} value={m.name}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
         <button
           onClick={isDisplayOpen ? closeDisplay : openDisplay}
           className={cn(
@@ -356,10 +443,138 @@ function GeneralSettingsPage() {
           </div>
         </div>
       </div>
+      {/* Cash Drawer */}
+      <SectionHeading title="Cash drawer" />
+      <CashDrawerSection />
+
       {/* Security */}
       <SectionHeading title="Security" />
       <AccountSection />
     </SettingsPageLayout>
+  )
+}
+
+function CashDrawerSection() {
+  const [cfg, setCfg] = useState(() => loadCashDrawerConfig())
+  const [printers, setPrinters] = useState<string[]>([])
+  const [testing, setTesting] = useState(false)
+  const inTauri = isTauri()
+
+  useEffect(() => {
+    if (!inTauri) return
+    listSystemPrinters().then(setPrinters)
+  }, [inTauri])
+
+  const update = (partial: Partial<typeof cfg>) => {
+    const next = saveCashDrawerConfig(partial)
+    setCfg(next)
+  }
+
+  const testDrawer = async () => {
+    setTesting(true)
+    const res = await openCashDrawer({ force: true })
+    setTesting(false)
+    if (res.ok) toastHelpers.success('Drawer kick sent')
+    else toastHelpers.error(res.error || 'Failed to open drawer')
+  }
+
+  if (!inTauri) {
+    return (
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <div className="flex items-center gap-3 text-zinc-400">
+          <Banknote className="h-5 w-5 flex-shrink-0" />
+          <span className="text-sm">Cash drawer support is only available in the desktop app.</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
+      <button
+        onClick={() => update({ enabled: !cfg.enabled })}
+        className={cn(
+          'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+          cfg.enabled ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800',
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <Banknote className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+          <div className="space-y-0.5">
+            <span className="block text-sm font-medium text-zinc-200">Cash drawer</span>
+            <span className="block text-xs text-zinc-500">Pop the drawer connected to your thermal receipt printer.</span>
+          </div>
+        </div>
+        <div className={cn('w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4', cfg.enabled ? 'bg-emerald-500' : 'bg-zinc-700')}>
+          <div className={cn('absolute top-1 w-4 h-4 bg-white rounded-full transition-transform', cfg.enabled ? 'translate-x-5' : 'translate-x-1')} />
+        </div>
+      </button>
+
+      {cfg.enabled && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400">Printer (drawer plugged in here)</label>
+              {printers.length > 0 ? (
+                <Select value={cfg.printerName || ''} onValueChange={(v) => update({ printerName: v })}>
+                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                    <SelectValue placeholder="Select a printer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {printers.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <input
+                  className={inputClass}
+                  placeholder="Printer queue name"
+                  value={cfg.printerName}
+                  onChange={(e) => update({ printerName: e.target.value })}
+                />
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400">Drawer pin</label>
+              <Select value={String(cfg.pin)} onValueChange={(v) => update({ pin: (v === '5' ? 5 : 2) as 2 | 5 })}>
+                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">Pin 2 (most drawers)</SelectItem>
+                  <SelectItem value="5">Pin 5 (Star / some Epson)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <button
+            onClick={() => update({ autoOpenOnCash: !cfg.autoOpenOnCash })}
+            className={cn(
+              'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+              cfg.autoOpenOnCash ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800',
+            )}
+          >
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Open automatically on cash payment</span>
+              <span className="block text-xs text-zinc-500">Fires the kick as soon as a cash sale completes.</span>
+            </div>
+            <div className={cn('w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4', cfg.autoOpenOnCash ? 'bg-emerald-500' : 'bg-zinc-700')}>
+              <div className={cn('absolute top-1 w-4 h-4 bg-white rounded-full transition-transform', cfg.autoOpenOnCash ? 'translate-x-5' : 'translate-x-1')} />
+            </div>
+          </button>
+
+          <button
+            onClick={testDrawer}
+            disabled={testing || !cfg.printerName}
+            className="w-full h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium text-sm transition-colors"
+          >
+            {testing ? 'Sending kick…' : 'Test drawer'}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

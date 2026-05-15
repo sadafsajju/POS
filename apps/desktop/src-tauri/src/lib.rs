@@ -33,6 +33,8 @@ pub fn run() {
             hardware::printer::print_receipt,
             hardware::printer::print_kot,
             hardware::printer::get_printers,
+            hardware::cash_drawer::open_cash_drawer,
+            hardware::cash_drawer::list_system_printers,
             hardware::scanner::start_scanner,
             hardware::scanner::stop_scanner,
         ])

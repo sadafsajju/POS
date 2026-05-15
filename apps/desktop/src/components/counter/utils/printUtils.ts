@@ -23,45 +23,69 @@ export function isTauriEnvironment(): boolean {
 }
 
 /**
- * Browser-fallback print via a hidden iframe. Avoids popup windows
- * (which get blocked or close before the document renders).
+ * Print via a hidden iframe. Works in both browsers and Tauri's WebView —
+ * `window.print()` triggers the OS print dialog on macOS (WKWebView) and
+ * Windows (WebView2), so any installed printer (USB receipt, network, or
+ * "Save as PDF") is reachable.
+ *
+ * Uses `srcdoc` rather than `document.write` because Tauri's WebView is
+ * stricter about cross-frame document writes and the `load` event firing.
  */
-function printViaIframe(html: string): void {
-  const iframe = document.createElement('iframe')
-  iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
-  iframe.style.border = '0'
-  document.body.appendChild(iframe)
+function printViaIframe(html: string): Promise<void> {
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.visibility = 'hidden'
+    iframe.srcdoc = html
+    document.body.appendChild(iframe)
 
-  const doc = iframe.contentDocument || iframe.contentWindow?.document
-  if (!doc) {
-    iframe.remove()
-    return
-  }
-  doc.open()
-  doc.write(html)
-  doc.close()
+    let printed = false
+    let cleanupTimer: ReturnType<typeof setTimeout> | null = null
 
-  let printed = false
-  const triggerPrint = () => {
-    if (printed) return
-    printed = true
-    try {
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
-    } catch (e) {
-      console.error('Print failed:', e)
-    } finally {
-      setTimeout(() => iframe.remove(), 1000)
+    const cleanup = () => {
+      if (cleanupTimer) clearTimeout(cleanupTimer)
+      try { iframe.remove() } catch { /* ignore */ }
+      resolve()
     }
-  }
 
-  iframe.addEventListener('load', triggerPrint, { once: true })
-  // Safety fallback: document.write can skip the load event.
-  setTimeout(triggerPrint, 500)
+    const triggerPrint = () => {
+      if (printed) return
+      printed = true
+      try {
+        const cw = iframe.contentWindow
+        if (!cw) {
+          console.error('Print failed: no iframe window')
+          cleanup()
+          return
+        }
+        // Block briefly to ensure the document has laid out before printing.
+        // Some WebViews fire `load` before stylesheets have applied.
+        requestAnimationFrame(() => {
+          try {
+            cw.focus()
+            cw.print()
+          } catch (e) {
+            console.error('window.print() failed:', e)
+          }
+          // Keep iframe alive briefly so the print dialog can capture the doc.
+          cleanupTimer = setTimeout(cleanup, 1500)
+        })
+      } catch (e) {
+        console.error('Print failed:', e)
+        cleanup()
+      }
+    }
+
+    iframe.addEventListener('load', triggerPrint, { once: true })
+    // Safety fallback in case `load` never fires.
+    cleanupTimer = setTimeout(triggerPrint, 1500)
+  })
 }
 
 /**
@@ -72,10 +96,13 @@ function printViaIframe(html: string): void {
  * the receipt renders in its pre-UK shape — no behaviour change for non-UK
  * customers.
  *
- * NOTE: the Tauri `print_receipt` invoke uses a flat payload that does not
- * yet include the VAT/allergen fields. The native thermal-printer Rust
- * command needs a matching update before native printing reflects these
- * changes. Until then, the browser iframe fallback is the source of truth.
+ * Routes through the OS print dialog via a hidden iframe (`window.print()`)
+ * in both Tauri and browser. The Rust `print_receipt` invoke is intentionally
+ * not used: it expects a different payload shape and its current
+ * implementation is a stub that never actually drives a printer. Direct
+ * ESC/POS thermal-printer support is a TODO; once wired up, gate it behind a
+ * setting and fall through to the iframe path for any printer not on the
+ * thermal driver.
  */
 export async function printThermalReceipt(
   order: Order,
@@ -85,37 +112,9 @@ export async function printThermalReceipt(
   onSuccess?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> {
-  // Build payment method string from active methods
-  const paymentMethodStr = paidPaymentDetails
-    ? [
-        paidPaymentDetails.cash > 0 ? `Cash: ${formatCurrency(paidPaymentDetails.cash)}` : '',
-        paidPaymentDetails.card > 0 ? `Card: ${formatCurrency(paidPaymentDetails.card)}` : '',
-        paidPaymentDetails.digital > 0 ? `Digital: ${formatCurrency(paidPaymentDetails.digital)}` : ''
-      ].filter(Boolean).join(', ') || 'Cash'
-    : 'Cash'
-
   try {
-    if (isTauriEnvironment()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('print_receipt', {
-        orderNumber: order.order_number,
-        items: order.items?.map(item => ({
-          name: item.product?.name || 'Unknown',
-          quantity: item.quantity,
-          price: item.unit_price || 0,
-          total: (item.unit_price || 0) * item.quantity
-        })) || [],
-        total: order.total_amount,
-        paymentMethod: paymentMethodStr,
-        customerName: order.customer_name,
-        tableNumber: order.table?.table_number
-      })
-      onSuccess?.()
-    } else {
-      // Fallback: browser print via hidden iframe
-      printViaIframe(generateReceiptHtml(order, paidPaymentDetails, formatCurrency, settings))
-      onSuccess?.()
-    }
+    await printViaIframe(generateReceiptHtml(order, paidPaymentDetails, formatCurrency, settings))
+    onSuccess?.()
   } catch (error) {
     console.error('Failed to print receipt:', error)
     onError?.(error as Error)
@@ -139,32 +138,8 @@ export async function printKOT(
   staffName?: string
 ): Promise<void> {
   try {
-    if (isTauriEnvironment()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('print_kot', {
-        kot: {
-          order_number: orderNumber,
-          table_number: tableNumber,
-          customer_name: customerName,
-          order_type: orderType,
-          items: items.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            special_instructions: item.special_instructions
-          })),
-          notes: notes,
-          is_new_items: isNewItems,
-          token_number: tokenNumber,
-          staff_name: staffName
-        }
-      })
-      console.log('KOT printed successfully!')
-      onSuccess?.()
-    } else {
-      // Fallback: browser print via hidden iframe
-      printViaIframe(generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber, staffName))
-      onSuccess?.()
-    }
+    await printViaIframe(generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber, staffName))
+    onSuccess?.()
   } catch (error) {
     console.error('Failed to print KOT:', error)
     onError?.(error as Error)
@@ -410,7 +385,11 @@ export function generateReceiptHtml(
     <head>
       <title>Receipt #${escapeHtml(order.order_number)}</title>
       <style>
-        body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; }
+        @page { size: 80mm auto; margin: 0; }
+        @media print {
+          html, body { margin: 0; padding: 0; width: 80mm; }
+        }
+        body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; color: #000; }
         .header { text-align: center; margin-bottom: 10px; }
         .token { text-align: center; font-size: 28px; font-weight: bold; margin: 8px 0; letter-spacing: 4px; }
         .divider { border-top: 1px dashed #000; margin: 10px 0; }
@@ -519,7 +498,11 @@ export function generateKOTHtml(
     <head>
       <title>KOT #${orderNumber}</title>
       <style>
-        body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; }
+        @page { size: 80mm auto; margin: 0; }
+        @media print {
+          html, body { margin: 0; padding: 0; width: 80mm; }
+        }
+        body { font-family: monospace; font-size: 12px; width: 280px; margin: 0 auto; padding: 10px; color: #000; }
         .header { text-align: center; margin-bottom: 10px; font-size: 18px; font-weight: bold; }
         .new-items { background: #ffeb3b; padding: 5px; text-align: center; font-weight: bold; }
         .divider { border-top: 2px dashed #000; margin: 10px 0; }

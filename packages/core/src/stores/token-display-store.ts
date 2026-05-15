@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { pickDisplayMonitor, monitorLogicalBounds } from '../customer-display/monitor-utils'
 
 interface TokenDisplayStore {
   isOpen: boolean
@@ -10,6 +11,7 @@ interface TokenDisplayStore {
 const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window
 
 const WINDOW_LABEL = 'token-display'
+const MONITOR_PREF_KEY = 'token-display'
 
 export const useTokenDisplayStore = create<TokenDisplayStore>((set, get) => ({
   isOpen: false,
@@ -34,8 +36,24 @@ export const useTokenDisplayStore = create<TokenDisplayStore>((set, get) => ({
     if (isTauri()) {
       try {
         const { WebviewWindow, getAllWebviewWindows } = await import('@tauri-apps/api/webviewWindow')
+        const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi')
+
+        const chosen = await pickDisplayMonitor(MONITOR_PREF_KEY)
+        const bounds = chosen ? monitorLogicalBounds(chosen.monitor) : null
+        const shouldFullscreen = !!(chosen && !chosen.isPrimary)
+
         const existing = (await getAllWebviewWindows()).find((w) => w.label === WINDOW_LABEL)
         if (existing) {
+          if (bounds) {
+            try {
+              await existing.setFullscreen(false)
+              await existing.setPosition(new LogicalPosition(bounds.x, bounds.y))
+              await existing.setSize(new LogicalSize(bounds.width, bounds.height))
+              if (shouldFullscreen) await existing.setFullscreen(true)
+            } catch (e) {
+              console.warn('Could not reposition existing token display:', e)
+            }
+          }
           await existing.setFocus()
           set({ isOpen: true, windowRef: existing })
           existing.onCloseRequested(() => {
@@ -44,13 +62,25 @@ export const useTokenDisplayStore = create<TokenDisplayStore>((set, get) => ({
           return
         }
 
-        const webview = new WebviewWindow(WINDOW_LABEL, {
+        const opts: Record<string, any> = {
           url: '/token-display',
-          width: 1024,
-          height: 768,
           title: 'Token Display',
           resizable: true,
-        })
+          decorations: !shouldFullscreen,
+          fullscreen: shouldFullscreen,
+        }
+        if (bounds) {
+          opts.x = bounds.x
+          opts.y = bounds.y
+          opts.width = bounds.width
+          opts.height = bounds.height
+        } else {
+          opts.width = 1024
+          opts.height = 768
+          opts.center = true
+        }
+
+        const webview = new WebviewWindow(WINDOW_LABEL, opts as any)
         webview.once('tauri://created', () => {
           set({ isOpen: true, windowRef: webview })
         })

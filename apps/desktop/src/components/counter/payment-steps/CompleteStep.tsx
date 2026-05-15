@@ -1,9 +1,11 @@
+import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Printer,
   CheckCircle2,
   Truck,
 } from 'lucide-react'
+import { loadCashDrawerConfig, openCashDrawer } from '@/lib/cash-drawer'
 
 type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
@@ -26,6 +28,18 @@ export function CompleteStep({
   onPrint,
   onSkipClose,
 }: CompleteStepProps) {
+  // Auto-kick the cash drawer once per payment when this step is shown for
+  // a cash sale and the operator has enabled "open on cash" in settings.
+  const drawerKickedRef = useRef(false)
+  useEffect(() => {
+    if (drawerKickedRef.current) return
+    if (selectedMethod !== 'cash') return
+    const cfg = loadCashDrawerConfig()
+    if (!cfg.enabled || !cfg.autoOpenOnCash) return
+    drawerKickedRef.current = true
+    openCashDrawer().catch(() => { /* errors already logged */ })
+  }, [selectedMethod])
+
   return (
     <div className="w-full max-w-sm space-y-6 text-center">
       {selectedMethod === 'cod' ? (
