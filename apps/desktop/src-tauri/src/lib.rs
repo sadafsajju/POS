@@ -32,6 +32,8 @@ pub fn run() {
             get_system_info,
             hardware::printer::print_receipt,
             hardware::printer::print_kot,
+            hardware::printer::print_raw_bytes,
+            hardware::printer::list_thermal_printers,
             hardware::printer::get_printers,
             hardware::cash_drawer::open_cash_drawer,
             hardware::cash_drawer::list_system_printers,

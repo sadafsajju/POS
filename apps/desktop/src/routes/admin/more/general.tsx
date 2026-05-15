@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat, Banknote } from 'lucide-react'
+import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat, Banknote, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettingsStore, useAuthStore, useCustomerDisplayStore, useTokenDisplayStore, savePreferredMonitorName } from '@pos/core'
 import { authApi } from '@pos/api-client'
@@ -11,6 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { StoreSettings } from '@pos/types'
 import { currencyOptions, findCurrency } from '@/lib/currencies'
 import { loadCashDrawerConfig, saveCashDrawerConfig, listSystemPrinters, openCashDrawer, isTauri } from '@/lib/cash-drawer'
+import {
+  loadThermalPrinterConfig,
+  saveThermalPrinterConfig,
+  listThermalPrinters,
+  printRawBytes,
+} from '@/lib/thermal-printer'
+import { EscPosBuilder } from '@/lib/escpos'
 
 export const Route = createFileRoute('/admin/more/general')({
   component: GeneralSettingsPage,
@@ -443,6 +450,10 @@ function GeneralSettingsPage() {
           </div>
         </div>
       </div>
+      {/* Thermal printer */}
+      <SectionHeading title="Thermal printer" />
+      <ThermalPrinterSection />
+
       {/* Cash Drawer */}
       <SectionHeading title="Cash drawer" />
       <CashDrawerSection />
@@ -571,6 +582,177 @@ function CashDrawerSection() {
             className="w-full h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium text-sm transition-colors"
           >
             {testing ? 'Sending kick…' : 'Test drawer'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ThermalPrinterSection() {
+  const [cfg, setCfg] = useState(() => loadThermalPrinterConfig())
+  const [printers, setPrinters] = useState<string[]>([])
+  const [testing, setTesting] = useState(false)
+  const inTauri = isTauri()
+
+  useEffect(() => {
+    if (!inTauri) return
+    listThermalPrinters().then(setPrinters)
+  }, [inTauri])
+
+  const update = (partial: Partial<typeof cfg>) => {
+    const next = saveThermalPrinterConfig(partial)
+    setCfg(next)
+  }
+
+  const testPrint = async () => {
+    setTesting(true)
+    // Self-contained ESC/POS test sample. Confirms the queue accepts RAW
+    // bytes, the printer recognises the commands, and the cut fires.
+    const p = new EscPosBuilder(cfg.width)
+    p.align('center').size({ doubleHeight: true, doubleWidth: true }).bold(true).textln('TEST PRINT')
+    p.size().bold(false).align('left').hr()
+    p.textln('If you can read this, the')
+    p.textln('thermal-printer path is wired')
+    p.textln('correctly.')
+    p.hr()
+    p.bold(true).textln(`Width: ${cfg.width} columns`).bold(false)
+    p.textln(`Printer: ${cfg.receiptPrinter || '(system default)'}`)
+    p.textln(`Time: ${new Date().toLocaleString()}`)
+    p.feed(1)
+    p.align('center').textln('— Sample line items —').align('left')
+    p.item(2, 'Espresso', '5.00')
+    p.item(1, 'Sandwich with a fairly long name to test wrapping', '7.50')
+    p.modifier('No mayo')
+    p.hr()
+    p.twoCol('Subtotal', '12.50')
+    p.twoCol('VAT @ 20%', '2.50')
+    p.size({ doubleHeight: true }).bold(true).twoCol('TOTAL', '15.00').size().bold(false)
+    p.cut()
+
+    const res = await printRawBytes(p.build(), cfg.receiptPrinter)
+    setTesting(false)
+    if (res.ok) toastHelpers.success('Test page sent to printer')
+    else toastHelpers.error(res.error || 'Failed to send test page')
+  }
+
+  if (!inTauri) {
+    return (
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <div className="flex items-center gap-3 text-zinc-400">
+          <Printer className="h-5 w-5 flex-shrink-0" />
+          <span className="text-sm">Native thermal printing is only available in the desktop app.</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
+      <button
+        onClick={() => update({ enabled: !cfg.enabled })}
+        className={cn(
+          'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+          cfg.enabled ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800',
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <Printer className="h-5 w-5 text-zinc-400 flex-shrink-0" />
+          <div className="space-y-0.5">
+            <span className="block text-sm font-medium text-zinc-200">Use thermal printer</span>
+            <span className="block text-xs text-zinc-500">Send ESC/POS bytes directly — instant print, no dialog, automatic cut. Falls back to the OS print dialog when off.</span>
+          </div>
+        </div>
+        <div className={cn('w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4', cfg.enabled ? 'bg-emerald-500' : 'bg-zinc-700')}>
+          <div className={cn('absolute top-1 w-4 h-4 bg-white rounded-full transition-transform', cfg.enabled ? 'translate-x-5' : 'translate-x-1')} />
+        </div>
+      </button>
+
+      {cfg.enabled && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400">Receipt printer</label>
+              {printers.length > 0 ? (
+                <Select value={cfg.receiptPrinter || ''} onValueChange={(v) => update({ receiptPrinter: v })}>
+                  <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                    <SelectValue placeholder="Select a printer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {printers.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <input
+                  className={inputClass}
+                  placeholder="Printer queue name"
+                  value={cfg.receiptPrinter}
+                  onChange={(e) => update({ receiptPrinter: e.target.value })}
+                />
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-zinc-400">Paper width</label>
+              <Select value={String(cfg.width)} onValueChange={(v) => update({ width: (v === '32' ? 32 : 48) as 32 | 48 })}>
+                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="48">80 mm (48 columns)</SelectItem>
+                  <SelectItem value="32">58 mm (32 columns)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400">Kitchen printer <span className="text-zinc-600">(optional)</span></label>
+            {printers.length > 0 ? (
+              <Select value={cfg.kotPrinter || '__same__'} onValueChange={(v) => update({ kotPrinter: v === '__same__' ? '' : v })}>
+                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-zinc-100 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__same__">Use the receipt printer</SelectItem>
+                  {printers.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <input
+                className={inputClass}
+                placeholder="Leave empty to use the receipt printer"
+                value={cfg.kotPrinter}
+                onChange={(e) => update({ kotPrinter: e.target.value })}
+              />
+            )}
+          </div>
+
+          <button
+            onClick={() => update({ drawerKickOnReceipt: !cfg.drawerKickOnReceipt })}
+            className={cn(
+              'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+              cfg.drawerKickOnReceipt ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800',
+            )}
+          >
+            <div className="space-y-0.5">
+              <span className="block text-sm font-medium text-zinc-200">Kick drawer on cash receipt</span>
+              <span className="block text-xs text-zinc-500">Appends the drawer-pulse to the receipt print so the drawer opens in the same impulse.</span>
+            </div>
+            <div className={cn('w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4', cfg.drawerKickOnReceipt ? 'bg-emerald-500' : 'bg-zinc-700')}>
+              <div className={cn('absolute top-1 w-4 h-4 bg-white rounded-full transition-transform', cfg.drawerKickOnReceipt ? 'translate-x-5' : 'translate-x-1')} />
+            </div>
+          </button>
+
+          <button
+            onClick={testPrint}
+            disabled={testing || !cfg.receiptPrinter}
+            className="w-full h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium text-sm transition-colors"
+          >
+            {testing ? 'Sending test…' : 'Print test page'}
           </button>
         </div>
       )}

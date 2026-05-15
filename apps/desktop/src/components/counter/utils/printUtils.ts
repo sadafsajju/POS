@@ -1,5 +1,7 @@
 import type { Order, KOTItem, PaidPaymentDetails } from '../types'
 import type { StoreSettings } from '@pos/types'
+import { EscPosBuilder } from '@/lib/escpos'
+import { loadThermalPrinterConfig, printRawBytes } from '@/lib/thermal-printer'
 
 // Minimal settings shape used by the receipt template — keeps the function
 // usable from contexts that don't have the full StoreSettings handy.
@@ -91,18 +93,19 @@ function printViaIframe(html: string): Promise<void> {
 /**
  * Print thermal receipt for an order.
  *
- * `settings` carries the org-level branding + UK fields (VAT regime + number,
- * allergen surfacing, tipping). When omitted (or the relevant flag is off)
- * the receipt renders in its pre-UK shape — no behaviour change for non-UK
- * customers.
+ * Two paths:
+ *  - **Native ESC/POS** (preferred): when the user has configured a thermal
+ *    printer in Settings → General → Thermal printer, we build ESC/POS bytes
+ *    directly and send them to the printer's RAW queue via the Tauri
+ *    `print_raw_bytes` command. Instant print, crisp text, automatic cut.
+ *  - **OS print dialog** (fallback): in the browser, or when no thermal
+ *    printer is configured, the receipt renders as HTML in a hidden iframe
+ *    and goes through `window.print()`. Works with any installed printer.
  *
- * Routes through the OS print dialog via a hidden iframe (`window.print()`)
- * in both Tauri and browser. The Rust `print_receipt` invoke is intentionally
- * not used: it expects a different payload shape and its current
- * implementation is a stub that never actually drives a printer. Direct
- * ESC/POS thermal-printer support is a TODO; once wired up, gate it behind a
- * setting and fall through to the iframe path for any printer not on the
- * thermal driver.
+ * `settings` carries the org-level branding + UK fields (VAT regime + number,
+ * allergen surfacing, tipping). The native path collapses some of the rich
+ * formatting (VAT breakdown becomes compact text, allergen statements are
+ * uppercased instead of bolded) to fit the printer's character grid.
  */
 export async function printThermalReceipt(
   order: Order,
@@ -113,6 +116,17 @@ export async function printThermalReceipt(
   onError?: (error: Error) => void
 ): Promise<void> {
   try {
+    const cfg = loadThermalPrinterConfig()
+    if (cfg.enabled && isTauriEnvironment()) {
+      const bytes = generateReceiptEscPos(order, paidPaymentDetails, formatCurrency, settings, {
+        width: cfg.width,
+        drawerKick: cfg.drawerKickOnReceipt && (paidPaymentDetails?.cash ?? 0) > 0,
+      })
+      const res = await printRawBytes(bytes, cfg.receiptPrinter)
+      if (!res.ok) throw new Error(res.error || 'print_raw_bytes failed')
+      onSuccess?.()
+      return
+    }
     await printViaIframe(generateReceiptHtml(order, paidPaymentDetails, formatCurrency, settings))
     onSuccess?.()
   } catch (error) {
@@ -138,12 +152,221 @@ export async function printKOT(
   staffName?: string
 ): Promise<void> {
   try {
+    const cfg = loadThermalPrinterConfig()
+    if (cfg.enabled && isTauriEnvironment()) {
+      const bytes = generateKotEscPos({
+        orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber, staffName,
+      }, { width: cfg.width })
+      // Prefer the dedicated KOT printer if one is configured; else send to
+      // the receipt printer.
+      const target = cfg.kotPrinter || cfg.receiptPrinter
+      const res = await printRawBytes(bytes, target)
+      if (!res.ok) throw new Error(res.error || 'print_raw_bytes failed')
+      onSuccess?.()
+      return
+    }
     await printViaIframe(generateKOTHtml(orderNumber, tableNumber, customerName, orderType, items, notes, isNewItems, tokenNumber, staffName))
     onSuccess?.()
   } catch (error) {
     console.error('Failed to print KOT:', error)
     onError?.(error as Error)
   }
+}
+
+// ─── ESC/POS byte builders (used by the thermal-printer path) ────────────
+
+/**
+ * Build the ESC/POS byte stream for a customer receipt. Mirrors the same
+ * fields the HTML version emits, but adapted to a thermal printer's
+ * monospace character grid.
+ *
+ * `width` defaults to 48 (80 mm paper at Font A). Pass 32 for 58 mm paper.
+ */
+export function generateReceiptEscPos(
+  order: Order,
+  paidPaymentDetails: PaidPaymentDetails | null,
+  formatCurrency: (amount: number) => string,
+  settings?: ReceiptSettings,
+  opts?: { width?: 32 | 48; drawerKick?: boolean },
+): Uint8Array {
+  const width = opts?.width ?? 48
+  const isUkVat = settings?.taxRegime === 'uk_vat'
+  const tippingEnabled = !!settings?.tippingEnabled
+  const showAllergens = !!settings?.showAllergens
+
+  const p = new EscPosBuilder(width)
+
+  // ─ Header
+  p.align('center').size({ doubleHeight: true, doubleWidth: true }).bold(true)
+  p.textln(settings?.restaurantName || 'Receipt')
+  p.size().bold(false)
+  if (settings?.storeAddress) p.textln(settings.storeAddress)
+  if (settings?.storePhone) p.textln(settings.storePhone)
+  if (isUkVat && settings?.vatNumber) p.textln(`VAT No: ${settings.vatNumber}`)
+  if (settings?.receiptHeader) p.textln(settings.receiptHeader)
+  p.hr()
+
+  // ─ Order meta
+  p.align('left')
+  p.text(`Order:  `).textln(order.order_number || '')
+  if ((order as any).order_type) p.text(`Type:   `).textln(String((order as any).order_type).toUpperCase())
+  if ((order as any).table_id_display || (order as any).table_number) {
+    p.text(`Table:  `).textln(String((order as any).table_number ?? (order as any).table_id_display))
+  }
+  if ((order as any).customer_name) p.text(`Cust:   `).textln(String((order as any).customer_name))
+  const ts = (order as any).created_at ? new Date((order as any).created_at) : new Date()
+  p.text(`Time:   `).textln(ts.toLocaleString())
+  p.hr()
+
+  // ─ Items
+  for (const item of (order.items ?? []) as any[]) {
+    const name = item.product?.name || 'Unknown'
+    const lineTotal = (item.unit_price || 0) * item.quantity
+    const rateBadge = isUkVat && item.vat_rate_applied != null ? ` (${item.vat_rate_applied}%)` : ''
+    p.item(item.quantity, `${name}${rateBadge}`, formatCurrency(lineTotal))
+    const mods: string[] = Array.isArray(item.modifiers) ? item.modifiers.map((m: any) => m?.name ?? String(m)) : []
+    for (const m of mods) p.modifier(m)
+    if (settings?.showCalories) {
+      const kcal = Number(item.product?.calorie_count ?? 0)
+      if (kcal > 0) p.text(`     ${kcal} kcal${item.quantity > 1 ? ` x ${item.quantity}` : ''}`).lf()
+    }
+  }
+  p.hr()
+
+  // ─ Totals
+  const subtotal = Number((order as any).subtotal ?? order.total_amount ?? 0)
+  const tax = Number((order as any).tax_amount ?? 0)
+  const discount = Number((order as any).discount_amount ?? 0)
+  const tipAmount = Number((order as any).tip_amount ?? 0)
+  p.twoCol('Subtotal', formatCurrency(subtotal))
+  if (tax > 0) p.twoCol(isUkVat ? 'VAT' : 'Tax', formatCurrency(tax))
+  if (discount > 0) p.twoCol('Discount', `-${formatCurrency(discount)}`)
+  if (tippingEnabled && tipAmount > 0) p.twoCol('Tip', formatCurrency(tipAmount))
+
+  // ─ UK VAT breakdown (compact two-line summary per rate)
+  if (isUkVat) {
+    const byRate = new Map<number, { net: number; vat: number }>()
+    for (const item of (order.items ?? []) as any[]) {
+      const rate = Number(item.vat_rate_applied ?? 0)
+      const lineNet = (item.unit_price || 0) * item.quantity
+      const lineVat = Number(item.vat_amount ?? 0)
+      const b = byRate.get(rate) ?? { net: 0, vat: 0 }
+      b.net += lineNet
+      b.vat += lineVat
+      byRate.set(rate, b)
+    }
+    const rows = Array.from(byRate.entries()).sort(([a], [b]) => b - a)
+    if (rows.length) {
+      p.hr()
+      for (const [rate, v] of rows) {
+        p.twoCol(`Net @ ${rate}%`, formatCurrency(v.net))
+        p.twoCol(`VAT @ ${rate}%`, formatCurrency(v.vat))
+      }
+    }
+  }
+
+  // ─ Grand total — emphasized
+  p.hr()
+  const grand = Number(order.total_amount ?? 0) + (tipAmount > 0 ? tipAmount : 0)
+  p.size({ doubleHeight: true }).bold(true)
+  p.twoCol('TOTAL', formatCurrency(grand))
+  p.size().bold(false)
+
+  // ─ Payment breakdown
+  if (paidPaymentDetails) {
+    p.hr()
+    if (paidPaymentDetails.cash > 0) p.twoCol('Cash', formatCurrency(paidPaymentDetails.cash))
+    if (paidPaymentDetails.card > 0) p.twoCol('Card', formatCurrency(paidPaymentDetails.card))
+    if (paidPaymentDetails.digital > 0) p.twoCol('Digital', formatCurrency(paidPaymentDetails.digital))
+  }
+
+  // ─ Allergen footer (text-only, conservative)
+  if (showAllergens) {
+    const lines: string[] = []
+    for (const item of (order.items ?? []) as any[]) {
+      const product = item.product
+      if (!product) continue
+      const allergens: string[] = Array.isArray(product.food_allergens) ? product.food_allergens : []
+      if (!allergens.length) continue
+      lines.push(`${product.name}: ${allergens.map((a) => a.toUpperCase()).join(', ')}`)
+    }
+    if (lines.length) {
+      p.hr()
+      p.bold(true).textln('Allergens').bold(false)
+      for (const l of lines) p.textln(l)
+    }
+  }
+
+  // ─ Footer text
+  if (settings?.receiptFooter) {
+    p.feed(1).align('center').textln(settings.receiptFooter).align('left')
+  } else {
+    p.feed(1).align('center').textln('Thank you!').align('left')
+  }
+
+  // ─ Optional drawer kick + cut
+  if (opts?.drawerKick) p.drawerKick()
+  p.cut()
+
+  return p.build()
+}
+
+/**
+ * Build the ESC/POS byte stream for a Kitchen Order Ticket. Larger text,
+ * fewer details, more aggressive emphasis on table number and quantities.
+ */
+export function generateKotEscPos(
+  args: {
+    orderNumber: string
+    tableNumber?: string
+    customerName?: string
+    orderType: string
+    items: KOTItem[]
+    notes?: string
+    isNewItems?: boolean
+    tokenNumber?: number
+    staffName?: string
+  },
+  opts?: { width?: 32 | 48 },
+): Uint8Array {
+  const width = opts?.width ?? 48
+  const p = new EscPosBuilder(width)
+
+  p.align('center').size({ doubleHeight: true, doubleWidth: true }).bold(true)
+  p.textln(args.isNewItems ? '** NEW ITEMS **' : 'KITCHEN ORDER')
+  p.size().bold(false).align('left')
+  p.text('='.repeat(width)).lf()
+
+  if (args.tableNumber) {
+    p.scale(2).bold(true).textln(`TABLE ${args.tableNumber}`).scale(0).bold(false)
+  } else if (args.tokenNumber != null) {
+    p.scale(2).bold(true).textln(`TOKEN ${args.tokenNumber}`).scale(0).bold(false)
+  }
+
+  p.bold(true).textln(`Order: ${args.orderNumber}`).bold(false)
+  p.textln(`Type:  ${args.orderType.replace(/_/g, ' ').toUpperCase()}`)
+  if (args.customerName) p.textln(`Cust:  ${args.customerName}`)
+  if (args.staffName) p.textln(`Staff: ${args.staffName}`)
+  p.textln(`Time:  ${new Date().toLocaleTimeString()}`)
+  p.text('='.repeat(width)).lf()
+
+  for (const it of args.items) {
+    p.size({ doubleHeight: true }).bold(true)
+    p.text(`${it.quantity}x ${it.name}`).lf()
+    p.size().bold(false)
+    const special = (it as any).special_instructions || (it as any).notes
+    if (special) {
+      p.bold(true).text(`   >> ${special}`).lf().bold(false)
+    }
+  }
+
+  if (args.notes) {
+    p.text('-'.repeat(width)).lf()
+    p.bold(true).text(`NOTES: ${args.notes}`).lf().bold(false)
+  }
+  p.text('='.repeat(width)).lf()
+  p.cut()
+  return p.build()
 }
 
 /** Minimal HTML escape for user-controlled fields rendered into the receipt */

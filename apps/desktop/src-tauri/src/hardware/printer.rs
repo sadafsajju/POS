@@ -1,316 +1,128 @@
-// Thermal Printer Integration (ESC/POS)
+// Thermal printer — sends arbitrary ESC/POS byte streams to an OS print
+// queue in RAW mode. The frontend builds the receipt or KOT bytes (it owns
+// the receipt format — VAT, allergens, tipping, etc.) and hands them off
+// here; this module just shovels them to the printer's spooler.
+//
+// macOS / Linux: `lp -o raw -d <queue>` — CUPS skips rasterization and
+//                 pipes the bytes straight to the device.
+// Windows:       PowerShell helper (the same raw_print.ps1 used by the
+//                cash drawer) which calls winspool.drv WritePrinter with
+//                pDataType = "RAW".
 
-use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::Command;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PrinterInfo {
-    pub name: String,
-    pub port: String,
-    pub printer_type: String,
+#[cfg(target_os = "windows")]
+const RAW_PRINT_PS1: &str = include_str!("raw_print.ps1");
+
+fn write_temp_bytes(bytes: &[u8], hint: &str) -> Result<PathBuf, String> {
+    let mut path = std::env::temp_dir();
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    path.push(format!("pos-{hint}-{stamp}.bin"));
+    let mut f = fs::File::create(&path).map_err(|e| format!("temp file create failed: {e}"))?;
+    f.write_all(bytes).map_err(|e| format!("temp file write failed: {e}"))?;
+    f.flush().ok();
+    Ok(path)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ReceiptData {
-    pub store_name: String,
-    pub store_address: Option<String>,
-    pub order_number: String,
-    pub items: Vec<ReceiptItem>,
-    pub subtotal: f64,
-    pub tax: f64,
-    pub discount: f64,
-    pub total: f64,
-    pub payment_method: String,
-    pub footer: Option<String>,
+#[cfg(target_os = "windows")]
+fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
+    if printer_name.is_empty() {
+        return Err("No printer selected".into());
+    }
+    let mut ps_path = std::env::temp_dir();
+    ps_path.push("pos-raw-print.ps1");
+    fs::write(&ps_path, RAW_PRINT_PS1).map_err(|e| format!("ps1 write failed: {e}"))?;
+
+    let out = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&ps_path)
+        .arg("-PrinterName")
+        .arg(printer_name)
+        .arg("-BytesPath")
+        .arg(bytes_path)
+        .output()
+        .map_err(|e| format!("powershell spawn failed: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "raw print failed for '{printer_name}': {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ReceiptItem {
-    pub name: String,
-    pub quantity: i32,
-    pub price: f64,
-    pub modifiers: Option<Vec<String>>,
+#[cfg(not(target_os = "windows"))]
+fn send_raw(printer_name: &str, bytes_path: &PathBuf) -> Result<(), String> {
+    let mut cmd = Command::new("lp");
+    cmd.arg("-o").arg("raw");
+    if !printer_name.is_empty() {
+        cmd.arg("-d").arg(printer_name);
+    }
+    cmd.arg(bytes_path);
+    let out = cmd
+        .output()
+        .map_err(|e| format!("lp spawn failed (is CUPS installed?): {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "lp failed (printer='{printer_name}'): {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(())
 }
 
-/// KOT (Kitchen Order Ticket) Data
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KOTData {
-    pub order_number: String,
-    pub table_number: Option<String>,
-    pub customer_name: Option<String>,
-    pub order_type: String,
-    pub items: Vec<KOTItem>,
-    pub notes: Option<String>,
-    pub is_new_items: bool, // true if adding items to existing order
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KOTItem {
-    pub name: String,
-    pub quantity: i32,
-    pub special_instructions: Option<String>,
-}
-
-/// Get list of available printers
+/// Send a raw byte stream to the named OS print queue. The frontend uses
+/// this for ESC/POS receipts and KOTs — it builds the bytes itself so we
+/// don't end up mirroring the receipt-template logic in Rust.
+///
+/// `printer_name` is the CUPS queue name on macOS/Linux or the printer name
+/// as it appears in Windows Printers & Scanners. Empty string falls back to
+/// the system default on macOS/Linux; on Windows it errors.
 #[tauri::command]
-pub async fn get_printers() -> Result<Vec<PrinterInfo>, String> {
-    // In a real implementation, this would enumerate USB/Serial/Network printers
-    // For now, return a placeholder
-
-    let printers = vec![
-        PrinterInfo {
-            name: "Default Thermal Printer".to_string(),
-            port: "USB001".to_string(),
-            printer_type: "ESC/POS".to_string(),
-        },
-    ];
-
-    Ok(printers)
+pub async fn print_raw_bytes(printer_name: String, bytes: Vec<u8>) -> Result<bool, String> {
+    if bytes.is_empty() {
+        return Err("Nothing to print (empty byte stream)".into());
+    }
+    let path = write_temp_bytes(&bytes, "receipt")?;
+    let res = send_raw(&printer_name, &path);
+    let _ = fs::remove_file(&path);
+    res.map(|_| true)
 }
 
-/// Print a receipt
+/// Legacy aliases retained so existing invoke_handler entries still resolve
+/// while the frontend transitions. Both delegate to `print_raw_bytes`.
 #[tauri::command]
-pub async fn print_receipt(receipt: ReceiptData, printer_port: Option<String>) -> Result<bool, String> {
-    let _port = printer_port.unwrap_or_else(|| "USB001".to_string());
-
-    // Build ESC/POS commands
-    let commands = build_receipt_commands(&receipt);
-
-    // In a real implementation, send commands to the printer
-    // For now, log the receipt data
-    println!("Printing receipt: {:?}", commands);
-
-    Ok(true)
+pub async fn print_receipt(printer_name: String, bytes: Vec<u8>) -> Result<bool, String> {
+    print_raw_bytes(printer_name, bytes).await
 }
 
-/// Print a KOT (Kitchen Order Ticket)
 #[tauri::command]
-pub async fn print_kot(kot: KOTData, printer_port: Option<String>) -> Result<bool, String> {
-    let _port = printer_port.unwrap_or_else(|| "USB001".to_string());
-
-    // Build ESC/POS commands for KOT
-    let commands = build_kot_commands(&kot);
-
-    // In a real implementation, send commands to the kitchen printer
-    // For now, log the KOT data
-    println!("Printing KOT: {:?}", commands);
-
-    Ok(true)
+pub async fn print_kot(printer_name: String, bytes: Vec<u8>) -> Result<bool, String> {
+    print_raw_bytes(printer_name, bytes).await
 }
 
-fn build_receipt_commands(receipt: &ReceiptData) -> Vec<u8> {
-    let mut commands: Vec<u8> = Vec::new();
-
-    // ESC/POS Initialize
-    commands.extend_from_slice(&[0x1B, 0x40]); // ESC @
-
-    // Center align
-    commands.extend_from_slice(&[0x1B, 0x61, 0x01]); // ESC a 1
-
-    // Store name (double height)
-    commands.extend_from_slice(&[0x1B, 0x21, 0x10]); // ESC ! 16 (double height)
-    commands.extend_from_slice(receipt.store_name.as_bytes());
-    commands.push(0x0A); // Line feed
-
-    // Normal size
-    commands.extend_from_slice(&[0x1B, 0x21, 0x00]); // ESC ! 0
-
-    // Store address
-    if let Some(addr) = &receipt.store_address {
-        commands.extend_from_slice(addr.as_bytes());
-        commands.push(0x0A);
-    }
-
-    // Separator
-    commands.extend_from_slice(b"--------------------------------\n");
-
-    // Left align
-    commands.extend_from_slice(&[0x1B, 0x61, 0x00]); // ESC a 0
-
-    // Order number
-    commands.extend_from_slice(format!("Order: {}\n", receipt.order_number).as_bytes());
-    commands.extend_from_slice(b"--------------------------------\n");
-
-    // Items
-    for item in &receipt.items {
-        let item_line = format!(
-            "{} x {} ${:.2}\n",
-            item.quantity, item.name, item.price
-        );
-        commands.extend_from_slice(item_line.as_bytes());
-
-        if let Some(mods) = &item.modifiers {
-            for modifier in mods {
-                commands.extend_from_slice(format!("  + {}\n", modifier).as_bytes());
-            }
-        }
-    }
-
-    // Separator
-    commands.extend_from_slice(b"--------------------------------\n");
-
-    // Totals
-    commands.extend_from_slice(format!("Subtotal:         ${:.2}\n", receipt.subtotal).as_bytes());
-    commands.extend_from_slice(format!("Tax:              ${:.2}\n", receipt.tax).as_bytes());
-
-    if receipt.discount > 0.0 {
-        commands.extend_from_slice(format!("Discount:        -${:.2}\n", receipt.discount).as_bytes());
-    }
-
-    // Bold for total
-    commands.extend_from_slice(&[0x1B, 0x45, 0x01]); // ESC E 1 (bold on)
-    commands.extend_from_slice(format!("TOTAL:            ${:.2}\n", receipt.total).as_bytes());
-    commands.extend_from_slice(&[0x1B, 0x45, 0x00]); // ESC E 0 (bold off)
-
-    // Payment method
-    commands.extend_from_slice(format!("Paid by: {}\n", receipt.payment_method).as_bytes());
-
-    // Footer
-    commands.extend_from_slice(b"--------------------------------\n");
-    commands.extend_from_slice(&[0x1B, 0x61, 0x01]); // Center align
-
-    if let Some(footer) = &receipt.footer {
-        commands.extend_from_slice(footer.as_bytes());
-        commands.push(0x0A);
-    }
-
-    // Cut paper
-    commands.extend_from_slice(&[0x1D, 0x56, 0x00]); // GS V 0 (full cut)
-
-    commands
+/// Thin alias so the frontend doesn't depend on the cash_drawer module name.
+#[tauri::command]
+pub async fn list_thermal_printers() -> Result<Vec<String>, String> {
+    super::cash_drawer::list_system_printers().await
 }
 
-fn build_kot_commands(kot: &KOTData) -> Vec<u8> {
-    let mut commands: Vec<u8> = Vec::new();
-
-    // ESC/POS Initialize
-    commands.extend_from_slice(&[0x1B, 0x40]); // ESC @
-
-    // Center align
-    commands.extend_from_slice(&[0x1B, 0x61, 0x01]); // ESC a 1
-
-    // KOT Header (double height + double width for emphasis)
-    commands.extend_from_slice(&[0x1B, 0x21, 0x30]); // ESC ! 48 (double height + double width)
-
-    if kot.is_new_items {
-        commands.extend_from_slice(b"** NEW ITEMS **");
-    } else {
-        commands.extend_from_slice(b"KITCHEN ORDER");
-    }
-    commands.push(0x0A); // Line feed
-
-    // Normal size
-    commands.extend_from_slice(&[0x1B, 0x21, 0x00]); // ESC ! 0
-
-    // Separator
-    commands.extend_from_slice(b"================================\n");
-
-    // Left align for details
-    commands.extend_from_slice(&[0x1B, 0x61, 0x00]); // ESC a 0
-
-    // Order number (bold)
-    commands.extend_from_slice(&[0x1B, 0x45, 0x01]); // ESC E 1 (bold on)
-    commands.extend_from_slice(format!("Order: {}\n", kot.order_number).as_bytes());
-    commands.extend_from_slice(&[0x1B, 0x45, 0x00]); // ESC E 0 (bold off)
-
-    // Table number (if dine-in)
-    if let Some(table) = &kot.table_number {
-        commands.extend_from_slice(&[0x1B, 0x21, 0x10]); // Double height
-        commands.extend_from_slice(format!("TABLE: {}\n", table).as_bytes());
-        commands.extend_from_slice(&[0x1B, 0x21, 0x00]); // Normal size
-    }
-
-    // Order type
-    let order_type_display = match kot.order_type.as_str() {
-        "dine_in" => "DINE-IN",
-        "takeout" => "TAKEOUT",
-        "delivery" => "DELIVERY",
-        _ => &kot.order_type,
-    };
-    commands.extend_from_slice(format!("Type: {}\n", order_type_display).as_bytes());
-
-    // Customer name (if provided)
-    if let Some(name) = &kot.customer_name {
-        commands.extend_from_slice(format!("Customer: {}\n", name).as_bytes());
-    }
-
-    // Timestamp
-    commands.extend_from_slice(format!("Time: {}\n", chrono::Local::now().format("%H:%M:%S")).as_bytes());
-
-    // Separator
-    commands.extend_from_slice(b"================================\n");
-
-    // Items header
-    commands.extend_from_slice(&[0x1B, 0x45, 0x01]); // Bold on
-    commands.extend_from_slice(b"ITEMS:\n");
-    commands.extend_from_slice(&[0x1B, 0x45, 0x00]); // Bold off
-    commands.extend_from_slice(b"--------------------------------\n");
-
-    // Items (larger font for kitchen readability)
-    for item in &kot.items {
-        // Quantity x Item name (double height for visibility)
-        commands.extend_from_slice(&[0x1B, 0x21, 0x10]); // Double height
-        commands.extend_from_slice(format!("{}x {}\n", item.quantity, item.name).as_bytes());
-        commands.extend_from_slice(&[0x1B, 0x21, 0x00]); // Normal size
-
-        // Special instructions (if any)
-        if let Some(instructions) = &item.special_instructions {
-            if !instructions.is_empty() {
-                commands.extend_from_slice(&[0x1B, 0x45, 0x01]); // Bold on
-                commands.extend_from_slice(format!("   >> {}\n", instructions).as_bytes());
-                commands.extend_from_slice(&[0x1B, 0x45, 0x00]); // Bold off
-            }
-        }
-    }
-
-    // Order notes
-    if let Some(notes) = &kot.notes {
-        if !notes.is_empty() {
-            commands.extend_from_slice(b"--------------------------------\n");
-            commands.extend_from_slice(&[0x1B, 0x45, 0x01]); // Bold on
-            commands.extend_from_slice(format!("NOTES: {}\n", notes).as_bytes());
-            commands.extend_from_slice(&[0x1B, 0x45, 0x00]); // Bold off
-        }
-    }
-
-    // Footer separator
-    commands.extend_from_slice(b"================================\n");
-
-    // Feed extra lines for tear-off
-    commands.extend_from_slice(&[0x0A, 0x0A, 0x0A]);
-
-    // Cut paper
-    commands.extend_from_slice(&[0x1D, 0x56, 0x00]); // GS V 0 (full cut)
-
-    commands
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_receipt() {
-        let receipt = ReceiptData {
-            store_name: "Test Store".to_string(),
-            store_address: Some("123 Main St".to_string()),
-            order_number: "ORD-001".to_string(),
-            items: vec![
-                ReceiptItem {
-                    name: "Burger".to_string(),
-                    quantity: 2,
-                    price: 9.99,
-                    modifiers: Some(vec!["Extra Cheese".to_string()]),
-                },
-            ],
-            subtotal: 19.98,
-            tax: 1.80,
-            discount: 0.0,
-            total: 21.78,
-            payment_method: "Cash".to_string(),
-            footer: Some("Thank you!".to_string()),
-        };
-
-        let commands = build_receipt_commands(&receipt);
-        assert!(!commands.is_empty());
-    }
+/// Backwards-compat: the older invoke handler exposed `get_printers` and
+/// some calling code may still reference it. Keep it pointing at the same
+/// real list so it stops returning the placeholder.
+#[tauri::command]
+pub async fn get_printers() -> Result<Vec<String>, String> {
+    list_thermal_printers().await
 }
