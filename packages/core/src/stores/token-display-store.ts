@@ -24,6 +24,7 @@ export const useTokenDisplayStore = create<TokenDisplayStore>((set, get) => ({
       try {
         if (isTauri()) {
           await windowRef.setFocus?.()
+          return
         } else if (!windowRef.closed) {
           windowRef.focus()
           return

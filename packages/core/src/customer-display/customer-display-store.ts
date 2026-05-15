@@ -27,6 +27,12 @@ export const useCustomerDisplayStore = create<CustomerDisplayStore>((set, get) =
       try {
         if (isTauri()) {
           await windowRef.setFocus?.()
+          // Don't fall through to the "find existing webview" branch below —
+          // that path re-registers `onCloseRequested` every click, which
+          // (a) leaks listeners and (b) on macOS/Tauri 2 has been observed
+          // to nudge the main window's focus/blur cycle hard enough to
+          // trigger unexpected state changes upstream.
+          return
         } else if (!windowRef.closed) {
           windowRef.focus()
           return

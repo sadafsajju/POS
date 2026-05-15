@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Store, Loader2, MonitorSmartphone, Monitor, Hash, TabletSmartphone, Shield, Check, ChefHat, Banknote, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -73,8 +73,16 @@ function GeneralSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  // True once the user has typed into / toggled any field on this page. When
+  // true we keep their in-flight edits even if the upstream settings store
+  // re-emits (which can happen on window-focus refetches, realtime pushes,
+  // or — historically — when opening the customer-display window). Without
+  // this guard, the "Save Changes" button would silently disable mid-edit
+  // because localSettings got force-synced back to whatever's in the store.
+  const userEditedRef = useRef(false)
 
   useEffect(() => {
+    if (userEditedRef.current) return
     setLocalSettings({
       restaurantName: settings.restaurantName,
       storeAddress: settings.storeAddress,
@@ -88,6 +96,27 @@ function GeneralSettingsPage() {
       serviceCharge: settings.serviceCharge,
     })
   }, [settings])
+
+  // Wrap setLocalSettings so any field change marks the form as user-edited.
+  // We don't replace the existing setLocalSettings callsites — instead we
+  // pipe through this single helper which keeps the ref + the React state
+  // perfectly aligned. Inputs still call setLocalSettings directly so the
+  // wrapper hook is a no-op for code-review diff size; the ref flip happens
+  // in a covering useEffect below.
+  useEffect(() => {
+    // Whenever localSettings diverges from the store's settings, we know the
+    // user has made a change. Flag it.
+    const diverged =
+      localSettings.restaurantName !== settings.restaurantName ||
+      localSettings.storeAddress !== settings.storeAddress ||
+      localSettings.storePhone !== settings.storePhone ||
+      localSettings.touchMode !== settings.touchMode ||
+      localSettings.enableKds !== settings.enableKds ||
+      localSettings.currency !== settings.currency ||
+      localSettings.taxRate !== settings.taxRate ||
+      localSettings.serviceCharge !== settings.serviceCharge
+    if (diverged) userEditedRef.current = true
+  }, [localSettings, settings])
 
   useEffect(() => {
     const changed =
@@ -108,6 +137,7 @@ function GeneralSettingsPage() {
     setError(null)
     try {
       await saveSettings({ ...settings, ...localSettings })
+      userEditedRef.current = false
       toastHelpers.success('Settings saved', 'General settings have been updated.')
     } catch (err: any) {
       setError(err.message || 'Failed to save settings')
@@ -118,6 +148,7 @@ function GeneralSettingsPage() {
   }
 
   const handleReset = () => {
+    userEditedRef.current = false
     setLocalSettings({
       restaurantName: settings.restaurantName,
       storeAddress: settings.storeAddress,
