@@ -185,9 +185,17 @@ The desktop app supports:
 
 ## License
 
-MIT License - See LICENSE file for details.
+**Proprietary — All Rights Reserved.** Copyright (c) 2026 Sadaf Sajju.
+
+This repository is publicly visible only because the release pipeline
+requires it; visibility does **not** grant any right to use, copy,
+modify, or distribute the source. See [LICENSE](LICENSE) for the full
+terms. For commercial enquiries: sadafsajju@gmail.com.
 
 ## Contributing
+
+By submitting a pull request you assign your contribution to the copyright
+holder under the project's licence terms.
 
 1. Fork the repository
 2. Create a feature branch

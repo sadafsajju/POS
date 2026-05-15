@@ -1,21 +1,83 @@
-MIT License
+PROPRIETARY SOFTWARE — ALL RIGHTS RESERVED
 
-Copyright (c) 2024 POS Full System
+Copyright (c) 2026 Sadaf Sajju. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+NOTICE
+------
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This source code is made publicly viewable only because the project's
+release pipeline (GitHub Actions) requires the repository to be public to
+avoid prohibitive billing costs. Public visibility on GitHub does NOT
+grant any license to use, copy, modify, distribute, sublicense, or create
+derivative works from this software, in whole or in part.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+NO LICENSE IS GRANTED to the public, end users, contributors, GitHub, or
+any third party, except as expressly stated below or under a separate,
+signed agreement with the copyright holder.
+
+PROHIBITED WITHOUT WRITTEN PERMISSION
+-------------------------------------
+
+The following are explicitly NOT permitted absent prior written consent
+from the copyright holder:
+
+  * Copying or redistributing the source code, in whole or in part.
+  * Compiling and running the software outside of contexts authorised
+    by the copyright holder (e.g. as an authorised customer of the
+    POS product).
+  * Modifying or creating derivative works.
+  * Incorporating any portion of this code into another software
+    product, whether commercial or non-commercial.
+  * Reverse-engineering compiled artefacts (.exe, .dmg, .app, etc.).
+  * Re-publishing the code under any other licence, including
+    permissive or copyleft licences.
+  * Using the code to train machine-learning or AI systems, including
+    code-generation models, without explicit prior written consent.
+  * Using the trade names, trademarks, service marks, logos, or product
+    names of the copyright holder.
+
+PERMITTED — STRICTLY LIMITED
+----------------------------
+
+The following are permitted, and ONLY the following:
+
+  1. Read-only inspection of the source for educational or evaluation
+     purposes via GitHub's web interface or a personal clone, provided
+     the code is not redistributed, modified beyond local experimentation,
+     or used to build or operate any product or service.
+
+  2. Fork-for-pull-request workflow: GitHub users may use the standard
+     fork mechanism solely to propose a contribution back to this
+     repository via a pull request. Any such contribution is assigned
+     to the copyright holder under this licence.
+
+THIRD-PARTY COMPONENTS
+----------------------
+
+This repository contains third-party open-source software (npm packages,
+Rust crates, etc.) governed by their own respective licences (MIT,
+Apache 2.0, BSD, ISC, MPL, …). Those licences continue to apply to those
+components and are not overridden by this notice. The terms above apply
+only to original code authored by the copyright holder and committed to
+this repository.
+
+DISCLAIMER OF WARRANTY
+----------------------
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+LIMITATION OF LIABILITY
+-----------------------
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES,
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE,
+ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+CONTACT
+-------
+
+For licensing enquiries, including commercial-use requests:
+sadafsajju@gmail.com
