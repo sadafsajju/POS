@@ -8,11 +8,10 @@ on:
 
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
-  # Windows-only build matrix. The macOS (universal) entry was removed because
-  # the only deployment target is Windows POS terminals — and macOS GitHub
-  # runners bill at 10× the Linux rate (vs. 2× for Windows). Re-add a `macos-
-  # latest` matrix include here if a Mac build is ever needed; publish-update
-  # already gracefully degrades when Mac artifacts are missing.
+  # Cross-platform build matrix. The repo is public, so all GitHub Actions
+  # runner minutes (including macOS, normally 10× the Linux rate) are free.
+  # Drop a matrix entry if a platform stops being a deployment target.
+  # publish-update.mjs gracefully degrades when any artifact set is missing.
   # ────────────────────────────────────────────────────────────────────────────
   build:
     name: Build (${{ matrix.platform_label }})
@@ -29,6 +28,16 @@ jobs:
             artifact_glob: |
               apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
               apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.sig
+          - os: macos-latest
+            platform_label: macOS (universal)
+            target: universal-apple-darwin
+            rust_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            bundle_subdir: macos
+            artifact_name: macos
+            artifact_glob: |
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+              apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
 
     runs-on: ${{ matrix.os }}
 
