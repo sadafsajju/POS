@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
 import { Info, Database, Server, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
+import { APP_VERSION } from '@/lib/version'
 
 export const Route = createFileRoute('/admin/more/about')({
   component: AboutPage,
@@ -183,10 +184,10 @@ function AboutPage() {
           </div>
           <div className="px-5 pb-5 space-y-3">
             {[
-              { label: 'Application Version', value: 'v1.0.0', accent: 'bg-emerald-500/15 text-emerald-400' },
-              { label: 'Environment', value: 'Development', accent: 'bg-amber-500/15 text-amber-400' },
-              { label: 'Frontend', value: 'React + Vite', accent: 'bg-sky-500/15 text-sky-400' },
-              { label: 'Backend', value: 'Go + Gin', accent: 'bg-orange-500/15 text-orange-400' },
+              { label: 'Application Version', value: `v${APP_VERSION}`, accent: 'bg-emerald-500/15 text-emerald-400' },
+              { label: 'Environment', value: import.meta.env.PROD ? 'Production' : 'Development', accent: 'bg-amber-500/15 text-amber-400' },
+              { label: 'Frontend', value: 'React + Vite + Tauri', accent: 'bg-sky-500/15 text-sky-400' },
+              { label: 'Backend', value: 'Supabase', accent: 'bg-orange-500/15 text-orange-400' },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between">
                 <span className="text-sm text-zinc-400">{item.label}</span>

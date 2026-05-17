@@ -8,11 +8,13 @@ import {
   Receipt,
   LogOut,
   Lock,
+  Download,
 } from 'lucide-react'
 import type { User as UserType } from '@/types'
 import { useAuthStore, useSettingsStore } from '@pos/core'
 import { LocationSwitcher } from '@/components/ui/location-switcher'
 import { signOut as supabaseSignOut } from '@pos/supabase'
+import { useUpdateStore } from '@/lib/update-store'
 
 // --- Trial Banner ---
 
@@ -77,6 +79,27 @@ const navItems = [
   },
 ]
 
+// --- Update Button (subscribes to useUpdateStore, hidden when no update) ---
+
+function UpdateButton() {
+  const updateAvailable = useUpdateStore((s) => s.update != null)
+  const updateVersion = useUpdateStore((s) => s.version)
+  const showUpdateDialog = useUpdateStore((s) => s.showDialog)
+  if (!updateAvailable) return null
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={showUpdateDialog}
+      title={updateVersion ? `Install version ${updateVersion}` : 'Install update'}
+      className="flex-shrink-0 h-10 px-3 gap-2 text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 border border-amber-500/30 bg-amber-500/10"
+    >
+      <Download className="w-4 h-4" />
+      <span className="hidden sm:inline text-sm">Update</span>
+    </Button>
+  )
+}
+
 // --- Top Bar ---
 
 interface AdminTopBarProps {
@@ -118,6 +141,7 @@ export function AdminTopBar({ user }: AdminTopBarProps) {
       </div>
       <div className="flex items-center gap-1">
         <TrialBanner />
+        <UpdateButton />
         <Button
           variant="ghost"
           size="sm"

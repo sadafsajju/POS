@@ -13,12 +13,14 @@ import {
   User,
   LayoutDashboard,
   Monitor,
+  Download,
 } from 'lucide-react'
 
 // Use shared packages
 import type { User as UserType } from '@pos/types'
 import { useAuthStore, useSyncStore, useCustomerDisplayStore } from '@pos/core'
 import { LocationSwitcher } from '@/components/ui/location-switcher'
+import { useUpdateStore } from '@/lib/update-store'
 
 interface RoleBasedLayoutProps {
   user: UserType
@@ -29,6 +31,9 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
   const { logout, lock } = useAuthStore()
   const { isOnline } = useSyncStore()
   const { isOpen: isDisplayOpen, openWindow: openDisplay, closeWindow: closeDisplay } = useCustomerDisplayStore()
+  const updateAvailable = useUpdateStore((s) => s.update != null)
+  const updateVersion = useUpdateStore((s) => s.version)
+  const showUpdateDialog = useUpdateStore((s) => s.showDialog)
 
   function getDefaultView(role: string): string {
     switch (role) {
@@ -221,6 +226,17 @@ export function RoleBasedLayout({ user }: RoleBasedLayoutProps) {
               <Monitor className="w-4 h-4" />
               Display
             </Button>
+            {updateAvailable && (
+              <Button
+                size="sm"
+                onClick={showUpdateDialog}
+                title={updateVersion ? `Install version ${updateVersion}` : 'Install update'}
+                className="flex items-center gap-2 bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 hover:text-amber-200"
+              >
+                <Download className="w-4 h-4" />
+                Update
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handleLock}

@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Form } from '@/components/ui/form'
+import { ImagePickerField } from '@/components/forms/ImagePickerField'
 import {
   TextInputField,
   TextareaField,
@@ -126,12 +127,11 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
                 description="Optional description for menu organization"
               />
 
-              <TextInputField
-                control={form.control}
+              <ImagePickerField
+                control={form.control as any}
                 name="image_url"
-                label="Image URL"
-                placeholder="https://example.com/image.jpg"
-                description="Optional category image URL"
+                label="Category Image"
+                description="Upload an image or leave empty"
               />
             </div>
 

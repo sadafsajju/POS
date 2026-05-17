@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { check, Update } from '@tauri-apps/plugin-updater'
+import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { Loader2, Download } from 'lucide-react'
 import {
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useUpdateStore } from '@/lib/update-store'
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window
 
@@ -20,16 +21,34 @@ const isTauri = () => typeof window !== 'undefined' && '__TAURI__' in window
 // pick up an emergency hotfix.
 const POLL_INTERVAL_MS = 60 * 60 * 1000 // 60 min
 
+/**
+ * Two roles:
+ *   1. Periodic poller — drives `useUpdateStore`. When a new version is
+ *      found it's stashed in the store so the header "Update" button can
+ *      render. We also auto-open the dialog the first time we see a
+ *      given version; the operator's "Later" click is per-version so we
+ *      don't keep popping the modal on every poll.
+ *   2. Modal dialog — gated by `dialogVisible` from the store. The header
+ *      button toggles `dialogVisible` so the operator can re-open the
+ *      install prompt after dismissing it.
+ */
 export function UpdateChecker() {
-  const [update, setUpdate] = useState<Update | null>(null)
+  const update = useUpdateStore((s) => s.update) as Update | null
+  const dialogVisible = useUpdateStore((s) => s.dialogVisible)
+  const setAvailable = useUpdateStore((s) => s.setAvailable)
+  const clear = useUpdateStore((s) => s.clear)
+  const showDialog = useUpdateStore((s) => s.showDialog)
+  const hideDialog = useUpdateStore((s) => s.hideDialog)
+
   const [installing, setInstalling] = useState(false)
   const [progress, setProgress] = useState<{ downloaded: number; total: number | null }>({
     downloaded: 0,
     total: null,
   })
-  // Versions the operator has already clicked "Later" on this session. Used
-  // to suppress the modal from re-appearing on every poll for the same
-  // version — but a NEWER release that lands later still surfaces because
+
+  // Versions the operator has already clicked "Later" on this session.
+  // Controls AUTO-popup only — the header button still lets them re-open
+  // the dialog manually. A genuinely newer version still auto-pops because
   // its version string won't be in this set.
   const dismissedRef = useRef<Set<string>>(new Set())
 
@@ -42,8 +61,14 @@ export function UpdateChecker() {
       try {
         const result = await check()
         if (cancelled || !result?.available) return
-        if (dismissedRef.current.has(result.version)) return
-        setUpdate(result)
+        const isAlreadyKnown = useUpdateStore.getState().version === result.version
+        setAvailable(result, result.version)
+        // First time we see this version this session AND user hasn't
+        // dismissed it → pop the dialog. Otherwise leave dialog state alone
+        // so periodic re-checks don't interrupt the operator mid-sale.
+        if (!isAlreadyKnown && !dismissedRef.current.has(result.version)) {
+          showDialog()
+        }
       } catch (err) {
         console.warn('Update check failed:', err)
       }
@@ -56,6 +81,9 @@ export function UpdateChecker() {
       cancelled = true
       clearInterval(intervalId)
     }
+    // setAvailable/showDialog are stable Zustand references; intentionally
+    // exclude from deps so the polling effect runs once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleInstall = async () => {
@@ -73,18 +101,16 @@ export function UpdateChecker() {
     } catch (err) {
       console.error('Update install failed:', err)
       setInstalling(false)
-      setUpdate(null)
+      clear()
     }
   }
 
   const handleLater = () => {
-    // Remember this version so the next periodic check doesn't immediately
-    // re-pop the dialog while the operator is mid-sale.
     if (update?.version) dismissedRef.current.add(update.version)
-    setUpdate(null)
+    hideDialog() // keep `update` set so the header button stays visible
   }
 
-  if (!update) return null
+  if (!update || !dialogVisible) return null
 
   const pct =
     progress.total && progress.total > 0

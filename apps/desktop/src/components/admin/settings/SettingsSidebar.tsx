@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@pos/core'
+import { APP_VERSION } from '@/lib/version'
 import {
   Store,
   DollarSign,
@@ -386,6 +387,13 @@ export function SettingsSidebar() {
           )
         })}
       </nav>
+
+      {/* Version footer — always visible so support can ask "what version?"
+          and the operator can read it off the sidebar without hunting. */}
+      <div className="flex-shrink-0 px-4 py-2.5 border-t border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-600 font-mono flex items-center justify-between">
+        <span>POS</span>
+        <span title="App version">v{APP_VERSION}</span>
+      </div>
     </div>
   )
 }
