@@ -96,6 +96,57 @@ export async function recordTip(params: {
   return wrapRpc(data, error)
 }
 
+/**
+ * Apply (or remove) a discount preset on an existing order — used by the
+ * payment overlay's Discount step. The discount is denormalised onto the
+ * order row (name + percent) so reports + historical receipts stay
+ * correct even if the preset is later renamed/deleted.
+ *
+ * Math: discount_amount = subtotal × percent / 100 (net-side reduction).
+ * total_amount is recomputed from subtotal + tax_amount − discount_amount
+ * inside the UPDATE so the caller doesn't have to.
+ *
+ * Pass `discount = null` to clear an existing discount.
+ */
+export async function applyDiscountToOrder(
+  orderId: string,
+  discount: { id: string; name: string; percent: number } | null,
+): Promise<ApiResponse<any>> {
+  const sb = getSupabase()
+
+  // Read current subtotal + tax so we can compute the new total atomically
+  // in a single UPDATE expression below.
+  const { data: current, error: readErr } = await sb
+    .from('orders')
+    .select('id, subtotal, tax_amount')
+    .eq('id', orderId)
+    .single()
+  if (readErr) return { success: false, message: readErr.message }
+  const subtotal = Number((current as any)?.subtotal ?? 0)
+  const tax = Number((current as any)?.tax_amount ?? 0)
+
+  let discountAmount = 0
+  if (discount && discount.percent > 0) {
+    discountAmount = Math.round(subtotal * discount.percent) / 100
+  }
+  const newTotal = Math.max(0, subtotal + tax - discountAmount)
+
+  const { data, error } = await sb
+    .from('orders')
+    .update({
+      discount_id: discount?.id ?? null,
+      discount_name: discount?.name ?? null,
+      discount_percent: discount?.percent ?? null,
+      discount_amount: discountAmount,
+      total_amount: newTotal,
+    } as any)
+    .eq('id', orderId)
+    .select('*')
+    .single()
+  if (error) return { success: false, message: error.message }
+  return { success: true, message: 'Discount applied', data }
+}
+
 export async function getTipPool(params: {
   period_start: string
   period_end: string

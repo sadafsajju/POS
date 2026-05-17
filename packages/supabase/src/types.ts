@@ -276,6 +276,9 @@ export interface Database {
           allergens_flagged_snapshot: string[] | null
           tip_amount: number
           tip_method: 'cash' | 'card' | 'other' | null
+          discount_id: string | null
+          discount_name: string | null
+          discount_percent: number | null
           created_at: string
           updated_at: string
           served_at: string | null
@@ -319,6 +322,9 @@ export interface Database {
           allergens_flagged_snapshot?: string[] | null
           tip_amount?: number
           tip_method?: 'cash' | 'card' | 'other' | null
+          discount_id?: string | null
+          discount_name?: string | null
+          discount_percent?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -911,6 +917,36 @@ export interface Database {
           variation_item_id?: string | null
           price_override?: number | null
           sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      discounts: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          percent: number
+          is_active: boolean
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          percent: number
+          is_active?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          percent?: number
+          is_active?: boolean
+          display_order?: number
           updated_at?: string
         }
         Relationships: []

@@ -17,6 +17,7 @@ import {
   BarChart3,
   Coins,
   FileSpreadsheet,
+  Percent,
 } from 'lucide-react'
 
 const reportsSections = [
@@ -138,6 +139,16 @@ const posSections = [
     accent: 'bg-sky-500',
     activeText: 'text-sky-400',
     activeBg: 'bg-sky-500/10',
+  },
+  {
+    id: 'discounts',
+    label: 'Discounts',
+    icon: <Percent className="w-4 h-4" />,
+    description: 'Named discounts for the payment step',
+    href: '/admin/more/discounts',
+    accent: 'bg-rose-500',
+    activeText: 'text-rose-400',
+    activeBg: 'bg-rose-500/10',
   },
 ]
 

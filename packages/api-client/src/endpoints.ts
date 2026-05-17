@@ -14,6 +14,7 @@ import {
   tenantsDb,
   mediaDb,
   promosDb,
+  discountsDb,
 } from '@pos/supabase';
 import type { Json } from '@pos/supabase';
 import type {
@@ -104,6 +105,20 @@ export const promosApi = {
   getPublicPromos: async () =>
     ({ success: true, message: 'Success', data: [] }) as any,
 };
+
+// ============================================
+// Discount preset type — mirrors the public.discounts row shape.
+// ============================================
+export interface DiscountItem {
+  id: string;
+  org_id?: string;
+  name: string;
+  percent: number;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // ============================================
 // Setup Endpoints
@@ -556,6 +571,20 @@ export const adminApi = {
 
   updatePromoDuration: (id: string, duration_seconds: number) =>
     promosDb.updatePromoDuration(id, duration_seconds) as any,
+
+  // Discount presets — admin-managed list shown as chips in the payment flow.
+  getDiscounts: () => discountsDb.listDiscounts() as any,
+  getActiveDiscounts: () => discountsDb.listActiveDiscounts() as any,
+  createDiscount: (input: { name: string; percent: number }) =>
+    discountsDb.createDiscount(input) as any,
+  updateDiscount: (
+    id: string,
+    patch: { name?: string; percent?: number; is_active?: boolean },
+  ) => discountsDb.updateDiscount(id, patch) as any,
+  deleteDiscount: (id: string) => discountsDb.deleteDiscount(id) as any,
+  toggleDiscount: (id: string) => discountsDb.toggleDiscount(id) as any,
+  reorderDiscounts: (items: { id: string; display_order: number }[]) =>
+    discountsDb.reorderDiscounts(items) as any,
 
   // Media Library — backed by Supabase Storage `media` bucket
   getMedia: () => mediaDb.listMedia() as any,

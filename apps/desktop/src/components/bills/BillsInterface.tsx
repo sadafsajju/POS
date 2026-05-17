@@ -6,7 +6,7 @@ import { BillsList } from './BillsList'
 import { BillDetailPanel } from './BillDetailPanel'
 import { useSettingsStore, useRequirePin, useAuthStore } from '@pos/core'
 import { printThermalReceipt } from '@/components/counter/utils/printUtils'
-import { todayInTz } from '@/lib/utils'
+import { todayInTz, dayBoundsUtc } from '@/lib/utils'
 import { EodReconciliation } from '@/components/admin/EodReconciliation'
 import type { Order, BillsFilters } from './types'
 
@@ -45,9 +45,18 @@ export function BillsInterface() {
   const isToday = filters.date === today
 
   const { data: ordersResponse, isLoading, error } = useQuery({
-    queryKey: ['bills-orders', filters.status, filters.date],
+    queryKey: ['bills-orders', filters.status, filters.date, settings.timezone],
     queryFn: async () => {
-      const params: Record<string, string> = { per_page: '100', date: filters.date }
+      // The apiClient/orders.getOrders Supabase query filters on `created_at`
+      // (a UTC timestamp). Translate the operator-friendly YYYY-MM-DD picker
+      // value into UTC bounds for the org's timezone so a sale at 23:30 BST
+      // shows up under that day, not the next.
+      const { startUtc, endUtc } = dayBoundsUtc(filters.date, settings.timezone)
+      const params: Record<string, string> = {
+        per_page: '100',
+        date_from: startUtc,
+        date_to: endUtc,
+      }
       if (filters.status !== 'all') {
         params.status = filters.status
       }

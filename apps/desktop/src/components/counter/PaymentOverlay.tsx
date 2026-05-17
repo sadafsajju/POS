@@ -16,11 +16,13 @@ import type { PaidPaymentDetails } from './types'
 import { consolidateItems } from './utils/orderUtils'
 import { printThermalReceipt } from './utils/printUtils'
 import { CustomerStep } from './payment-steps/CustomerStep'
+import { DiscountStep } from './payment-steps/DiscountStep'
 import { MethodStep } from './payment-steps/MethodStep'
 import { CashAmountStep } from './payment-steps/CashAmountStep'
 import { CompleteStep } from './payment-steps/CompleteStep'
+import type { DiscountItem } from '@pos/api-client'
 
-type PaymentStep = 'customer' | 'method' | 'cash-amount' | 'complete'
+type PaymentStep = 'customer' | 'discount' | 'method' | 'cash-amount' | 'complete'
 type SelectedMethod = 'cash' | 'card' | 'digital' | 'cod'
 
 interface PaymentOverlayProps {
@@ -51,11 +53,17 @@ export function PaymentOverlay({
   const [linkedCustomerAddress, setLinkedCustomerAddress] = useState<string | null>(null)
   const [paidTotal, setPaidTotal] = useState<number | null>(null) // Captured at payment time
   const [tipAmount, setTipAmount] = useState<number>(0)
+  const [selectedDiscount, setSelectedDiscount] = useState<DiscountItem | null>(null)
   const { broadcastPaymentStart, broadcastPaymentComplete } = useCustomerDisplayBroadcast()
 
   const billTotal = activeBill.aggregated_total
   const paidAmount = activeBill.paid_amount || 0
-  const total = paidTotal ?? Math.max(0, billTotal - paidAmount)
+  // Base (pre-discount) amount due. The Discount step subtracts from this.
+  const baseTotal = paidTotal ?? Math.max(0, billTotal - paidAmount)
+  const discountAmount = selectedDiscount
+    ? Math.round(baseTotal * selectedDiscount.percent) / 100
+    : 0
+  const total = Math.max(0, baseTotal - discountAmount)
   const tipShown = settings.tippingEnabled ? tipAmount : 0
   // Total the cashier collects (bill due + tip). Payment row records the bill
   // portion only — tip is logged separately via record_tip so reports keep
@@ -188,11 +196,42 @@ export function PaymentOverlay({
     setLinkedCustomerId(id)
     setLinkedCustomerName(name)
     setLinkedCustomerAddress(address || null)
+    setStep('discount')
+  }
+
+  // Persist the chosen discount on the bill record so the receipt + reports
+  // see it. Runs when leaving the Discount step; the order's discount fields
+  // get updated (or cleared if no discount selected) before moving to the
+  // method picker.
+  const handleDiscountContinue = async () => {
+    try {
+      await ordersDb.applyDiscountToOrder(
+        activeBill.bill.id,
+        selectedDiscount
+          ? {
+              id: selectedDiscount.id,
+              name: selectedDiscount.name,
+              percent: selectedDiscount.percent,
+            }
+          : null,
+      )
+    } catch (e: any) {
+      // Don't block payment — if discount persist fails (RLS hiccup, network),
+      // the cashier sees the discounted total via local state and the payment
+      // still goes through. The order just won't show the discount in reports
+      // — log so a manager can fix manually if needed.
+      console.warn('Could not persist discount on order:', e?.message ?? e)
+    }
     setStep('method')
   }
 
   // Handle back navigation from MethodStep
   const handleMethodBack = () => {
+    setStep('discount')
+    setPaymentError(null)
+  }
+
+  const handleDiscountBack = () => {
     setStep('customer')
     setPaymentError(null)
   }
@@ -317,8 +356,19 @@ export function PaymentOverlay({
             <CustomerStep
               formatCurrency={formatCurrency}
               onCustomerLinked={handleCustomerLinked}
-              onSkip={() => setStep('method')}
+              onSkip={() => setStep('discount')}
               isDelivery={isDelivery}
+            />
+          )}
+
+          {step === 'discount' && (
+            <DiscountStep
+              formatCurrency={formatCurrency}
+              baseTotal={baseTotal}
+              selectedDiscount={selectedDiscount}
+              onSelect={setSelectedDiscount}
+              onContinue={handleDiscountContinue}
+              onBack={handleDiscountBack}
             />
           )}
 

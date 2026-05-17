@@ -220,6 +220,18 @@ export function generateReceiptEscPos(
   if (settings?.receiptHeader) p.textln(settings.receiptHeader)
   p.hr()
 
+  // ─ Big token callout (when one exists — non-dine-in orders get a token
+  // so the customer can match it to the kitchen-display queue when their
+  // order is ready). Printed before the order meta so it's the first thing
+  // the customer sees on the strip.
+  const tokenNumber = (order as any).token_number as number | null | undefined
+  if (tokenNumber != null) {
+    p.align('center').size({ doubleHeight: true, doubleWidth: true }).bold(true)
+    p.textln(`TOKEN ${String(tokenNumber).padStart(4, '0')}`)
+    p.size().bold(false).align('left')
+    p.hr()
+  }
+
   // ─ Order meta
   p.align('left')
   p.text(`Order:  `).textln(order.order_number || '')
@@ -251,10 +263,14 @@ export function generateReceiptEscPos(
   const subtotal = Number((order as any).subtotal ?? order.total_amount ?? 0)
   const tax = Number((order as any).tax_amount ?? 0)
   const discount = Number((order as any).discount_amount ?? 0)
+  const discountName = (order as any).discount_name as string | null | undefined
   const tipAmount = Number((order as any).tip_amount ?? 0)
   p.twoCol('Subtotal', formatCurrency(subtotal))
   if (tax > 0) p.twoCol(isUkVat ? 'VAT' : 'Tax', formatCurrency(tax))
-  if (discount > 0) p.twoCol('Discount', `-${formatCurrency(discount)}`)
+  if (discount > 0) {
+    const label = discountName ? `Discount (${discountName})` : 'Discount'
+    p.twoCol(label, `-${formatCurrency(discount)}`)
+  }
   if (tippingEnabled && tipAmount > 0) p.twoCol('Tip', formatCurrency(tipAmount))
 
   // ─ UK VAT breakdown (compact two-line summary per rate)
@@ -663,6 +679,20 @@ export function generateReceiptHtml(
         <tbody>${itemRows}</tbody>
       </table>
       ${vatBreakdownHtml}
+      ${(() => {
+        const dAmt = Number((order as any).discount_amount ?? 0)
+        if (dAmt <= 0) return ''
+        const dName = (order as any).discount_name as string | null | undefined
+        const label = dName ? `Discount (${escapeHtml(dName)})` : 'Discount'
+        return `
+          <table>
+            <tr>
+              <td>${label}</td>
+              <td style="text-align:right;color:#0a7d3d">-${escapeHtml(formatCurrency(dAmt))}</td>
+            </tr>
+          </table>
+        `
+      })()}
       <div class="divider"></div>
       <table>
         <tr class="total">

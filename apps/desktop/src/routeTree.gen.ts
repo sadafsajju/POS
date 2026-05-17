@@ -47,6 +47,7 @@ import { Route as AdminMoreLocationsRouteImport } from './routes/admin/more/loca
 import { Route as AdminMoreImportRouteImport } from './routes/admin/more/import'
 import { Route as AdminMoreGeneralRouteImport } from './routes/admin/more/general'
 import { Route as AdminMoreFinancialRouteImport } from './routes/admin/more/financial'
+import { Route as AdminMoreDiscountsRouteImport } from './routes/admin/more/discounts'
 import { Route as AdminMoreCartRouteImport } from './routes/admin/more/cart'
 import { Route as AdminMoreAccountRouteImport } from './routes/admin/more/account'
 import { Route as AdminMoreAboutRouteImport } from './routes/admin/more/about'
@@ -242,6 +243,11 @@ const AdminMoreFinancialRoute = AdminMoreFinancialRouteImport.update({
   path: '/financial',
   getParentRoute: () => AdminMoreRoute,
 } as any)
+const AdminMoreDiscountsRoute = AdminMoreDiscountsRouteImport.update({
+  id: '/discounts',
+  path: '/discounts',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
 const AdminMoreCartRoute = AdminMoreCartRouteImport.update({
   id: '/cart',
   path: '/cart',
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
   '/admin/more/import': typeof AdminMoreImportRoute
@@ -329,6 +336,7 @@ export interface FileRoutesByTo {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
   '/admin/more/import': typeof AdminMoreImportRoute
@@ -373,6 +381,7 @@ export interface FileRoutesById {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
   '/admin/more/import': typeof AdminMoreImportRoute
@@ -419,6 +428,7 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
     | '/admin/more/import'
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
     | '/admin/more/import'
@@ -504,6 +515,7 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
     | '/admin/more/import'
@@ -810,6 +822,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMoreFinancialRouteImport
       parentRoute: typeof AdminMoreRoute
     }
+    '/admin/more/discounts': {
+      id: '/admin/more/discounts'
+      path: '/discounts'
+      fullPath: '/admin/more/discounts'
+      preLoaderRoute: typeof AdminMoreDiscountsRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
     '/admin/more/cart': {
       id: '/admin/more/cart'
       path: '/cart'
@@ -857,6 +876,7 @@ interface AdminMoreRouteChildren {
   AdminMoreAboutRoute: typeof AdminMoreAboutRoute
   AdminMoreAccountRoute: typeof AdminMoreAccountRoute
   AdminMoreCartRoute: typeof AdminMoreCartRoute
+  AdminMoreDiscountsRoute: typeof AdminMoreDiscountsRoute
   AdminMoreFinancialRoute: typeof AdminMoreFinancialRoute
   AdminMoreGeneralRoute: typeof AdminMoreGeneralRoute
   AdminMoreImportRoute: typeof AdminMoreImportRoute
@@ -881,6 +901,7 @@ const AdminMoreRouteChildren: AdminMoreRouteChildren = {
   AdminMoreAboutRoute: AdminMoreAboutRoute,
   AdminMoreAccountRoute: AdminMoreAccountRoute,
   AdminMoreCartRoute: AdminMoreCartRoute,
+  AdminMoreDiscountsRoute: AdminMoreDiscountsRoute,
   AdminMoreFinancialRoute: AdminMoreFinancialRoute,
   AdminMoreGeneralRoute: AdminMoreGeneralRoute,
   AdminMoreImportRoute: AdminMoreImportRoute,

@@ -358,7 +358,12 @@ export function BillDetailPanel({
           )}
           {selectedOrder.discount_amount > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Discount</span>
+              <span className="text-zinc-500">
+                Discount
+                {(selectedOrder as any).discount_name
+                  ? ` (${(selectedOrder as any).discount_name})`
+                  : ''}
+              </span>
               <span className="text-emerald-400">-{formatCurrency(selectedOrder.discount_amount)}</span>
             </div>
           )}

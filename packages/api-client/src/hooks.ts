@@ -77,6 +77,13 @@ export const queryKeys = {
     admin: ['media', 'admin'] as const,
   },
 
+  // Discount presets
+  discounts: {
+    all: ['discounts'] as const,
+    admin: ['discounts', 'admin'] as const,
+    active: ['discounts', 'active'] as const,
+  },
+
   // Customers
   customers: {
     all: ['customers'] as const,
@@ -116,6 +123,9 @@ export const staleTime = {
 
   // Media
   media: 2 * 60 * 1000, // 2 minutes
+
+  // Discount presets
+  discounts: 5 * 60 * 1000, // 5 minutes — rarely change between sales
 
   // Customers
   customers: 5 * 60 * 1000, // 5 minutes

@@ -112,6 +112,42 @@ export function todayInTz(timezone: string = 'Europe/London'): string {
   return new Date().toISOString().split('T')[0]
 }
 
+/**
+ * Convert a local-date (YYYY-MM-DD as the operator's calendar sees it) plus
+ * a timezone into the UTC ISO instants that bracket that day. Used by any
+ * query that needs to filter rows by `created_at` for a business-day —
+ * Supabase stores timestamps as UTC, but the operator thinks in
+ * Europe/London / Asia/Kolkata / etc.
+ *
+ * Handles DST correctly because the offset is computed by re-interpreting
+ * the candidate UTC instant through the target timezone, not by
+ * hard-coding any offset.
+ */
+export function dayBoundsUtc(
+  localDate: string,
+  timezone: string = 'Europe/London',
+): { startUtc: string; endUtc: string } {
+  // Pretend `${localDate}T00:00:00` is UTC; this is wrong by exactly the tz
+  // offset for that local date. Re-derive the offset by formatting that
+  // instant through the target zone and diffing.
+  const naive = new Date(`${localDate}T00:00:00.000Z`)
+  let offsetMs = 0
+  try {
+    // toLocaleString in target tz, then re-parse as UTC. The diff equals
+    // the offset (in the convention `offset = utc - local`, so subtracting
+    // it from the naive instant gives the real UTC instant).
+    const asInTz = new Date(naive.toLocaleString('en-US', { timeZone: timezone }))
+    const asUtc = new Date(naive.toLocaleString('en-US', { timeZone: 'UTC' }))
+    offsetMs = asUtc.getTime() - asInTz.getTime()
+  } catch {
+    // Bad TZ — fall back to UTC bounds (will be off by a few hours for
+    // non-UTC orgs but won't crash).
+  }
+  const startUtc = new Date(naive.getTime() + offsetMs)
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000 - 1)
+  return { startUtc: startUtc.toISOString(), endUtc: endUtc.toISOString() }
+}
+
 export function getOrderStatusColor(status: string): string {
   switch (status) {
     case 'pending':
