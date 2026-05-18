@@ -4,7 +4,7 @@ import {
   Tag,
   MoreHorizontal
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, imageUrl } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,16 +64,24 @@ export function AdminCategoriesTable({
                   "flex items-center gap-3.5 min-w-0 flex-1",
                   !isActive && "opacity-50"
                 )}>
-                  {/* Color swatch */}
-                  <div
-                    className="flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center"
-                    style={{
-                      backgroundColor: categoryColor,
-                      color: 'white'
-                    }}
-                  >
-                    <Tag className="h-4.5 w-4.5" />
-                  </div>
+                  {/* Image (or color swatch fallback) */}
+                  {category.image_url ? (
+                    <img
+                      src={imageUrl(category.image_url)}
+                      alt={category.name}
+                      className="flex-shrink-0 h-10 w-10 rounded-lg object-cover ring-1 ring-zinc-700/80"
+                    />
+                  ) : (
+                    <div
+                      className="flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center"
+                      style={{
+                        backgroundColor: categoryColor,
+                        color: 'white'
+                      }}
+                    >
+                      <Tag className="h-4.5 w-4.5" />
+                    </div>
+                  )}
 
                   {/* Name + inline metadata */}
                   <div className="min-w-0 flex-1">

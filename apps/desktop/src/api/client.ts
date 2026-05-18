@@ -506,12 +506,12 @@ class APIClient {
 
   // Admin-specific category management
   async createCategory(categoryData: any): Promise<APIResponse<Category>> {
-    const { image_url, id, ...data } = categoryData
+    const { id, ...data } = categoryData
     return await categoriesDb.createCategory(data) as any
   }
 
   async updateCategory(id: string, categoryData: any): Promise<APIResponse<Category>> {
-    const { image_url, id: _id, ...data } = categoryData
+    const { id: _id, ...data } = categoryData
     return await categoriesDb.updateCategory(id, data) as any
   }
 

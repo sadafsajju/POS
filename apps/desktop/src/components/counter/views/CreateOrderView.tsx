@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Barcode, Settings2 } from 'lucide-react'
-import { useSettingsStore } from '@pos/core'
+import { Clock, Barcode, Settings2, Star, ArrowLeft, LayoutGrid } from 'lucide-react'
+import { useSettingsStore, useAuthStore, useFavoritesStore } from '@pos/core'
 import type { Product, CartItem, Category } from '../types'
 import { imageUrl } from '@/lib/utils'
 
@@ -21,7 +21,12 @@ interface CreateOrderViewProps {
   onRemoveItem?: (productId: string) => void
   onConfigureProduct?: (product: Product) => void
   formatCurrency: (amount: number) => string
+  searchActive?: boolean
 }
+
+const FAVORITES_ID = '__favorites__'
+const ALL_ID = '__all__'
+const UNCATEGORIZED_ID = '__uncategorized__'
 
 /**
  * Touch-friendly product grid view for creating orders
@@ -35,11 +40,15 @@ export function CreateOrderView({
   onRemoveFromCart: _onRemoveFromCart,
   onRemoveItem,
   onConfigureProduct,
-  formatCurrency
+  formatCurrency,
+  searchActive = false,
 }: CreateOrderViewProps) {
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [longPressProductId, setLongPressProductId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const { settings } = useSettingsStore()
+  const orgId = useAuthStore((s) => s.organization?.id ?? s.user?.org_id ?? s.location?.org_id)
+  const favoriteIds = useFavoritesStore((s) => (orgId ? s.byOrg[orgId] ?? [] : []))
   const displaySettings = settings.productDisplay ?? {
     showImage: true,
     showDescription: false,
@@ -251,38 +260,185 @@ export function CreateOrderView({
     )
   }
 
+  const favoriteProducts = safeProducts.filter((p) => favoriteIds.includes(p.id))
+
+  const renderCategoryTile = (tile: {
+    id: string
+    name: string
+    count: number
+    image?: string | null
+    color?: string | null
+    icon?: React.ReactNode
+    gradient?: string
+  }) => {
+    const hasImage = !!tile.image
+    const initial = tile.name.trim().charAt(0).toUpperCase() || '?'
+
+    return (
+      <button
+        key={tile.id}
+        type="button"
+        onClick={() => setSelectedCategoryId(tile.id)}
+        className={`relative aspect-square overflow-hidden rounded-xl transition-all cursor-pointer flex flex-col text-left bg-zinc-900 hover:bg-zinc-800 active:scale-[0.98] ${
+          tile.gradient ? `bg-gradient-to-br ${tile.gradient}` : ''
+        }`}
+      >
+        <div className="relative h-2/3 bg-zinc-800 overflow-hidden flex items-center justify-center">
+          {hasImage ? (
+            <img
+              src={imageUrl(tile.image!)}
+              alt={tile.name}
+              className="w-full h-full object-cover"
+            />
+          ) : tile.icon ? (
+            tile.icon
+          ) : (
+            <span
+              className="text-3xl sm:text-5xl font-black text-zinc-100/80 select-none"
+              style={tile.color ? { color: tile.color } : undefined}
+            >
+              {initial}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 p-2 sm:p-2.5 flex flex-col justify-between">
+          <h3 className="font-bold text-sm sm:text-base md:text-lg leading-tight line-clamp-2 text-zinc-100">
+            {tile.name}
+          </h3>
+          <span className="text-xs sm:text-sm text-zinc-500 tabular-nums">
+            {tile.count} {tile.count === 1 ? 'item' : 'items'}
+          </span>
+        </div>
+      </button>
+    )
+  }
+
+  const drillProducts = (() => {
+    if (selectedCategoryId === FAVORITES_ID) return favoriteProducts
+    if (selectedCategoryId === ALL_ID) return safeProducts
+    if (selectedCategoryId === UNCATEGORIZED_ID) return uncategorizedProducts
+    if (selectedCategoryId) return safeProducts.filter((p) => p.category_id === selectedCategoryId)
+    return []
+  })()
+
+  const drillTitle = (() => {
+    if (selectedCategoryId === FAVORITES_ID) return 'Favourites'
+    if (selectedCategoryId === ALL_ID) return 'All Items'
+    if (selectedCategoryId === UNCATEGORIZED_ID) return 'Other Items'
+    if (selectedCategoryId) {
+      return safeCategories.find((c) => c.id === selectedCategoryId)?.name ?? 'Items'
+    }
+    return ''
+  })()
+
+  // When search is active, bypass the category landing and show flat results
+  // grouped by category (legacy behaviour) so matches across categories are visible.
+  if (searchActive) {
+    return (
+      <div className="space-y-0">
+        {productsByCategory.map(({ category, products: categoryProducts }) => (
+          <div key={category.id}>
+            <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
+              <span>{category.name}</span>
+              <span className="text-zinc-500 text-xs sm:text-sm">{categoryProducts.length} items</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
+              {categoryProducts.map(renderProductCard)}
+            </div>
+          </div>
+        ))}
+        {uncategorizedProducts.length > 0 && (
+          <div>
+            <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
+              <span>Other Items</span>
+              <span className="text-zinc-500 text-xs sm:text-sm">{uncategorizedProducts.length} items</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
+              {uncategorizedProducts.map(renderProductCard)}
+            </div>
+          </div>
+        )}
+        {safeProducts.length === 0 && (
+          <div className="text-center py-12 text-zinc-500">
+            <p className="text-lg">No products match your search</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Drill view — show products in the selected category
+  if (selectedCategoryId) {
+    return (
+      <div className="space-y-0">
+        <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryId(null)}
+            className="flex items-center gap-1 sm:gap-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            Categories
+          </button>
+          <span className="text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex-1 min-w-0 truncate flex items-center gap-1.5">
+            {selectedCategoryId === FAVORITES_ID && (
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 fill-amber-400 text-amber-400 flex-shrink-0" />
+            )}
+            {drillTitle}
+          </span>
+          <span className="text-zinc-500 text-xs sm:text-sm flex-shrink-0">{drillProducts.length} items</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
+          {drillProducts.map(renderProductCard)}
+        </div>
+        {drillProducts.length === 0 && (
+          <div className="text-center py-12 text-zinc-500">
+            <p className="text-lg">
+              {selectedCategoryId === FAVORITES_ID
+                ? 'No favourites yet — tap the star on any product to add it here'
+                : 'No items in this category'}
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Category-card landing
   return (
-    <div className="space-y-0">
-      {productsByCategory.map(({ category, products: categoryProducts }) => (
-        <div key={category.id}>
-          {/* Category Header */}
-          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
-            <span>{category.name}</span>
-            <span className="text-zinc-500 text-xs sm:text-sm">{categoryProducts.length} items</span>
-          </div>
-          {/* Products Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
-            {categoryProducts.map(renderProductCard)}
-          </div>
-        </div>
-      ))}
-
-      {/* Uncategorized Products */}
-      {uncategorizedProducts.length > 0 && (
-        <div>
-          <div className="sticky top-0 z-10 bg-zinc-900 border-b border-zinc-800 px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg md:text-xl font-black tracking-tight text-zinc-100 flex items-center justify-between">
-            <span>Other Items</span>
-            <span className="text-zinc-500 text-xs sm:text-sm">{uncategorizedProducts.length} items</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
-            {uncategorizedProducts.map(renderProductCard)}
-          </div>
-        </div>
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-1.5 sm:gap-2 md:gap-2.5 p-1.5 sm:p-2 md:p-3">
+      {favoriteProducts.length > 0 &&
+        renderCategoryTile({
+          id: FAVORITES_ID,
+          name: 'Favourites',
+          count: favoriteProducts.length,
+          icon: <Star className="w-8 h-8 sm:w-10 sm:h-10 fill-amber-400 text-amber-400" />,
+          gradient: 'from-amber-500/20 to-amber-700/10',
+        })}
+      {renderCategoryTile({
+        id: ALL_ID,
+        name: 'All Items',
+        count: safeProducts.length,
+        icon: <LayoutGrid className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-300" />,
+        gradient: 'from-zinc-700/40 to-zinc-800/40',
+      })}
+      {productsByCategory.map(({ category, products: categoryProducts }) =>
+        renderCategoryTile({
+          id: category.id,
+          name: category.name,
+          count: categoryProducts.length,
+          image: category.image_url,
+          color: category.color,
+        })
       )}
-
-      {/* Empty state */}
+      {uncategorizedProducts.length > 0 &&
+        renderCategoryTile({
+          id: UNCATEGORIZED_ID,
+          name: 'Other Items',
+          count: uncategorizedProducts.length,
+        })}
       {safeProducts.length === 0 && (
-        <div className="text-center py-12 text-zinc-500">
+        <div className="col-span-2 md:col-span-3 xl:col-span-4 text-center py-12 text-zinc-500">
           <p className="text-lg">No products available</p>
         </div>
       )}

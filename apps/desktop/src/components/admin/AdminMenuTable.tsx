@@ -5,7 +5,8 @@ import {
   Trash2,
   Package,
   Clock,
-  MoreHorizontal
+  MoreHorizontal,
+  Star,
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn, formatCurrency, imageUrl } from '@/lib/utils'
-import { useSettingsStore } from '@pos/core'
+import { useSettingsStore, useAuthStore, useFavoritesStore } from '@pos/core'
 import { DietaryIndicator } from '@/components/forms/FormComponents'
 import apiClient from '@/api/client'
 import type { Product, Category, Location } from "@/types"
@@ -95,6 +96,10 @@ export function AdminMenuTable({
 
   const { settings } = useSettingsStore()
   const format = (amount: number) => formatCurrency(amount, settings.currency, settings.currencySymbol)
+
+  const orgId = useAuthStore((s) => s.organization?.id ?? s.user?.org_id ?? s.location?.org_id)
+  const favoriteIds = useFavoritesStore((s) => (orgId ? s.byOrg[orgId] ?? [] : []))
+  const toggleFavorite = useFavoritesStore((s) => s.toggle)
 
   const isAllSelected = pendingLocationIds.length === 0
   const hasMultipleLocations = locations.length > 1
@@ -294,8 +299,29 @@ export function AdminMenuTable({
                   </div>
                 </div>
 
-                {/* === ACTIONS ZONE: Toggle + Menu === */}
+                {/* === ACTIONS ZONE: Favourite + Toggle + Menu === */}
                 <div className="flex-shrink-0 flex items-center gap-2 pl-2 border-l border-zinc-800">
+                  {/* Favourite toggle — pins to POS Favourites tile */}
+                  {(() => {
+                    const isFav = favoriteIds.includes(product.id)
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(orgId, product.id)}
+                        aria-label={isFav ? 'Remove from favourites' : 'Add to favourites'}
+                        title={isFav ? 'Remove from favourites' : 'Add to favourites'}
+                        className={cn(
+                          'flex items-center justify-center h-9 w-9 rounded-lg transition-colors',
+                          isFav
+                            ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                            : 'text-zinc-600 hover:text-amber-400 hover:bg-zinc-700',
+                        )}
+                      >
+                        <Star className={cn('h-4 w-4', isFav && 'fill-current')} />
+                      </button>
+                    )
+                  })()}
+
                   {/* Availability toggle */}
                   <div className="flex items-center gap-1.5">
                     <Switch

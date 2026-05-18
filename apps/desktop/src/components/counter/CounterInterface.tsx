@@ -1147,6 +1147,7 @@ export function CounterInterface() {
                 onRemoveItem={cart.removeItem}
                 onConfigureProduct={handleConfigureProduct}
                 formatCurrency={format}
+                searchActive={searchTerm.trim().length > 0}
               />
             )
           )}

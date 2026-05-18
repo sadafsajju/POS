@@ -6,4 +6,5 @@ export * from './setup-check';
 export * from './pin-verify';
 export * from './token-display-store';
 export * from './kiosk-display-store';
+export * from './favorites-store';
 export * from '../customer-display';
