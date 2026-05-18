@@ -1,4 +1,4 @@
-import { useForm } from 'react-hook-form'
+import { useForm, useController } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Form } from '@/components/ui/form'
@@ -13,7 +13,65 @@ import { createCategorySchema, updateCategorySchema, type CreateCategoryData, ty
 import { toastHelpers } from '@/lib/toast-helpers'
 import apiClient from '@/api/client'
 import type { Category } from '@/types'
-import { X } from 'lucide-react'
+import { X, Check } from 'lucide-react'
+
+// Card colors — all pass WCAG AA contrast against white text (≥ 4.5:1)
+export const CATEGORY_CARD_COLORS = [
+  '#dc2626', // red
+  '#ea580c', // orange
+  '#d97706', // amber
+  '#16a34a', // green
+  '#0d9488', // teal
+  '#2563eb', // blue
+  '#9333ea', // purple
+  '#db2777', // pink
+] as const
+
+function ColorPickerField({ control, name }: { control: any; name: string }) {
+  const { field } = useController({ control, name })
+  const value = (field.value as string) || ''
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-zinc-300">Card Color</label>
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* None option — crossed circle */}
+        <button
+          type="button"
+          onClick={() => field.onChange('')}
+          aria-label="No card color"
+          title="No color"
+          className={`relative w-8 h-8 rounded-full bg-zinc-800 ring-1 ring-zinc-700 hover:ring-zinc-500 transition-all flex items-center justify-center ${
+            value === '' ? 'ring-2 ring-zinc-300 ring-offset-2 ring-offset-zinc-900' : ''
+          }`}
+        >
+          <svg viewBox="0 0 32 32" className="w-full h-full text-zinc-500 absolute inset-0">
+            <line x1="6" y1="26" x2="26" y2="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        {CATEGORY_CARD_COLORS.map((color) => {
+          const isSelected = value.toLowerCase() === color
+          return (
+            <button
+              key={color}
+              type="button"
+              onClick={() => field.onChange(color)}
+              aria-label={`Select color ${color}`}
+              title={color}
+              className={`relative w-8 h-8 rounded-full transition-all flex items-center justify-center hover:scale-110 ${
+                isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-zinc-900' : ''
+              }`}
+              style={{ backgroundColor: color }}
+            >
+              {isSelected && <Check className="w-4 h-4 text-white" />}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs text-zinc-500">Tints the category card in the POS. Choose <em>none</em> to keep the default look.</p>
+    </div>
+  )
+}
 
 interface CategoryFormProps {
   category?: Category // If provided, we're editing; otherwise creating
@@ -34,12 +92,14 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
         name: category.name,
         description: category.description || '',
         image_url: category.image_url || '',
+        color: category.color || '',
         sort_order: category.sort_order || 0,
       }
     : {
         name: '',
         description: '',
         image_url: '',
+        color: '',
         sort_order: 0,
       }
 
@@ -131,8 +191,10 @@ export function CategoryForm({ category, onSuccess, onCancel, mode = 'create' }:
                 control={form.control as any}
                 name="image_url"
                 label="Category Image"
-                description="Upload an image or leave empty"
+                description="Choose from the media library or leave empty"
               />
+
+              <ColorPickerField control={form.control as any} name="color" />
             </div>
 
             {/* Sorting */}

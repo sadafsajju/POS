@@ -272,6 +272,7 @@ export function CreateOrderView({
     gradient?: string
   }) => {
     const hasImage = !!tile.image
+    const hasColor = !!tile.color
     const initial = tile.name.trim().charAt(0).toUpperCase() || '?'
 
     return (
@@ -279,11 +280,16 @@ export function CreateOrderView({
         key={tile.id}
         type="button"
         onClick={() => setSelectedCategoryId(tile.id)}
-        className={`relative aspect-square overflow-hidden rounded-xl transition-all cursor-pointer flex flex-col text-left bg-zinc-900 hover:bg-zinc-800 active:scale-[0.98] ${
-          tile.gradient ? `bg-gradient-to-br ${tile.gradient}` : ''
+        style={hasColor ? { backgroundColor: tile.color! } : undefined}
+        className={`relative aspect-square overflow-hidden rounded-xl transition-all cursor-pointer flex flex-col text-left active:scale-[0.98] ${
+          hasColor
+            ? 'hover:brightness-110'
+            : tile.gradient
+              ? `bg-gradient-to-br ${tile.gradient} hover:brightness-110`
+              : 'bg-zinc-900 hover:bg-zinc-800'
         }`}
       >
-        <div className="relative h-2/3 bg-zinc-800 overflow-hidden flex items-center justify-center">
+        <div className={`relative h-2/3 overflow-hidden flex items-center justify-center ${hasColor ? '' : 'bg-zinc-800'}`}>
           {hasImage ? (
             <img
               src={imageUrl(tile.image!)}
@@ -294,18 +300,19 @@ export function CreateOrderView({
             tile.icon
           ) : (
             <span
-              className="text-3xl sm:text-5xl font-black text-zinc-100/80 select-none"
-              style={tile.color ? { color: tile.color } : undefined}
+              className={`text-3xl sm:text-5xl font-black select-none ${
+                hasColor ? 'text-white/90' : 'text-zinc-100/80'
+              }`}
             >
               {initial}
             </span>
           )}
         </div>
-        <div className="flex-1 p-2 sm:p-2.5 flex flex-col justify-between">
-          <h3 className="font-bold text-sm sm:text-base md:text-lg leading-tight line-clamp-2 text-zinc-100">
+        <div className={`flex-1 p-2 sm:p-2.5 flex flex-col justify-between ${hasColor ? 'bg-black/15' : ''}`}>
+          <h3 className={`font-bold text-sm sm:text-base md:text-lg leading-tight line-clamp-2 ${hasColor ? 'text-white' : 'text-zinc-100'}`}>
             {tile.name}
           </h3>
-          <span className="text-xs sm:text-sm text-zinc-500 tabular-nums">
+          <span className={`text-xs sm:text-sm tabular-nums ${hasColor ? 'text-white/75' : 'text-zinc-500'}`}>
             {tile.count} {tile.count === 1 ? 'item' : 'items'}
           </span>
         </div>
@@ -412,8 +419,8 @@ export function CreateOrderView({
           id: FAVORITES_ID,
           name: 'Favourites',
           count: favoriteProducts.length,
-          icon: <Star className="w-8 h-8 sm:w-10 sm:h-10 fill-amber-400 text-amber-400" />,
-          gradient: 'from-amber-500/20 to-amber-700/10',
+          icon: <Star className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white" />,
+          color: '#ca8a04',
         })}
       {renderCategoryTile({
         id: ALL_ID,

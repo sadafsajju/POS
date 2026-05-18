@@ -35,7 +35,11 @@ interface OrdersReportItem {
 
 export function AdminReports() {
   const [activeTab, setActiveTab] = useState<'sales' | 'orders' | 'analytics'>('sales')
-  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('today')
+  // Default to "This Week" — first thing on an admin's mind when they open
+  // Reports is usually "how have we been doing?", not "what's happened in
+  // the last 12 hours". With "Today" as default, the page reads as £0 / 0
+  // orders before the first sale of the day, which looks like a bug.
+  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('week')
 
   // Real API calls for reports data
   const { data: salesData, isLoading: salesLoading, error: salesError } = useQuery({
@@ -261,8 +265,14 @@ export function AdminReports() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-zinc-500">
-                  No sales data available for this period
+                <div className="text-center py-8 text-zinc-500 space-y-1">
+                  <p>No sales {selectedPeriod === 'today' ? 'yet today' : 'in this period'}.</p>
+                  {selectedPeriod === 'today' && (
+                    <p className="text-xs text-zinc-600">
+                      Try <span className="text-zinc-400">This Week</span> or{' '}
+                      <span className="text-zinc-400">This Month</span> for recent activity.
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
