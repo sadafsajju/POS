@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { kitchenSoundService } from '@/services/soundService';
 import { useSettingsStore } from '@pos/core';
 import apiClient from '@/api/client';
+import { subscribeToOrders, unsubscribe } from '@pos/supabase';
 import type { Order } from '@/types';
 
 interface ReadyOrdersNotificationProps {
@@ -34,9 +35,15 @@ export function ReadyOrdersNotification({
   const { data: ordersResponse, refetch } = useQuery({
     queryKey: ['counterReadyOrders'],
     queryFn: () => apiClient.getOrders({ status: 'ready' }),
-    refetchInterval: autoRefresh ? 2000 : false, // 2-second refresh for real-time
+    refetchInterval: autoRefresh ? 30000 : false, // 30s fallback — realtime handles instant updates
     select: (data) => data.data || [],
   });
+
+  // Realtime subscription — instant updates without polling
+  useEffect(() => {
+    const channel = subscribeToOrders(() => refetch());
+    return () => { unsubscribe(channel); };
+  }, [refetch]);
 
   const orders: ReadyOrder[] = (ordersResponse || []).map(order => ({
     ...order,

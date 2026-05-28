@@ -11,6 +11,7 @@ import type { KeyConfig } from '@/components/ui/on-screen-keyboard/types'
 import { Table as TableIcon, Search, CloudOff, RefreshCw, X, ArrowLeft, Package, Car, UtensilsCrossed, MapPin } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast, useAuthStore } from '@pos/core'
+import { subscribeToOrders, subscribeToTables, unsubscribe } from '@pos/supabase'
 import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
 
@@ -249,13 +250,13 @@ export function CounterInterface() {
   const { data: tables = [] } = useQuery({
     queryKey: ['tables', currentLocationId],
     queryFn: () => apiClient.getTables(currentLocationId ? { location_id: currentLocationId } : undefined).then(res => res.data),
-    refetchInterval: 5 * 1000, // 5 seconds – table status must stay fresh
+    refetchInterval: 30 * 1000, // 30s fallback – realtime handles table status updates
   })
 
   const { data: allOrders = [] } = useQuery({
     queryKey: ['allActiveOrders'],
     queryFn: () => apiClient.getOrders().then(res => res.data),
-    refetchInterval: 5 * 1000, // 5 seconds – keep orders in sync across counter & kitchen
+    refetchInterval: 30 * 1000, // 30s fallback – realtime handles order sync
   })
 
   // Query for active bill on selected table (KOT support)
@@ -263,9 +264,24 @@ export function CounterInterface() {
     queryKey: ['activeBill', selectedTable?.id],
     queryFn: () => apiClient.getActiveBillForTable(selectedTable!.id).then(res => res.data ?? null),
     enabled: !!selectedTable && orderType === 'dine_in' && isOnline,
-    refetchInterval: 5000, // Keep KOT statuses fresh so cart reflects served state
+    refetchInterval: 30 * 1000, // 30s fallback – realtime handles KOT status updates
   })
   const activeBill = activeBillData || null
+
+  // Realtime subscriptions — instant updates without polling
+  useEffect(() => {
+    const ordersChannel = subscribeToOrders(() => {
+      queryClient.invalidateQueries({ queryKey: ['allActiveOrders'] })
+      queryClient.invalidateQueries({ queryKey: ['activeBill'] })
+    })
+    const tablesChannel = subscribeToTables(() => {
+      queryClient.invalidateQueries({ queryKey: ['tables'] })
+    })
+    return () => {
+      unsubscribe(ordersChannel)
+      unsubscribe(tablesChannel)
+    }
+  }, [queryClient])
 
   // Safe arrays
   const safeCategories = Array.isArray(categories) ? categories : []

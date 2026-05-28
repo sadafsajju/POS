@@ -98,3 +98,9 @@ files/
 
 # Tauri build artifacts
 apps/desktop/src-tauri/target/
+
+# Local installer outputs (release artifacts are produced by CI on tag push)
+installers/
+
+# Local MCP config (contains secrets)
+.mcp.json

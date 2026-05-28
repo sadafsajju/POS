@@ -169,8 +169,8 @@ function IdleScreen() {
     }
 
     fetchPromos()
-    // Refresh promos every 2 minutes
-    const interval = setInterval(fetchPromos, 2 * 60 * 1000)
+    // Refresh promos every 10 minutes — promo content rarely changes
+    const interval = setInterval(fetchPromos, 10 * 60 * 1000)
 
     return () => {
       cancelled = true

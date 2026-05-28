@@ -58,7 +58,7 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
   const { data: ordersResponse, isLoading } = useQuery({
     queryKey: ['kitchenOrders'],
     queryFn: () => apiClient.getKitchenOrders('all'),
-    refetchInterval: autoRefresh ? 3000 : false,
+    refetchInterval: autoRefresh ? 30000 : false, // 30s fallback — realtime subscriptions below handle instant updates
     select: (d) => d.data || [],
   });
 
@@ -66,7 +66,7 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
   const { data: servedResponse } = useQuery({
     queryKey: ['kitchenServedOrders'],
     queryFn: () => apiClient.getOrders({ status: 'served', per_page: 10 }),
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 30000 : false, // 30s fallback — realtime handles updates
     select: (d) => d.data || [],
   });
 

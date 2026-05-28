@@ -9,7 +9,7 @@ export default function Orders({ onBackToMenu }: OrdersProps) {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: () => customerAPI.getMyOrders(),
-    refetchInterval: 10000, // Poll every 10 seconds
+    refetchInterval: 30000, // 30s poll for order status updates
   });
 
   return (

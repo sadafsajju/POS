@@ -5,6 +5,7 @@ import Menu from './routes/Menu';
 import Cart from './routes/Cart';
 import Orders from './routes/Orders';
 import Expired from './routes/Expired';
+import { CookieBanner } from './components/CookieBanner';
 
 type Page = 'init' | 'menu' | 'cart' | 'orders' | 'expired';
 
@@ -56,6 +57,7 @@ function App() {
       )}
       {currentPage === 'orders' && <Orders onBackToMenu={() => navigate('menu')} />}
       {currentPage === 'expired' && <Expired />}
+      <CookieBanner privacyPolicyUrl={import.meta.env.VITE_PRIVACY_POLICY_URL} />
     </div>
   );
 }

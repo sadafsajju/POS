@@ -98,52 +98,53 @@ export const queryKeys = {
 // ============================================
 export const staleTime = {
   // Static data - rarely changes
-  categories: 5 * 60 * 1000, // 5 minutes
-  products: 5 * 60 * 1000, // 5 minutes
-  tables: 5 * 1000, // 5 seconds – table status changes frequently
+  categories: 10 * 60 * 1000, // 10 minutes
+  products: 10 * 60 * 1000, // 10 minutes
+  tables: 30 * 1000, // 30 seconds – realtime handles instant updates
 
-  // Dynamic data - changes frequently
-  orders: 30 * 1000, // 30 seconds
-  kitchenOrders: 10 * 1000, // 10 seconds
-  payments: 30 * 1000, // 30 seconds
+  // Dynamic data - realtime subscriptions handle freshness
+  orders: 2 * 60 * 1000, // 2 minutes – realtime pushes updates
+  kitchenOrders: 60 * 1000, // 1 minute – realtime pushes updates
+  payments: 2 * 60 * 1000, // 2 minutes
 
   // User data
-  users: 5 * 60 * 1000, // 5 minutes
+  users: 10 * 60 * 1000, // 10 minutes
   currentUser: 10 * 60 * 1000, // 10 minutes
 
   // Reports - can be cached longer
-  dashboardStats: 60 * 1000, // 1 minute
-  reports: 2 * 60 * 1000, // 2 minutes
+  dashboardStats: 5 * 60 * 1000, // 5 minutes
+  reports: 5 * 60 * 1000, // 5 minutes
 
   // Settings - rarely changes
   settings: 10 * 60 * 1000, // 10 minutes
 
   // Promos
-  promos: 2 * 60 * 1000, // 2 minutes
+  promos: 10 * 60 * 1000, // 10 minutes
 
   // Media
-  media: 2 * 60 * 1000, // 2 minutes
+  media: 10 * 60 * 1000, // 10 minutes
 
   // Discount presets
-  discounts: 5 * 60 * 1000, // 5 minutes — rarely change between sales
+  discounts: 10 * 60 * 1000, // 10 minutes — rarely change between sales
 
   // Customers
-  customers: 5 * 60 * 1000, // 5 minutes
+  customers: 10 * 60 * 1000, // 10 minutes
 };
 
 // ============================================
 // Refetch Intervals (in milliseconds)
 // ============================================
 export const refetchInterval = {
-  // Real-time data
-  kitchenOrders: 5 * 1000, // 5 seconds - kitchen needs fresh data
-  orders: 10 * 1000, // 10 seconds
+  // Polling is a fallback — realtime subscriptions are the primary update mechanism.
+  // These intervals only exist as a safety net in case a realtime event is missed.
+  kitchenOrders: 30 * 1000, // 30 seconds – realtime handles instant updates
+  orders: 30 * 1000, // 30 seconds
 
   // Dashboard
-  dashboardStats: 30 * 1000, // 30 seconds
+  dashboardStats: 2 * 60 * 1000, // 2 minutes
 
   // Tables
-  tableStatus: 15 * 1000, // 15 seconds
+  tableStatus: 30 * 1000, // 30 seconds
 
   // Default - no auto-refetch
   none: false as const,
@@ -157,8 +158,8 @@ export const defaultQueryOptions = {
   retry: 3,
   retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
-  // Refetch behavior
-  refetchOnWindowFocus: true,
+  // Refetch behavior — disabled to reduce egress; realtime + manual invalidation handle freshness
+  refetchOnWindowFocus: false,
   refetchOnReconnect: true,
 
   // Error handling
