@@ -8,6 +8,11 @@ interface DiscountStepProps {
   formatCurrency: (amount: number) => string
   /** Pre-discount total — what the customer would pay without any discount. */
   baseTotal: number
+  /** Cash value of the selected discount (computed on the pre-tax subtotal by
+   *  the parent so the preview matches the charged total + receipt). */
+  discountAmount: number
+  /** Amount due after the discount — what will actually be charged. */
+  finalTotal: number
   /** Currently selected discount preset, or null for "no discount". */
   selectedDiscount: DiscountItem | null
   onSelect: (discount: DiscountItem | null) => void
@@ -24,6 +29,8 @@ interface DiscountStepProps {
 export function DiscountStep({
   formatCurrency,
   baseTotal,
+  discountAmount,
+  finalTotal,
   selectedDiscount,
   onSelect,
   onContinue,
@@ -36,10 +43,6 @@ export function DiscountStep({
   })
 
   const discounts: DiscountItem[] = Array.isArray(res?.data) ? res.data : []
-  const discountAmount = selectedDiscount
-    ? Math.round(baseTotal * selectedDiscount.percent) / 100
-    : 0
-  const finalTotal = Math.max(0, baseTotal - discountAmount)
 
   return (
     <div className="w-full max-w-sm space-y-6">

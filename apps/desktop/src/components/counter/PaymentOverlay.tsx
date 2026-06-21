@@ -58,12 +58,22 @@ export function PaymentOverlay({
 
   const billTotal = activeBill.aggregated_total
   const paidAmount = activeBill.paid_amount || 0
-  // Base (pre-discount) amount due. The Discount step subtracts from this.
-  const baseTotal = paidTotal ?? Math.max(0, billTotal - paidAmount)
+  // Pre-discount amount due (gross, tax-inclusive). Drives the Discount step preview.
+  const baseTotal = Math.max(0, billTotal - paidAmount)
+  // Discount is calculated on the pre-tax subtotal to match the backend
+  // (create_order / applyDiscountToOrder). Discounting the tax-inclusive
+  // baseTotal would over-discount by (tax × percent), so the charged total
+  // would no longer equal the persisted order total and the receipt wouldn't
+  // reconcile (Subtotal + Tax − Discount ≠ Total).
+  const discountBase = Number(activeBill.bill?.subtotal ?? baseTotal)
   const discountAmount = selectedDiscount
-    ? Math.round(baseTotal * selectedDiscount.percent) / 100
+    ? Math.round(discountBase * selectedDiscount.percent) / 100
     : 0
-  const total = Math.max(0, baseTotal - discountAmount)
+  // Once payment completes we lock the exact charged amount into paidTotal so a
+  // background refetch of activeBill can't shift figures on the completion
+  // screen / receipt — and, crucially, so the discount isn't subtracted a
+  // second time on top of the already-discounted total.
+  const total = paidTotal ?? Math.max(0, baseTotal - discountAmount)
   const tipShown = settings.tippingEnabled ? tipAmount : 0
   // Total the cashier collects (bill due + tip). Payment row records the bill
   // portion only — tip is logged separately via record_tip so reports keep
@@ -178,6 +188,11 @@ export function PaymentOverlay({
     const orderForPrint: Order = {
       ...activeBill.bill,
       items: allItems,
+      // The bill snapshot predates the discount the cashier just picked, so
+      // inject the discount actually applied here. Receipt totals then
+      // reconcile: Subtotal + Tax − Discount = Total.
+      discount_amount: discountAmount,
+      discount_name: selectedDiscount?.name ?? (activeBill.bill as any)?.discount_name ?? null,
       total_amount: total,
       // activeBill won't have refetched the tip yet — inject so the receipt
       // prints the tip line and grand total inclusive of it.
@@ -365,6 +380,8 @@ export function PaymentOverlay({
             <DiscountStep
               formatCurrency={formatCurrency}
               baseTotal={baseTotal}
+              discountAmount={discountAmount}
+              finalTotal={total}
               selectedDiscount={selectedDiscount}
               onSelect={setSelectedDiscount}
               onContinue={handleDiscountContinue}

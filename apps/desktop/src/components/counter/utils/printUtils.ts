@@ -187,6 +187,22 @@ export async function printKOT(
   }
 }
 
+/**
+ * Per-line money for the receipt.
+ *
+ * Prefer the persisted `total_price` (written by `create_order`) because it
+ * already folds in selected-option and combo price adjustments. Recomputing
+ * `unit_price * quantity` drops those adjustments — `unit_price` is only the
+ * base product price — which made the printed line items understate and fail
+ * to sum to the order's Subtotal / TOTAL. `unit_price * quantity` is kept as a
+ * fallback only for rows that somehow lack `total_price`.
+ */
+function lineAmount(item: any): number {
+  const tp = item?.total_price
+  if (tp != null && tp !== '' && !Number.isNaN(Number(tp))) return Number(tp)
+  return (Number(item?.unit_price) || 0) * (Number(item?.quantity) || 0)
+}
+
 // ─── ESC/POS byte builders (used by the thermal-printer path) ────────────
 
 /**
@@ -247,7 +263,7 @@ export function generateReceiptEscPos(
   // ─ Items
   for (const item of (order.items ?? []) as any[]) {
     const name = item.product?.name || 'Unknown'
-    const lineTotal = (item.unit_price || 0) * item.quantity
+    const lineTotal = lineAmount(item)
     const rateBadge = isUkVat && item.vat_rate_applied != null ? ` (${item.vat_rate_applied}%)` : ''
     p.item(item.quantity, `${name}${rateBadge}`, formatCurrency(lineTotal))
     const mods: string[] = Array.isArray(item.modifiers) ? item.modifiers.map((m: any) => m?.name ?? String(m)) : []
@@ -278,7 +294,7 @@ export function generateReceiptEscPos(
     const byRate = new Map<number, { net: number; vat: number }>()
     for (const item of (order.items ?? []) as any[]) {
       const rate = Number(item.vat_rate_applied ?? 0)
-      const lineNet = (item.unit_price || 0) * item.quantity
+      const lineNet = lineAmount(item)
       const lineVat = Number(item.vat_amount ?? 0)
       const b = byRate.get(rate) ?? { net: 0, vat: 0 }
       b.net += lineNet
@@ -483,7 +499,7 @@ export function generateReceiptHtml(
   // ─── Items rows ─────────────────────────────────────────────────────────
   const itemRows = (order.items ?? []).map((item: any) => {
     const name = escapeHtml(item.product?.name || 'Unknown')
-    const lineTotal = (item.unit_price || 0) * item.quantity
+    const lineTotal = lineAmount(item)
     const rateBadge = isUkVat && item.vat_rate_applied != null
       ? `<span style="color:#444">@${Number(item.vat_rate_applied)}%</span>`
       : ''
@@ -513,7 +529,7 @@ export function generateReceiptHtml(
     const byRate = new Map<number, { net: number; vat: number }>()
     for (const item of (order.items ?? []) as any[]) {
       const rate = Number(item.vat_rate_applied ?? 0)
-      const lineTotal = (item.unit_price || 0) * item.quantity
+      const lineTotal = lineAmount(item)
       const lineVat = Number(item.vat_amount ?? 0)
       const lineNet = lineTotal // we treat menu prices as net + VAT on top
       const bucket = byRate.get(rate) ?? { net: 0, vat: 0 }
@@ -679,6 +695,21 @@ export function generateReceiptHtml(
         <tbody>${itemRows}</tbody>
       </table>
       ${vatBreakdownHtml}
+      ${(() => {
+        // Flat-tax regime: show Subtotal + Tax so the slip reconciles
+        // (items → Subtotal, then Tax, Discount, Total). The UK VAT regime
+        // already prints a net/VAT breakdown above, so skip there.
+        if (isUkVat) return ''
+        const sub = Number((order as any).subtotal ?? 0)
+        const taxAmt = Number((order as any).tax_amount ?? 0)
+        if (sub <= 0 && taxAmt <= 0) return ''
+        return `
+          <table>
+            <tr><td>Subtotal</td><td style="text-align:right">${escapeHtml(formatCurrency(sub))}</td></tr>
+            ${taxAmt > 0 ? `<tr><td>Tax</td><td style="text-align:right">${escapeHtml(formatCurrency(taxAmt))}</td></tr>` : ''}
+          </table>
+        `
+      })()}
       ${(() => {
         const dAmt = Number((order as any).discount_amount ?? 0)
         if (dAmt <= 0) return ''
