@@ -87,6 +87,11 @@ async function uploadFile(blobPath, filePath, contentType) {
 
 const platforms = {}
 
+// Direct, user-facing fresh-install download URLs (NOT used by the updater).
+// Surfaced so download pages can link the real installer without reconstructing
+// filenames. Windows: the NSIS .exe (same file the updater uses). macOS: the .dmg.
+const downloads = {}
+
 // ── Windows ─────────────────────────────────────────────────────────────────
 const winDir = join(artifactsDir, 'windows')
 const winExe = findFile(winDir, (n) => n.endsWith('.exe'))
@@ -101,6 +106,7 @@ if (winExe && winSig) {
     signature: readFileSync(winSig, 'utf8').trim(),
     url,
   }
+  downloads['windows'] = url
 } else {
   console.log('No Windows artifacts found, skipping windows-x86_64')
 }
@@ -125,10 +131,10 @@ if (macTar && macSig) {
   platforms['darwin-aarch64'] = macEntry
 
   // .dmg is for fresh-install download only — not referenced by the updater,
-  // but we publish it under the same versioned path so users have a direct
-  // download URL for new installs.
+  // but we publish it under the same versioned path and expose its URL in the
+  // manifest so download pages can link it directly (no filename guessing).
   if (macDmg) {
-    await uploadFile(
+    downloads['macos'] = await uploadFile(
       `macos/v${version}/${macDmg.split('/').pop()}`,
       macDmg,
       'application/x-apple-diskimage',
@@ -174,6 +180,7 @@ const manifest = {
   notes: releaseNotes,
   pub_date: new Date().toISOString(),
   platforms,
+  downloads,
 }
 
 console.log('Uploading latest.json to Vercel Blob…')
