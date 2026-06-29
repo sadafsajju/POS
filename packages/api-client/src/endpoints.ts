@@ -15,6 +15,7 @@ import {
   mediaDb,
   promosDb,
   discountsDb,
+  getSupabase,
 } from '@pos/supabase';
 import type { Json } from '@pos/supabase';
 import type {
@@ -403,7 +404,6 @@ export const adminApi = {
     usersDb.createUser(userData as any) as any,
 
   inviteStaff: async (params: { email: string; role: string; location_ids?: string[] }) => {
-    const { getSupabase } = await import('@pos/supabase')
     const sb = getSupabase()
     const { data, error } = await sb.functions.invoke('invite-staff', { body: params })
     if (error) return { success: false, message: error.message }
@@ -411,7 +411,6 @@ export const adminApi = {
   },
 
   parseMenuImage: async (params: { image_base64: string; content_type: string }) => {
-    const { getSupabase } = await import('@pos/supabase')
     const sb = getSupabase()
     const { data, error } = await sb.functions.invoke('parse-menu-image', { body: params })
     if (error) {

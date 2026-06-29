@@ -13,6 +13,7 @@ import {
   variationsDb,
   combosDb,
   mediaDb,
+  getSupabase,
 } from '@pos/supabase'
 import type {
   APIResponse,
@@ -182,7 +183,6 @@ class APIClient {
 
   async getActiveBillForTable(tableId: string): Promise<APIResponse<any>> {
     // Find the active parent bill for this table (not a KOT, not paid/completed/cancelled)
-    const { getSupabase } = await import('@pos/supabase')
     const sb = getSupabase()
     const { data: bill, error } = await sb
       .from('orders')
@@ -340,7 +340,6 @@ class APIClient {
   }
 
   async inviteStaff(params: { email: string; role: string; location_ids?: string[] }): Promise<APIResponse<User>> {
-    const { getSupabase } = await import('@pos/supabase')
     const sb = getSupabase()
     const { data, error } = await sb.functions.invoke('invite-staff', {
       body: params,
@@ -360,7 +359,6 @@ class APIClient {
   }
 
   async parseMenuImage(params: { image_base64: string; content_type: string }): Promise<any> {
-    const { getSupabase } = await import('@pos/supabase')
     const sb = getSupabase()
     const { data, error } = await sb.functions.invoke('parse-menu-image', {
       body: params,

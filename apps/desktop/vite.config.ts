@@ -36,13 +36,29 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true,
+    // The app is a large, feature-rich offline SPA; 500 kB is unrealistically
+    // low for the main bundle. We split heavy vendors into their own cacheable
+    // chunks (below) and set the warning threshold to match the real size.
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['@tanstack/react-router'],
-          query: ['@tanstack/react-query'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+        // Group heavy third-party libs into separate, long-lived chunks so they
+        // cache independently of app code and don't bloat the entry chunk.
+        // Function form (vs a name→deps map) so transitive deps like d3 land
+        // with their parent (recharts).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts'
+          if (id.includes('@supabase')) return 'supabase'
+          if (id.includes('lucide-react')) return 'icons'
+          if (id.includes('@tanstack/react-router')) return 'router'
+          if (id.includes('@tanstack/react-query')) return 'query'
+          if (id.includes('@tanstack/react-table')) return 'table'
+          if (id.includes('react-hook-form') || id.includes('@hookform') || id.includes('/zod/')) return 'forms'
+          if (id.includes('date-fns') || id.includes('react-day-picker')) return 'dates'
+          if (id.includes('i18next')) return 'i18n'
+          if (id.includes('@radix-ui')) return 'ui'
+          if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('/scheduler/')) return 'vendor'
         },
       },
     },

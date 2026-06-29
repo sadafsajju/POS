@@ -10,6 +10,8 @@
 // "TM-T20III", another "ePOS Now Receipt"). Mirrors the cash-drawer
 // integration in `cash-drawer.ts`.
 
+import { invoke } from '@tauri-apps/api/core'
+
 const STORAGE_KEY = 'pos:hardware:thermal-printer'
 
 export interface ThermalPrinterConfig {
@@ -74,7 +76,6 @@ export async function printRawBytes(
     return { ok: false, error: 'Thermal print only works in the desktop app' }
   }
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     await invoke<boolean>('print_raw_bytes', {
       printerName: printerName ?? '',
       bytes: Array.from(bytes),
@@ -90,7 +91,6 @@ export async function printRawBytes(
 export async function listThermalPrinters(): Promise<string[]> {
   if (!isTauri()) return []
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     // list_thermal_printers and list_system_printers return the same set —
     // every OS print queue. Prefer the thermal-named one for clarity.
     return await invoke<string[]>('list_thermal_printers')

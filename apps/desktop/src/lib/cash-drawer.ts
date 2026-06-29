@@ -12,6 +12,8 @@
 // because they're per-device — the printer queue name on this register
 // won't match the queue name on another register.
 
+import { invoke } from '@tauri-apps/api/core'
+
 const STORAGE_KEY = 'pos:hardware:cash-drawer'
 
 export interface CashDrawerConfig {
@@ -65,7 +67,6 @@ export async function openCashDrawer(opts?: { force?: boolean }): Promise<{ ok: 
     return { ok: false, error: 'Cash drawer only works in the desktop app' }
   }
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     await invoke<boolean>('open_cash_drawer', {
       printerName: cfg.printerName || null,
       pin: cfg.pin,
@@ -81,7 +82,6 @@ export async function openCashDrawer(opts?: { force?: boolean }): Promise<{ ok: 
 export async function listSystemPrinters(): Promise<string[]> {
   if (!isTauri()) return []
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     return await invoke<string[]>('list_system_printers')
   } catch (e) {
     console.warn('list_system_printers failed:', e)
