@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { customerAPI } from '../lib/api';
+import { menuImageUrl } from '../lib/image';
 import { useCartStore } from '../stores/cart-store';
 import type { Product } from '@pos/types';
 
@@ -62,8 +63,9 @@ export default function Menu({ onNavigateToCart }: MenuProps) {
             >
               {product.image_url && (
                 <img
-                  src={product.image_url}
+                  src={menuImageUrl(product.image_url, { width: 600, quality: 70 })}
                   alt={product.name}
+                  loading="lazy"
                   className="w-full h-40 object-cover rounded-md mb-3"
                 />
               )}

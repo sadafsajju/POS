@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ImageOff, Check, ChevronRight, ShoppingCart } from 'lucide-react'
 import type { InlineConfigState } from '../types'
 import type { ProductOptionItem, ComboSlot, ComboSlotChoice } from '@/types'
-import { imageUrl } from '@/lib/utils'
+import { CachedImage } from '@/components/ui/cached-image'
 
 interface VariantSelectionViewProps {
   config: InlineConfigState
@@ -165,8 +165,9 @@ function ComboSingleScreenView({
                       {/* Product image */}
                       <div className="relative h-28 bg-zinc-800 overflow-hidden">
                         {product.image_url ? (
-                          <img
-                            src={imageUrl(product.image_url)}
+                          <CachedImage
+                            src={product.image_url}
+                            transform={{ width: 400, quality: 70 }}
                             alt={product.name}
                             className="w-full h-full object-cover"
                           />

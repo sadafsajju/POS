@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Clock, Barcode, Settings2, Star, ArrowLeft, LayoutGrid } from 'lucide-react'
 import { useSettingsStore, useAuthStore, useFavoritesStore } from '@pos/core'
 import type { Product, CartItem, Category } from '../types'
-import { imageUrl } from '@/lib/utils'
+import { CachedImage } from '@/components/ui/cached-image'
 
 const dietaryColors: Record<string, string> = {
   veg: '#22c55e',
@@ -147,8 +147,9 @@ export function CreateOrderView({
         {/* Product Image - only show when image exists */}
         {displaySettings.showImage && product.image_url && (
           <div className="relative h-2/3 bg-zinc-800 overflow-hidden">
-            <img
-              src={imageUrl(product.image_url)}
+            <CachedImage
+              src={product.image_url}
+              transform={{ width: 400, quality: 70 }}
               alt={product.name}
               className="w-full h-full object-cover"
             />
@@ -291,8 +292,9 @@ export function CreateOrderView({
       >
         <div className={`relative h-2/3 overflow-hidden flex items-center justify-center ${hasColor ? '' : 'bg-zinc-800'}`}>
           {hasImage ? (
-            <img
-              src={imageUrl(tile.image!)}
+            <CachedImage
+              src={tile.image!}
+              transform={{ width: 400, quality: 70 }}
               alt={tile.name}
               className="w-full h-full object-cover"
             />

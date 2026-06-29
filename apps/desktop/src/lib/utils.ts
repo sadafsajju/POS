@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { resolveImageUrl } from '@pos/supabase'
+import { resolveImageUrl, type ImageTransform } from '@pos/supabase'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -226,9 +226,13 @@ export function generateOrderNumber(): string {
 /**
  * Resolve image URL for display. Handles Supabase storage URLs,
  * legacy /uploads/ paths, and full URLs.
+ *
+ * Pass `transform` (e.g. `{ width: 400, quality: 70 }`) to serve a resized,
+ * compressed variant instead of the full-resolution original — big egress saver
+ * for grids and displays. Omit it to keep the original (default, unchanged behavior).
  */
-export function imageUrl(url: string | null | undefined): string {
-  return resolveImageUrl(url)
+export function imageUrl(url: string | null | undefined, transform?: ImageTransform): string {
+  return resolveImageUrl(url, transform)
 }
 
 export function debounce<T extends (...args: any[]) => any>(

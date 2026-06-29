@@ -65,7 +65,7 @@ export async function uploadPromoFile(
   const path = `${orgId}/${Date.now()}-${safeName}`
 
   const { error: uploadError } = await sb.storage.from(BUCKET).upload(path, file, {
-    cacheControl: '3600',
+    cacheControl: '2592000', // 30 days — timestamped path is immutable, so cache aggressively
     upsert: false,
     contentType: file.type || undefined,
   })

@@ -52,3 +52,4 @@ export {
   uploadFile,
   deleteFile,
 } from './storage'
+export type { ImageTransform } from './storage'

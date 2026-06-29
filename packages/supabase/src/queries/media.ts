@@ -54,7 +54,7 @@ export async function uploadMediaFile(file: File): Promise<ApiResponse<MediaItem
   const path = `${Date.now()}-${safeName}`
 
   const { error } = await sb.storage.from(BUCKET).upload(path, file, {
-    cacheControl: '3600',
+    cacheControl: '2592000', // 30 days — timestamped path is immutable, so cache aggressively
     upsert: false,
     contentType: file.type || undefined,
   })

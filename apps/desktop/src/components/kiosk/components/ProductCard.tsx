@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ImageOff, Settings2, Check } from 'lucide-react'
 import type { Product } from '@/types'
-import { imageUrl } from '@/lib/utils'
+import { CachedImage } from '@/components/ui/cached-image'
 
 const dietaryColors: Record<string, string> = {
   veg: '#22c55e',
@@ -48,8 +48,9 @@ export function ProductCard({ product, cartQty, onTap, formatCurrency }: Product
       {/* Image */}
       <div className="relative aspect-[4/3] bg-zinc-800 overflow-hidden">
         {product.image_url ? (
-          <img
-            src={imageUrl(product.image_url)}
+          <CachedImage
+            src={product.image_url}
+            transform={{ width: 400, quality: 70 }}
             alt={product.name}
             className="w-full h-full object-cover"
           />

@@ -3,6 +3,7 @@ import { useCustomerDisplayReceiver } from '@pos/core'
 import type { CustomerDisplayState, DisplayCartItem } from '@pos/core'
 import { ShoppingBag, Clock, CreditCard, CheckCircle2 } from 'lucide-react'
 import { imageUrl } from '@/lib/utils'
+import { CachedImage } from '@/components/ui/cached-image'
 import { getSupabase } from '@pos/supabase'
 
 interface PublicPromo {
@@ -113,9 +114,10 @@ function PromoCarousel({ promos }: { promos: PublicPromo[] }) {
             onEnded={isSingle ? undefined : advanceSlide}
           />
         ) : (
-          <img
+          <CachedImage
             key={current.id}
-            src={mediaUrl}
+            src={current.file_url}
+            transform={{ width: 1600, quality: 80 }}
             alt={current.title || ''}
             className="w-full h-full object-contain"
           />

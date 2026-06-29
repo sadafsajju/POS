@@ -1,7 +1,7 @@
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react'
 import { useSettingsStore } from '@pos/core'
 import { useKioskStore } from '../store/kiosk-store'
-import { imageUrl } from '@/lib/utils'
+import { CachedImage } from '@/components/ui/cached-image'
 
 export function CartScreen() {
   const { settings } = useSettingsStore()
@@ -69,8 +69,9 @@ export function CartScreen() {
               {/* Product image */}
               <div className="w-20 h-20 rounded-xl bg-zinc-800 overflow-hidden flex-shrink-0">
                 {item.product.image_url ? (
-                  <img
-                    src={imageUrl(item.product.image_url)}
+                  <CachedImage
+                    src={item.product.image_url}
+                    transform={{ width: 160, quality: 70 }}
                     alt={item.product.name}
                     className="w-full h-full object-cover"
                   />
