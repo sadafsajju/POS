@@ -8,6 +8,7 @@ export async function getOrders(params?: {
   page?: number
   per_page?: number
   status?: string
+  statuses?: string[]
   order_type?: string
   table_id?: string
   date_from?: string
@@ -18,6 +19,11 @@ export async function getOrders(params?: {
 
   if (params?.status) {
     query = query.eq('status', params.status as any)
+  }
+  // Multi-status filter — lets callers fetch only "open" orders instead of all history,
+  // which keeps the payload bounded (and egress low) no matter how large the order table grows.
+  if (params?.statuses && params.statuses.length > 0) {
+    query = query.in('status', params.statuses as any)
   }
   if (params?.order_type) {
     query = query.eq('order_type', params.order_type as any)
@@ -236,7 +242,11 @@ export async function getKitchenOrders(status?: string): Promise<ApiResponse<Ord
   // !inner join excludes bills that have no direct items (KOT mode attaches items to the KOT, not the bill).
   // Includes 'pending' because KOTs are created with that default status.
   // Aliased `table:dining_tables(...)` so the frontend can read `order.table.table_number`.
-  const selectCols = '*, table:dining_tables(id, table_number), created_by_user:users!user_id(id, username, first_name), order_items!inner(*, products(id, name, image_url))'
+  // Explicit column list instead of '*' to avoid shipping the heavy `external_data` JSONB
+  // (raw aggregator webhook payloads) on every poll. This query is polled by the always-on
+  // kitchen and token displays, so payload size directly drives Supabase egress.
+  const orderCols = 'id, order_number, table_id, user_id, customer_id, customer_name, order_type, status, subtotal, tax_amount, discount_amount, total_amount, notes, created_at, updated_at, served_at, completed_at, confirmed_at, preparing_at, ready_at, paid_at, cleared_at, parent_order_id, is_kot, kot_number, token_number, order_source, external_order_id, delivery_partner_name, delivery_partner_phone, aggregator_confirmed_at, accept_deadline, session_id, dining_mode, tip_amount, tip_method'
+  const selectCols = `${orderCols}, table:dining_tables(id, table_number), created_by_user:users!user_id(id, username, first_name), order_items!inner(*, products(id, name, image_url))`
   let query = sb
     .from('orders')
     .select(selectCols)

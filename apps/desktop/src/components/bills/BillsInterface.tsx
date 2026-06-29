@@ -62,7 +62,7 @@ export function BillsInterface() {
       }
       return apiClient.getOrders(params as any)
     },
-    refetchInterval: isToday ? 5000 : false,
+    refetchInterval: isToday ? 30000 : false,
   })
 
   // Filter and sort orders
@@ -107,7 +107,7 @@ export function BillsInterface() {
     queryKey: ['order-detail', selectedOrderId],
     queryFn: () => apiClient.getOrder(selectedOrderId!),
     enabled: !!selectedOrderId,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   })
 
   // For parent bills (dine-in KOT orders), items live on child KOTs.
@@ -119,7 +119,7 @@ export function BillsInterface() {
     queryKey: ['bill-summary', selectedOrderId],
     queryFn: () => apiClient.getBillSummary(selectedOrderId!),
     enabled: !!selectedOrderId && !!isParentBill,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   })
 
   // Build selected order — merge KOT items for parent bills

@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import apiClient from '@/api/client';
+import { subscribeToOrders, subscribeToOrderItems, unsubscribe } from '@pos/supabase';
 import { kitchenSoundService } from '@/services/soundService';
 import type { Order } from '@/types';
 import { getPlatform } from '@/lib/platforms';
@@ -199,15 +200,30 @@ function TokenColumn({ title, tokens, colorScheme }: TokenColumnProps) {
 export function TokenDisplay() {
   const [audioActivated, setAudioActivated] = useState(false);
   const previousReadyIdsRef = useRef<Set<string>>(new Set());
+  const queryClient = useQueryClient();
 
   // Fetch active orders (confirmed, preparing, ready)
   const { data: kitchenOrders = [] } = useQuery({
     queryKey: ['tokenDisplay', 'kitchenOrders'],
     queryFn: () => apiClient.getKitchenOrders('all'),
-    refetchInterval: 5000,
+    refetchInterval: 30000, // 30s fallback — realtime subscription below handles instant updates
     select: (d) => (Array.isArray(d.data) ? d.data : []),
     enabled: audioActivated,
   });
+
+  // Realtime: refresh immediately on order/item changes instead of tight polling.
+  // This is an always-on customer-facing screen, so polling a heavy query drove large egress.
+  useEffect(() => {
+    if (!audioActivated) return;
+    const invalidate = () =>
+      queryClient.invalidateQueries({ queryKey: ['tokenDisplay', 'kitchenOrders'] });
+    const ordersChannel = subscribeToOrders(() => invalidate());
+    const itemsChannel = subscribeToOrderItems(() => invalidate());
+    return () => {
+      unsubscribe(ordersChannel);
+      unsubscribe(itemsChannel);
+    };
+  }, [audioActivated, queryClient]);
 
   // Partition into columns using backend-provided token_number
   const { preparing, ready } = useMemo(

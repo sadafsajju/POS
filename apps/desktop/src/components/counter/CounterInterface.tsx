@@ -250,13 +250,18 @@ export function CounterInterface() {
   const { data: tables = [] } = useQuery({
     queryKey: ['tables', currentLocationId],
     queryFn: () => apiClient.getTables(currentLocationId ? { location_id: currentLocationId } : undefined).then(res => res.data),
-    refetchInterval: 30 * 1000, // 30s fallback – realtime handles table status updates
+    refetchInterval: 60 * 1000, // 60s fallback – realtime handles table status updates
   })
 
   const { data: allOrders = [] } = useQuery({
     queryKey: ['allActiveOrders'],
-    queryFn: () => apiClient.getOrders().then(res => res.data),
-    refetchInterval: 30 * 1000, // 30s fallback – realtime handles order sync
+    // Only fetch OPEN orders (everything except completed/cancelled). The counter uses this
+    // solely to find occupied tables, so pulling all historical orders every poll was huge,
+    // unbounded egress. Scoping to active statuses keeps the payload small as history grows.
+    queryFn: () => apiClient.getOrders({
+      statuses: ['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid'],
+    }).then(res => res.data),
+    refetchInterval: 60 * 1000, // 60s fallback – realtime handles order sync
   })
 
   // Query for active bill on selected table (KOT support)
@@ -264,7 +269,7 @@ export function CounterInterface() {
     queryKey: ['activeBill', selectedTable?.id],
     queryFn: () => apiClient.getActiveBillForTable(selectedTable!.id).then(res => res.data ?? null),
     enabled: !!selectedTable && orderType === 'dine_in' && isOnline,
-    refetchInterval: 30 * 1000, // 30s fallback – realtime handles KOT status updates
+    refetchInterval: 60 * 1000, // 60s fallback – realtime handles KOT status updates
   })
   const activeBill = activeBillData || null
 

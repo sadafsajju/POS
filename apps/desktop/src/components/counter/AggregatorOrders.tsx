@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { counterApi, adminApi } from '@pos/api-client'
+import { subscribeToOrders, unsubscribe } from '@pos/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { useSettingsStore } from '@pos/core'
 import type { AggregatorOrder, OrderSource } from '@pos/types'
@@ -51,8 +52,16 @@ export function AggregatorOrders() {
       const res = await api.getAggregatorOrders({ status: 'pending' })
       return (Array.isArray(res?.data) ? res.data : []) as AggregatorOrder[]
     },
-    refetchInterval: 10000, // Poll every 10 seconds
+    refetchInterval: 30000, // 30s fallback — realtime subscription below handles instant new-order alerts
   })
+
+  // Realtime: a Swiggy/Zomato webhook inserts an order row → refetch immediately so the
+  // accept-deadline countdown starts without waiting for the next poll. This lets us relax
+  // the poll from 10s to 30s and cut egress without risking missed time-sensitive orders.
+  useEffect(() => {
+    const channel = subscribeToOrders(() => refetch())
+    return () => { unsubscribe(channel) }
+  }, [refetch])
 
   // Accept mutation
   const acceptMutation = useMutation({

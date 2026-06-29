@@ -115,11 +115,12 @@ class APIClient {
   }
 
   // Order endpoints
-  async getOrders(filters?: OrderFilters & { table_id?: string; date_from?: string; date_to?: string }): Promise<PaginatedResponse<Order[]>> {
+  async getOrders(filters?: OrderFilters & { table_id?: string; date_from?: string; date_to?: string; statuses?: string[] }): Promise<PaginatedResponse<Order[]>> {
     const result = await ordersDb.getOrders({
       page: filters?.page,
       per_page: filters?.per_page,
       status: filters?.status,
+      statuses: filters?.statuses,
       order_type: filters?.order_type,
       table_id: filters?.table_id,
       date_from: filters?.date_from,
