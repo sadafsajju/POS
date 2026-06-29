@@ -223,16 +223,23 @@ export function generateOrderNumber(): string {
   return `ORD${timestamp}${random}`.slice(-10)
 }
 
+// Supabase image transformations are a separately-enabled tenant feature. When
+// it's off, the /render/image endpoint returns 403 ("FeatureNotEnabled"), which
+// would break every transformed image. So transforms are gated behind an env flag
+// and OFF by default — enable the feature in Supabase Storage settings, then set
+// VITE_IMAGE_TRANSFORMS=true to turn on the egress savings.
+const IMAGE_TRANSFORMS_ENABLED = import.meta.env.VITE_IMAGE_TRANSFORMS === 'true'
+
 /**
  * Resolve image URL for display. Handles Supabase storage URLs,
  * legacy /uploads/ paths, and full URLs.
  *
- * Pass `transform` (e.g. `{ width: 400, quality: 70 }`) to serve a resized,
- * compressed variant instead of the full-resolution original — big egress saver
- * for grids and displays. Omit it to keep the original (default, unchanged behavior).
+ * Pass `transform` (e.g. `{ width: 400, quality: 70 }`) to request a resized,
+ * compressed variant. Only applied when image transformations are enabled (see
+ * IMAGE_TRANSFORMS_ENABLED); otherwise the original URL is returned unchanged.
  */
 export function imageUrl(url: string | null | undefined, transform?: ImageTransform): string {
-  return resolveImageUrl(url, transform)
+  return resolveImageUrl(url, IMAGE_TRANSFORMS_ENABLED ? transform : undefined)
 }
 
 export function debounce<T extends (...args: any[]) => any>(
