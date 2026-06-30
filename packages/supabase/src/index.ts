@@ -35,6 +35,7 @@ export {
   mediaDb,
   promosDb,
   discountsDb,
+  telemetryDb,
 } from './queries'
 
 // Realtime subscriptions

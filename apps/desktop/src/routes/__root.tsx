@@ -6,6 +6,7 @@ import { useSettingsStore, useSetupCheck, usePinVerifyStore, useAuthStore } from
 import { Loader2, WifiOff, RefreshCw } from 'lucide-react'
 import { PinDialog } from '@/components/ui/pin-dialog'
 import { UpdateChecker } from '@/components/UpdateChecker'
+import { Heartbeat } from '@/components/Heartbeat'
 import '../index.css'
 
 const queryClient = new QueryClient({
@@ -190,6 +191,7 @@ export const Route = createRootRoute({
         </SetupGate>
         <GlobalPinDialog />
         <UpdateChecker />
+        <Heartbeat />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     )
