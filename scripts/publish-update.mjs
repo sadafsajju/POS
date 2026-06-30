@@ -23,7 +23,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { put } from '@vercel/blob'
+import { put, list, del } from '@vercel/blob'
 
 const token = process.env.BLOB_READ_WRITE_TOKEN
 if (!token) {
@@ -72,6 +72,63 @@ function findFile(dir, predicate) {
   return matches[0]
 }
 
+/** Parse the version out of a `windows/vX.Y.Z/...` or `macos/vX.Y.Z/...` path. */
+function versionOfPath(pathname) {
+  const m = pathname.match(/^(?:windows|macos)\/v(\d+\.\d+\.\d+)\//)
+  return m ? m[1] : null
+}
+
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0)
+  }
+  return 0
+}
+
+async function listAll(prefix) {
+  const out = []
+  let cursor
+  do {
+    const res = await list({ prefix, cursor, token })
+    out.push(...res.blobs)
+    cursor = res.cursor
+  } while (cursor)
+  return out
+}
+
+/**
+ * Delete installer artifacts from older releases, keeping the version being
+ * published plus the single most recent previous version (so an in-flight
+ * update still has a valid target). Without this the Vercel Blob store grows
+ * unbounded and eventually exceeds its quota, breaking publishes.
+ */
+async function pruneOldVersions(keepVersion) {
+  const all = [...(await listAll('windows/')), ...(await listAll('macos/'))]
+  const versions = [...new Set(all.map((b) => versionOfPath(b.pathname)).filter(Boolean))]
+  const previous = versions
+    .filter((v) => v !== keepVersion)
+    .sort(compareVersions)
+    .pop() // highest remaining = the current live version
+  const keep = new Set([keepVersion, previous].filter(Boolean))
+  const toDelete = all
+    .filter((b) => {
+      const v = versionOfPath(b.pathname)
+      return v && !keep.has(v)
+    })
+    .map((b) => b.url)
+  if (toDelete.length === 0) {
+    console.log('Prune: nothing to delete (keeping', [...keep].join(', '), ')')
+    return
+  }
+  console.log(`Prune: deleting ${toDelete.length} blobs from old versions (keeping ${[...keep].join(', ')})`)
+  // del() accepts up to 1000 URLs per call.
+  for (let i = 0; i < toDelete.length; i += 1000) {
+    await del(toDelete.slice(i, i + 1000), { token })
+  }
+}
+
 async function uploadFile(blobPath, filePath, contentType) {
   const buffer = readFileSync(filePath)
   console.log(`Uploading ${filePath} → ${blobPath} (${buffer.length} bytes)`)
@@ -84,6 +141,10 @@ async function uploadFile(blobPath, filePath, contentType) {
   })
   return result.url
 }
+
+// Free space first — the Blob store is quota-limited, and each release adds
+// ~100 MB of installers. Prune old versions before uploading the new ones.
+await pruneOldVersions(version)
 
 const platforms = {}
 
