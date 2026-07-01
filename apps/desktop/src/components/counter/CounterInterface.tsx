@@ -250,18 +250,22 @@ export function CounterInterface() {
   const { data: tables = [] } = useQuery({
     queryKey: ['tables', currentLocationId],
     queryFn: () => apiClient.getTables(currentLocationId ? { location_id: currentLocationId } : undefined).then(res => res.data),
-    refetchInterval: 60 * 1000, // 60s fallback – realtime handles table status updates
+    refetchInterval: 3 * 60 * 1000, // 3min fallback – realtime handles table status updates
   })
 
   const { data: allOrders = [] } = useQuery({
     queryKey: ['allActiveOrders'],
-    // Only fetch OPEN orders (everything except completed/cancelled). The counter uses this
-    // solely to find occupied tables, so pulling all historical orders every poll was huge,
-    // unbounded egress. Scoping to active statuses keeps the payload small as history grows.
+    // Only fetch OPEN orders (excludes completed/cancelled) created in the last 24h. The counter
+    // uses this solely to find occupied tables, so older orders are irrelevant. The date bound is
+    // essential: a 'paid' order keeps its table occupied until the table is cleared to 'completed',
+    // so paid rows linger and accumulate indefinitely — without a created_at bound this query grows
+    // without limit (thousands of paid rows) and re-pulls them on every poll. A rolling 24h window
+    // keeps an occupied-table lookup small and constant no matter how large order history grows.
     queryFn: () => apiClient.getOrders({
       statuses: ['pending', 'confirmed', 'preparing', 'ready', 'served', 'paid'],
+      date_from: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     }).then(res => res.data),
-    refetchInterval: 60 * 1000, // 60s fallback – realtime handles order sync
+    refetchInterval: 3 * 60 * 1000, // 3min fallback – realtime handles order sync
   })
 
   // Query for active bill on selected table (KOT support)
@@ -269,7 +273,7 @@ export function CounterInterface() {
     queryKey: ['activeBill', selectedTable?.id],
     queryFn: () => apiClient.getActiveBillForTable(selectedTable!.id).then(res => res.data ?? null),
     enabled: !!selectedTable && orderType === 'dine_in' && isOnline,
-    refetchInterval: 60 * 1000, // 60s fallback – realtime handles KOT status updates
+    refetchInterval: 3 * 60 * 1000, // 3min fallback – realtime handles KOT status updates
   })
   const activeBill = activeBillData || null
 

@@ -8,6 +8,17 @@ type SubscriptionCallback<T> = (payload: {
 }) => void
 
 /**
+ * Build a unique channel topic. Multiple components subscribe to the same table
+ * (e.g. the counter mounts CounterInterface + AggregatorOrders + ReadyOrdersNotification,
+ * all watching `orders`). Supabase/Phoenix permits only one join per topic per socket, so
+ * reusing a static name makes the extra channels error-and-retry instead of receiving events.
+ * A unique suffix gives each subscriber its own topic.
+ */
+function uniqueChannelName(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2)}`
+}
+
+/**
  * Subscribe to order changes (kitchen display, counter UI)
  */
 export function subscribeToOrders(
@@ -16,7 +27,7 @@ export function subscribeToOrders(
 ): RealtimeChannel {
   const sb = getSupabase()
   let channel = sb
-    .channel('orders-changes')
+    .channel(uniqueChannelName('orders-changes'))
     .on(
       'postgres_changes',
       {
@@ -45,7 +56,7 @@ export function subscribeToOrderItems(
 ): RealtimeChannel {
   const sb = getSupabase()
   const channel = sb
-    .channel('order-items-changes')
+    .channel(uniqueChannelName('order-items-changes'))
     .on(
       'postgres_changes',
       {
@@ -68,7 +79,7 @@ export function subscribeToTables(
 ): RealtimeChannel {
   const sb = getSupabase()
   const channel = sb
-    .channel('tables-changes')
+    .channel(uniqueChannelName('tables-changes'))
     .on(
       'postgres_changes',
       {
