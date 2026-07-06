@@ -371,10 +371,24 @@ export function CounterInterface() {
         server: () => apiClient.createServerOrder(orderData),
         counter: () => apiClient.createCounterOrder(orderData),
       }),
-    onSuccess: (response, variables) => {
+    onSuccess: async (response, variables) => {
       // The create_order RPC returns { success, data: { ...order } } wrapped by wrapRpc,
       // so response.data is { success, data: { ...order }, bill_id } — unwrap the inner data
       const rpcResult = response.data as any
+
+      // wrapRpc resolves (never throws) even when the RPC errored, and the RPC itself
+      // reports business failures as { success: false, error } with HTTP 200 — both land
+      // here in onSuccess. Without this guard a failed create cleared the cart, showed a
+      // green "Order created" toast, and the pending payment overlay never opened.
+      if (!response.success || rpcResult?.success === false) {
+        pendingPayment.current = false
+        handleMutationError(
+          new Error(rpcResult?.error || response.message || 'Failed to create order'),
+          'Failed to create order. Please try again.'
+        )
+        return
+      }
+
       const createdOrder = rpcResult?.data ?? rpcResult
 
       // Takeout/Delivery pending payment: construct BillSummary and open payment overlay
@@ -423,8 +437,37 @@ export function CounterInterface() {
       }
       clearAfterOrder()
       showSuccess(variables.shouldPrint ? 'Order created! KOT sent to kitchen.' : 'Order created successfully!')
+
+      // Dine-in pending payment: the overlay opens only once the activeBill query returns
+      // the new bill (see the pendingPayment effect below). Fetch it explicitly so a
+      // lookup failure surfaces as an error instead of the overlay silently never opening.
+      // Call the API directly rather than queryClient.fetchQuery: the realtime
+      // subscription reacts to the just-created order by invalidating ['activeBill'],
+      // which cancels any in-flight cache fetch (CancelledError) even though the bill
+      // loads fine. A direct call can't be cancelled; seed the cache so the
+      // pendingPayment effect fires without waiting for the background refetch.
+      if (pendingPayment.current && variables.order_type === 'dine_in' && selectedTable) {
+        const tableId = selectedTable.id
+        try {
+          const freshBill = await apiClient.getActiveBillForTable(tableId).then(res => res.data ?? null)
+          if (freshBill) {
+            queryClient.setQueryData(['activeBill', tableId], freshBill)
+          } else if (pendingPayment.current) {
+            pendingPayment.current = false
+            setErrorMessage('Order was created, but its bill could not be found to open payment. Check the table\'s active orders.')
+          }
+        } catch (error: any) {
+          if (pendingPayment.current) {
+            pendingPayment.current = false
+            setErrorMessage(`Order was created, but loading its bill failed: ${error?.message || 'unknown error'}`)
+          }
+        }
+      }
     },
-    onError: (error: Error) => handleMutationError(error, 'Failed to create order. Please try again.')
+    onError: (error: Error) => {
+      pendingPayment.current = false
+      handleMutationError(error, 'Failed to create order. Please try again.')
+    }
   })
 
   // Add items mutation
@@ -607,6 +650,9 @@ export function CounterInterface() {
 
     // Offline handling
     if (!isOnline) {
+      // Payment can't proceed offline — drop any pending Pay intent so it doesn't
+      // fire against a different order after reconnect.
+      pendingPayment.current = false
       try {
         const result = await createOfflineOrder(orderData)
         if (shouldPrint && 'orderNumber' in result) {
@@ -669,6 +715,13 @@ export function CounterInterface() {
       handleCreateOrder(false)
     }
   }
+
+  // A pending Pay intent is only valid for the table it was initiated on —
+  // switching (or deselecting) tables drops it so the overlay can't open
+  // against a different table's bill.
+  useEffect(() => {
+    pendingPayment.current = false
+  }, [selectedTable?.id])
 
   // Open payment overlay after dine-in order creation completes (activeBill updates)
   useEffect(() => {
@@ -1264,7 +1317,13 @@ export function CounterInterface() {
             onUpdateQuantity={cart.updateQuantity}
             onUpdateSpecialInstructions={cart.updateSpecialInstructions}
             onClearCart={cart.clearCart}
-            onCreateOrder={handleCreateOrder}
+            onCreateOrder={(shouldPrint: boolean) => {
+              // Save/KOT is an explicit non-payment action: drop any payment intent
+              // left over from an aborted Pay click (allergen cancel, offline, error)
+              // so the overlay doesn't pop when this order's bill arrives.
+              pendingPayment.current = false
+              return handleCreateOrder(shouldPrint)
+            }}
             onCancelOrder={setOrderToCancel}
             onEditOrder={setOrderToEdit}
             formatCurrency={format}
@@ -1301,7 +1360,11 @@ export function CounterInterface() {
         allergens={allergenDialog?.allergens ?? []}
         isSubmitting={isAllergenSubmitting || createOrderMutation.isPending}
         onConfirm={handleAllergenConfirm}
-        onCancel={() => setAllergenDialog(null)}
+        onCancel={() => {
+          // Abandoning the allergen confirmation abandons the pending Pay intent too
+          pendingPayment.current = false
+          setAllergenDialog(null)
+        }}
       />
 
       {orderToEdit && (

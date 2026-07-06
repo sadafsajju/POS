@@ -351,7 +351,15 @@ export function CartPanel({
         {/* Legacy fallback: non-KOT table orders (dine-in only) */}
         {isDineIn && !hasActiveBill && tableOrders.length > 0 && (
           <div className="space-y-0">
-            {tableOrders.map(order => (
+            {tableOrders.map(order => {
+              // KOT-mode bills carry no direct items — they live on the child
+              // KOTs. Aggregate them so a paid bill doesn't display "0 items".
+              const orderItems = (order.items && order.items.length > 0)
+                ? order.items
+                : (Array.isArray(allOrders) ? allOrders : [])
+                    .filter(o => o.parent_order_id === order.id && o.status !== 'cancelled')
+                    .flatMap(k => k.items || [])
+              return (
               <div
                 key={order.id}
                 className="bg-zinc-800 p-3 border-b border-zinc-700"
@@ -385,12 +393,12 @@ export function CartPanel({
                     <Trash2 className="w-5 h-5" />
                   </Button>
                 </div>
-                {order.items && order.items.length > 0 && (
+                {orderItems.length > 0 && (
                   <div
                     className="space-y-1 cursor-pointer"
                     onClick={() => onEditOrder(order)}
                   >
-                    {consolidateItems(order.items).map((item, idx) => (
+                    {consolidateItems(orderItems).map((item, idx) => (
                       <div
                         key={item.product_id || idx}
                         className="flex justify-between text-sm text-zinc-300 py-1 hover:text-zinc-100 active:bg-zinc-700 rounded px-1"
@@ -402,14 +410,15 @@ export function CartPanel({
                 )}
                 <div className="flex justify-between items-center pt-2 mt-2 border-t border-zinc-700 text-sm">
                   <span className="text-zinc-400">
-                    {consolidateItems(order.items || []).reduce((sum, item) => sum + item.quantity, 0)} items
+                    {consolidateItems(orderItems).reduce((sum, item) => sum + item.quantity, 0)} items
                   </span>
                   <span className="font-semibold text-white">
                     {formatCurrency(order.total_amount)}
                   </span>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

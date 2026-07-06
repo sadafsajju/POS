@@ -20,15 +20,20 @@ function getTableOrderStatus(tableOrders: Order[], tableKOTs: Order[]): { status
   // For kitchen status, look at KOTs first, then fall back to parent
   const kotStatuses = tableKOTs.map(o => o.status)
 
+  // Kitchen actively working — surface that even after payment (pay-first flow)
   if (kotStatuses.includes('preparing')) return { status: 'preparing', isPaid }
   if (kotStatuses.includes('ready')) return { status: 'ready', isPaid }
+
+  // Once the bill is paid, queued/served KOT states no longer drive the card.
+  // Without a kitchen screen KOTs sit in 'pending' forever, which left paid
+  // tables stuck showing amber "Pending" — a paid table reads as Paid (awaiting clear).
+  if (isPaid) return { status: 'paid', isPaid }
+
   if (kotStatuses.includes('served')) return { status: 'served', isPaid }
   if (kotStatuses.includes('confirmed')) return { status: 'confirmed', isPaid }
   if (kotStatuses.includes('pending')) return { status: 'pending', isPaid }
 
-  // No KOTs — use parent status (but map 'paid' to 'served' for display)
-  const displayStatus = isPaid ? 'served' : (parentStatus || 'pending')
-  return { status: displayStatus, isPaid }
+  return { status: parentStatus || 'pending', isPaid }
 }
 
 const orderStatusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; cardBg: string }> = {

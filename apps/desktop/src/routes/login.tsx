@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@pos/core';
 import { signInWithPassword, extractUserClaims, locationsDb } from '@pos/supabase';
 import { Button } from '@/components/ui/button';
@@ -37,11 +37,16 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Already authenticated — redirect based on role
+  // Already authenticated — redirect based on role. Navigation triggers router
+  // state updates, so it must run in an effect, not during render.
+  useEffect(() => {
+    if (isAuthenticated) {
+      const user = useAuthStore.getState().user;
+      navigate({ to: getRoleBasedRedirect(user?.role) });
+    }
+  }, [isAuthenticated, navigate]);
+
   if (isAuthenticated) {
-    const user = useAuthStore.getState().user;
-    const redirectPath = getRoleBasedRedirect(user?.role);
-    navigate({ to: redirectPath });
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />

@@ -195,18 +195,30 @@ class APIClient {
       .limit(1)
       .maybeSingle()
 
-    if (error || !bill) {
+    // A query error must not masquerade as "no active bill" — callers use null to
+    // mean "table is free", and swallowing errors here silently breaks the dine-in
+    // payment flow (the overlay only opens once this returns a bill). Throw so
+    // React Query surfaces/retries it and fetchQuery callers hit their catch.
+    if (error) {
+      throw new Error(`Failed to look up active bill: ${error.message}`)
+    }
+    if (!bill) {
       return { success: true, message: 'No active bill', data: null }
     }
 
     // Fetch the full bill summary via RPC
     const summaryResponse = await ordersDb.getBillSummary(bill.id)
     if (!summaryResponse.success) {
-      return summaryResponse
+      throw new Error(summaryResponse.message || 'Failed to load bill summary')
     }
 
-    // Unwrap the double-nested RPC response
+    // Unwrap the double-nested RPC response. The RPC reports business failures as
+    // { success: false, error } with an HTTP 200, so check that too — otherwise the
+    // error object itself would be returned as the "bill".
     const rpcResult = summaryResponse.data as any
+    if (rpcResult && rpcResult.success === false) {
+      throw new Error(rpcResult.error || 'Failed to load bill summary')
+    }
     const summaryData = rpcResult?.data ?? rpcResult
     return { success: true, message: 'Success', data: summaryData }
   }
