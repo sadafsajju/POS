@@ -1,0 +1,573 @@
+import { useState, useEffect } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { cn } from '@/lib/utils'
+import { ShoppingCart, Loader2, Minus, Trash2, MessageSquare, StickyNote, ChefHat, Printer, CreditCard, UtensilsCrossed, ShoppingBag, Truck, Check } from 'lucide-react'
+import { useSettingsStore } from '@pos/core'
+import { toastHelpers } from '@/lib/toast-helpers'
+import { SettingsPageLayout } from '@/components/admin/settings/SettingsPageLayout'
+import type { CartSettings } from '@pos/types'
+
+export const Route = createFileRoute('/admin/more/customization/cart')({
+  component: CartSettingsPage,
+})
+
+// ── Toggle options ───────────────────────────────────────────────────────────
+
+const toggleOptions: { key: keyof CartSettings; label: string; description: string }[] = [
+  { key: 'showSpecialInstructions', label: 'Special Instructions', description: 'Allow adding notes to individual cart items' },
+  { key: 'showOrderNotes', label: 'Order Notes', description: 'Show a field for order-level notes and requests' },
+  { key: 'confirmBeforeClear', label: 'Confirm Before Clear', description: 'Show confirmation dialog before clearing the cart' },
+  { key: 'autoClearAfterOrder', label: 'Auto-Clear After Order', description: 'Automatically clear the cart after placing an order' },
+]
+
+const orderTypeOptions: {
+  key: keyof CartSettings
+  type: 'dine_in' | 'takeout' | 'delivery'
+  label: string
+  description: string
+  icon: string
+}[] = [
+  { key: 'showDineIn', type: 'dine_in', label: 'Dine-In', description: 'Orders with table selection', icon: 'utensils' },
+  { key: 'showTakeout', type: 'takeout', label: 'Takeout', description: 'Takeout / parcel orders', icon: 'bag' },
+  { key: 'showDelivery', type: 'delivery', label: 'Delivery', description: 'Delivery orders', icon: 'truck' },
+]
+
+const actionButtonKeys: { key: keyof import('@pos/types').OrderTypeButtons; label: string; description: string; icon: string }[] = [
+  { key: 'showSave', label: 'Save', description: 'Save order without printing KOT', icon: 'chef' },
+  { key: 'showKot', label: 'KOT', description: 'Send Kitchen Order Ticket to printer', icon: 'printer' },
+  { key: 'showPay', label: 'Pay', description: 'Open payment dialog for active orders', icon: 'card' },
+]
+
+const orderTypeButtonSections = [
+  { settingsKey: 'dineInButtons' as const, label: 'Dine-In', visibilityKey: 'showDineIn' as const, color: 'sky' },
+  { settingsKey: 'takeoutButtons' as const, label: 'Takeout', visibilityKey: 'showTakeout' as const, color: 'amber' },
+  { settingsKey: 'deliveryButtons' as const, label: 'Delivery', visibilityKey: 'showDelivery' as const, color: 'violet' },
+]
+
+// ── Sample cart items for preview ────────────────────────────────────────────
+
+const sampleItems = [
+  { name: 'Chicken Biryani', qty: 2, price: 299, instruction: 'Extra spicy, no onions' },
+  { name: 'Butter Naan', qty: 3, price: 60, instruction: '' },
+  { name: 'Masala Chai', qty: 1, price: 40, instruction: '' },
+]
+
+const orderTypeLabels: Record<string, { label: string; color: string; badgeColor: string }> = {
+  dine_in: { label: 'Dine In', color: 'bg-sky-500/15 text-sky-400 border-sky-500/20', badgeColor: 'bg-blue-700 text-white' },
+  takeout: { label: 'Takeout', color: 'bg-amber-500/15 text-amber-400 border-amber-500/20', badgeColor: 'bg-orange-500 text-white' },
+  delivery: { label: 'Delivery', color: 'bg-violet-500/15 text-violet-400 border-violet-500/20', badgeColor: 'bg-green-500 text-white' },
+}
+
+// ── Live Cart Preview (matching actual CartPanel.tsx) ─────────────────────────
+
+function CartPreview({
+  cartSettings,
+  currencySymbol,
+  taxRate,
+}: {
+  cartSettings: CartSettings
+  currencySymbol: string
+  taxRate: number
+}) {
+  const [previewType, setPreviewType] = useState<'dine_in' | 'takeout' | 'delivery'>(cartSettings.defaultOrderType)
+  const fmt = (n: number) => `${currencySymbol}${n.toFixed(2)}`
+
+  const subtotal = sampleItems.reduce((s, i) => s + i.qty * i.price, 0)
+  const tax = subtotal * (taxRate / 100)
+  const total = subtotal + tax
+
+  // Get buttons for the selected preview type
+  const buttons = previewType === 'dine_in' ? cartSettings.dineInButtons
+    : previewType === 'takeout' ? cartSettings.takeoutButtons
+    : cartSettings.deliveryButtons
+
+  // Available preview types (only show enabled ones)
+  const availableTypes = [
+    cartSettings.showDineIn && 'dine_in',
+    cartSettings.showTakeout && 'takeout',
+    cartSettings.showDelivery && 'delivery',
+  ].filter(Boolean) as ('dine_in' | 'takeout' | 'delivery')[]
+
+  // Reset preview type if current one gets disabled
+  useEffect(() => {
+    if (!availableTypes.includes(previewType) && availableTypes.length > 0) {
+      setPreviewType(availableTypes[0])
+    }
+  }, [availableTypes.join(',')])
+
+  return (
+    <div className="bg-zinc-950 rounded-lg border border-zinc-800 lg:sticky lg:top-4">
+      <div className="px-5 pt-5 pb-2">
+        <div className="flex items-baseline justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-300">Live Preview</h3>
+            <p className="text-xs text-zinc-600">Matches your actual POS cart</p>
+          </div>
+          <span className="text-[10px] text-zinc-600 tabular-nums">Cart panel</span>
+        </div>
+        {availableTypes.length > 1 && (
+          <div className="flex gap-1.5">
+            {availableTypes.map((type) => {
+              const info = orderTypeLabels[type]
+              const active = previewType === type
+              return (
+                <button
+                  key={type}
+                  onClick={() => setPreviewType(type)}
+                  className={cn(
+                    'flex-1 py-1.5 rounded-md text-xs font-medium border transition-colors',
+                    active
+                      ? info.color
+                      : 'bg-zinc-800/50 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                  )}
+                >
+                  {info.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Cart panel mock — visually mirrors components/counter/panels/CartPanel.tsx.
+          Kept structurally close so changes to the real cart UI are easy to
+          back-port here. */}
+      <div className="mx-5 mb-5 bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden flex flex-col">
+
+        {/* Order Items header + Clear button (CartPanel ~line 420) */}
+        <div className="flex justify-between items-center px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+          <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">
+            Order Items
+          </p>
+          <button className="h-8 px-2 flex items-center gap-1 text-red-400 hover:bg-red-500/10 rounded-md text-sm font-medium">
+            <Trash2 className="w-4 h-4 mr-1" />
+            Clear
+          </button>
+        </div>
+
+        {/* Cart items — flat list with horizontal dividers (no bordered grid) */}
+        <div>
+          {sampleItems.map((item, i) => (
+            <div key={i} className="border-b border-zinc-800 bg-zinc-900">
+              <div className="flex items-center p-3 gap-3 hover:bg-zinc-800">
+                {/* Item info — left, fills row */}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-base text-zinc-100 truncate">{item.name}</div>
+                  <div className="text-sm text-zinc-400">
+                    {fmt(item.price)} × {item.qty} = <span className="font-semibold text-zinc-100">{fmt(item.price * item.qty)}</span>
+                  </div>
+                </div>
+                {/* Note button — middle */}
+                {cartSettings.showSpecialInstructions && (
+                  <button className={cn(
+                    'h-12 w-12 p-0 flex items-center justify-center flex-shrink-0 rounded-md',
+                    item.instruction ? 'text-amber-400' : 'text-zinc-500'
+                  )}>
+                    <MessageSquare className="h-5 w-5" />
+                  </button>
+                )}
+                {/* Minus / long-press-to-remove — right (bordered) */}
+                <button className="h-12 w-12 p-0 flex items-center justify-center bg-zinc-900 border border-zinc-700 text-zinc-300 hover:bg-zinc-800 flex-shrink-0 rounded-md">
+                  <Minus className="h-5 w-5" />
+                </button>
+              </div>
+              {/* Special-instructions display when set */}
+              {cartSettings.showSpecialInstructions && item.instruction && (
+                <div className="px-3 pb-3 pt-0 text-sm text-zinc-500 bg-zinc-900">
+                  <span className="italic">Note: {item.instruction}</span>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Order Notes — collapsed "Add note" affordance */}
+          {cartSettings.showOrderNotes && (
+            <div className="border-b border-zinc-800">
+              <button className="w-full flex items-center justify-center gap-2 px-3 py-3 text-sm text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50">
+                <StickyNote className="h-4 w-4" />
+                Add note
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Summary + actions footer */}
+        <div className="border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
+          <div className="border-b border-zinc-800">
+            {taxRate > 0 && (
+              <div className="flex justify-between text-[10px] text-zinc-600 px-3 pt-2.5 font-mono">
+                <span>incl. Tax ({taxRate}%)</span>
+                <span>{fmt(tax)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-black text-zinc-100 px-3 py-2.5 font-mono uppercase">
+              <span>TOTAL</span>
+              <span>{fmt(total)}</span>
+            </div>
+          </div>
+
+          {/* Action Buttons — count-aware layout, mirrors CartPanel */}
+          {(() => {
+            const btns = [
+              buttons?.showSave && 'save',
+              buttons?.showKot && 'kot',
+              buttons?.showPay && 'pay',
+            ].filter(Boolean) as string[]
+            const count = btns.length
+
+            const primaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold'
+            const secondaryClass = 'flex-1 h-12 text-sm flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-medium border-r border-zinc-800 last:border-r-0'
+
+            if (count === 0) {
+              return (
+                <div className="h-12 text-sm flex items-center justify-center text-zinc-500">
+                  No action buttons enabled
+                </div>
+              )
+            }
+
+            const renderBtn = (btn: string, isPrimary: boolean) => {
+              const cls = isPrimary ? primaryClass : secondaryClass
+              if (btn === 'save') return (
+                <button key="save" className={cls}><ChefHat className="w-4 h-4" />Save</button>
+              )
+              if (btn === 'kot') return (
+                <button key="kot" className={cls}><Printer className="w-4 h-4" />KOT</button>
+              )
+              return (
+                <button key="pay" className={cls}><CreditCard className="w-4 h-4" />Pay</button>
+              )
+            }
+
+            if (count === 3) {
+              // Save + KOT on top, full-width Pay below
+              return (
+                <div>
+                  <div className="flex">
+                    {renderBtn('save', false)}
+                    {renderBtn('kot', false)}
+                  </div>
+                  <div className="flex border-t border-zinc-800">
+                    {renderBtn('pay', true)}
+                  </div>
+                </div>
+              )
+            }
+
+            if (count === 2) {
+              const topBtns = btns.filter(b => b === 'save' || b === 'kot')
+              if (topBtns.length === 2) {
+                return (
+                  <div className="flex">
+                    {renderBtn('save', false)}
+                    {renderBtn('kot', true)}
+                  </div>
+                )
+              }
+              return (
+                <div className="flex">
+                  {btns.map((btn, i) => renderBtn(btn, i === btns.length - 1))}
+                </div>
+              )
+            }
+
+            // count === 1, full-width primary
+            return (
+              <div className="flex">
+                {renderBtn(btns[0], true)}
+              </div>
+            )
+          })()}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+
+function CartSettingsPage() {
+  const { settings, isLoading, saveSettings } = useSettingsStore()
+  const [localSettings, setLocalSettings] = useState<CartSettings>(
+    settings.cartSettings || {
+      defaultOrderType: 'dine_in',
+      showDineIn: true,
+      showTakeout: true,
+      showDelivery: true,
+      showSpecialInstructions: true,
+      showOrderNotes: true,
+      confirmBeforeClear: true,
+      autoClearAfterOrder: true,
+      dineInButtons: { showSave: true, showKot: true, showPay: true },
+      takeoutButtons: { showSave: false, showKot: false, showPay: true },
+      deliveryButtons: { showSave: false, showKot: false, showPay: true },
+    }
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  useEffect(() => {
+    if (settings.cartSettings) {
+      setLocalSettings(settings.cartSettings)
+    }
+  }, [settings.cartSettings])
+
+  useEffect(() => {
+    const current = settings.cartSettings || {}
+    setHasChanges(JSON.stringify(localSettings) !== JSON.stringify(current))
+  }, [localSettings, settings.cartSettings])
+
+  const handleToggle = (key: keyof CartSettings) => {
+    const val = localSettings[key]
+    if (typeof val === 'boolean') {
+      setLocalSettings((prev) => {
+        const next = { ...prev, [key]: !prev[key] }
+        // If an order type was disabled and it was the default, switch default to first enabled type
+        const orderTypeMap: Record<string, keyof CartSettings> = {
+          dine_in: 'showDineIn',
+          takeout: 'showTakeout',
+          delivery: 'showDelivery',
+        }
+        const settingKey = orderTypeMap[next.defaultOrderType]
+        if (settingKey && !next[settingKey]) {
+          const firstEnabled = (['dine_in', 'takeout', 'delivery'] as const).find(
+            (t) => next[orderTypeMap[t]] as boolean
+          )
+          if (firstEnabled) next.defaultOrderType = firstEnabled
+        }
+        return next
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await saveSettings({ ...settings, cartSettings: localSettings })
+      toastHelpers.success('Settings saved', 'Cart settings have been updated.')
+    } catch (err: any) {
+      setError(err.message || 'Failed to save settings')
+      toastHelpers.error('Failed to save', err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReset = () => {
+    if (settings.cartSettings) {
+      setLocalSettings(settings.cartSettings)
+    }
+    toastHelpers.info('Changes discarded', 'Settings reset to last saved values.')
+  }
+
+  if (isLoading && !settings.restaurantName) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+      </div>
+    )
+  }
+
+  return (
+    <SettingsPageLayout
+      title="Cart Layout"
+      description="Order types, cart features and action buttons — preview updates live"
+      icon={<ShoppingCart className="w-5 h-5" />}
+      hasChanges={hasChanges}
+      saving={saving}
+      error={error}
+      onSave={handleSave}
+      onReset={handleReset}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-5 items-start">
+
+        {/* ── Left: Settings controls ──────────────────────────────────── */}
+        <div className="space-y-5">
+
+          {/* Order Types — enable/disable, default, and cart buttons per type */}
+          <div className="bg-zinc-900 rounded-lg border border-zinc-800">
+            <div className="px-5 pt-5 pb-3">
+              <h3 className="text-base font-bold text-zinc-200">Order Types</h3>
+              <p className="text-sm text-zinc-500">Enable order types, pick the default, and choose the cart buttons for each</p>
+            </div>
+            <div className="px-5 pb-5 space-y-2">
+              {orderTypeOptions.map((option) => {
+                const icon = option.icon === 'utensils' ? <UtensilsCrossed className="w-4 h-4" />
+                  : option.icon === 'bag' ? <ShoppingBag className="w-4 h-4" />
+                  : <Truck className="w-4 h-4" />
+                const enabledCount = [localSettings.showDineIn, localSettings.showTakeout, localSettings.showDelivery].filter(Boolean).length
+                const isEnabled = localSettings[option.key] as boolean
+                const isLastEnabled = isEnabled && enabledCount === 1
+                const isDefault = localSettings.defaultOrderType === option.type
+                const section = orderTypeButtonSections.find((s) => s.visibilityKey === option.key)!
+                const buttons = localSettings[section.settingsKey] || { showSave: true, showKot: true, showPay: true }
+                return (
+                  <div
+                    key={option.key}
+                    className={cn(
+                      'rounded-lg border transition-colors',
+                      isEnabled
+                        ? 'bg-emerald-500/10 border-emerald-500/20'
+                        : 'bg-zinc-800/50 border-zinc-800'
+                    )}
+                  >
+                    {/* Header row: icon + label, default chip, enable switch */}
+                    <div className="flex items-center justify-between p-3">
+                      <button
+                        onClick={() => {
+                          if (isLastEnabled) return
+                          handleToggle(option.key)
+                        }}
+                        className={cn('flex items-center gap-3 text-left flex-1 min-w-0', isLastEnabled && 'cursor-not-allowed')}
+                      >
+                        <div className={cn(
+                          'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                          isEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+                        )}>
+                          {icon}
+                        </div>
+                        <div className="space-y-0.5 min-w-0">
+                          <span className="block text-sm font-medium text-zinc-200">{option.label}</span>
+                          <span className="block text-xs text-zinc-500 truncate">
+                            {isLastEnabled ? 'At least one order type must stay enabled' : option.description}
+                          </span>
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        {isEnabled && (
+                          <button
+                            onClick={() => setLocalSettings((prev) => ({ ...prev, defaultOrderType: option.type }))}
+                            className={cn(
+                              'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors',
+                              isDefault
+                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                : 'bg-transparent border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                            )}
+                            title={isDefault ? 'New orders start on this type' : 'Make this the default order type'}
+                          >
+                            {isDefault ? '★ Default' : 'Set default'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (isLastEnabled) return
+                            handleToggle(option.key)
+                          }}
+                          className={cn(
+                            'w-10 h-6 rounded-full relative transition-colors flex-shrink-0',
+                            isEnabled ? 'bg-emerald-500' : 'bg-zinc-700',
+                            isLastEnabled && 'opacity-60 cursor-not-allowed'
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                              isEnabled ? 'translate-x-5' : 'translate-x-1'
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Cart buttons for this type */}
+                    {isEnabled && (
+                      <div className="px-3 pb-3">
+                        <span className="block text-[10px] uppercase tracking-wider text-zinc-600 font-bold mb-1.5">Buttons</span>
+                        <div className="flex items-center gap-1.5">
+                        {actionButtonKeys.map((btn) => {
+                          const btnEnabled = buttons[btn.key]
+                          const btnIcon = btn.icon === 'chef' ? <ChefHat className="w-3.5 h-3.5" />
+                            : btn.icon === 'printer' ? <Printer className="w-3.5 h-3.5" />
+                            : <CreditCard className="w-3.5 h-3.5" />
+                          return (
+                            <button
+                              key={btn.key}
+                              onClick={() => {
+                                setLocalSettings((prev) => ({
+                                  ...prev,
+                                  [section.settingsKey]: {
+                                    ...prev[section.settingsKey],
+                                    [btn.key]: !prev[section.settingsKey][btn.key],
+                                  },
+                                }))
+                              }}
+                              title={`${btn.label} — ${btn.description}`}
+                              className={cn(
+                                'h-8 px-3 rounded-md border flex items-center gap-1.5 text-xs font-medium transition-colors',
+                                btnEnabled
+                                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
+                              )}
+                            >
+                              {btnIcon}
+                              {btn.label}
+                              {btnEnabled && <Check className="w-3 h-3" />}
+                            </button>
+                          )
+                        })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <p className="text-[11px] text-zinc-600 pt-1 px-1">
+                Save keeps the order without printing · KOT sends a ticket to the kitchen printer · Pay opens the payment screen
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle options */}
+          <div className="bg-zinc-900 rounded-lg border border-zinc-800">
+            <div className="px-5 pt-5 pb-3">
+              <h3 className="text-base font-bold text-zinc-200">Cart Behavior</h3>
+              <p className="text-sm text-zinc-500">Control requirements and features for the order cart</p>
+            </div>
+            <div className="px-5 pb-5 space-y-2">
+              {toggleOptions.map((option) => (
+                <div key={option.key}>
+                  <button
+                    onClick={() => handleToggle(option.key)}
+                    className={cn(
+                      'flex items-center justify-between w-full p-3 rounded-lg border transition-colors text-left',
+                      localSettings[option.key]
+                        ? 'bg-emerald-500/10 border-emerald-500/20'
+                        : 'bg-zinc-800/50 border-zinc-800 hover:bg-zinc-800'
+                    )}
+                  >
+                    <div className="space-y-0.5">
+                      <span className="block text-sm font-medium text-zinc-200">{option.label}</span>
+                      <span className="block text-xs text-zinc-500">{option.description}</span>
+                    </div>
+                    <div
+                      className={cn(
+                        'w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4',
+                        localSettings[option.key] ? 'bg-emerald-500' : 'bg-zinc-700'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'absolute top-1 w-4 h-4 bg-white rounded-full transition-transform',
+                          localSettings[option.key] ? 'translate-x-5' : 'translate-x-1'
+                        )}
+                      />
+                    </div>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right: Live Preview (sticky) ─────────────────────────────── */}
+        <CartPreview
+          cartSettings={localSettings}
+          currencySymbol={settings.currencySymbol || '\u20B9'}
+          taxRate={settings.taxRate || 0}
+        />
+      </div>
+    </SettingsPageLayout>
+  )
+}

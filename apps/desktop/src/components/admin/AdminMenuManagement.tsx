@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Dialog,
@@ -13,7 +14,8 @@ import {
   Package,
   Tag,
   Layers,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import apiClient from '@/api/client'
@@ -293,6 +295,13 @@ export function AdminMenuManagement() {
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </button>
+          <Link
+            to="/admin/more/import"
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-500/15 text-indigo-400 text-sm font-medium hover:bg-indigo-500/25 transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Import
+          </Link>
           <button
             onClick={activeTab === 'products' ? handleAddProduct : activeTab === 'categories' ? handleAddCategory : handleAddVariation}
             className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/15 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"

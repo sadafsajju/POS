@@ -1,10 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { CustomerDirectory } from '@/components/customers/CustomerDirectory'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
+// Customers moved into the More section — keep the old URL working.
 export const Route = createFileRoute('/admin/customers')({
-  component: CustomersPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/more/customers' })
+  },
 })
-
-function CustomersPage() {
-  return <CustomerDirectory />
-}

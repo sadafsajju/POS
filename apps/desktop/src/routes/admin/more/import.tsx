@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Sparkles,
@@ -258,6 +258,14 @@ function AIMenuImport() {
       {/* Header */}
       <header className="flex-shrink-0 flex items-center justify-between px-6 py-3 bg-zinc-900 border-b border-zinc-800">
         <div className="flex items-center gap-3">
+          <Link
+            to="/admin/more/menu"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-zinc-400 text-sm font-medium hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Menu
+          </Link>
+          <div className="h-5 w-px bg-zinc-700" />
           <Sparkles className="h-5 w-5 text-indigo-400" />
           <span className="text-lg font-bold tracking-tight text-zinc-300">AI Menu Import</span>
           {step === 'preview' && (

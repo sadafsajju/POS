@@ -4,7 +4,6 @@ import {
   CreditCard,
   ChefHat,
   MoreHorizontal,
-  Contact,
   Receipt,
   LogOut,
   Lock,
@@ -64,12 +63,6 @@ const navItems = [
     label: 'Kitchen',
     icon: ChefHat,
     href: '/admin/kitchen',
-  },
-  {
-    id: 'customers',
-    label: 'Customers',
-    icon: Contact,
-    href: '/admin/customers',
   },
   {
     id: 'settings',

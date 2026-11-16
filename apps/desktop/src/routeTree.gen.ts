@@ -48,10 +48,16 @@ import { Route as AdminMoreImportRouteImport } from './routes/admin/more/import'
 import { Route as AdminMoreGeneralRouteImport } from './routes/admin/more/general'
 import { Route as AdminMoreFinancialRouteImport } from './routes/admin/more/financial'
 import { Route as AdminMoreDiscountsRouteImport } from './routes/admin/more/discounts'
+import { Route as AdminMoreCustomizationRouteImport } from './routes/admin/more/customization'
+import { Route as AdminMoreCustomersRouteImport } from './routes/admin/more/customers'
 import { Route as AdminMoreCartRouteImport } from './routes/admin/more/cart'
 import { Route as AdminMoreAccountRouteImport } from './routes/admin/more/account'
 import { Route as AdminMoreAboutRouteImport } from './routes/admin/more/about'
 import { Route as AdminMoreMenuIndexRouteImport } from './routes/admin/more/menu/index'
+import { Route as AdminMoreCustomizationIndexRouteImport } from './routes/admin/more/customization/index'
+import { Route as AdminMoreCustomizationReceiptsRouteImport } from './routes/admin/more/customization/receipts'
+import { Route as AdminMoreCustomizationProductsRouteImport } from './routes/admin/more/customization/products'
+import { Route as AdminMoreCustomizationCartRouteImport } from './routes/admin/more/customization/cart'
 
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
@@ -248,6 +254,16 @@ const AdminMoreDiscountsRoute = AdminMoreDiscountsRouteImport.update({
   path: '/discounts',
   getParentRoute: () => AdminMoreRoute,
 } as any)
+const AdminMoreCustomizationRoute = AdminMoreCustomizationRouteImport.update({
+  id: '/customization',
+  path: '/customization',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
+const AdminMoreCustomersRoute = AdminMoreCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminMoreRoute,
+} as any)
 const AdminMoreCartRoute = AdminMoreCartRouteImport.update({
   id: '/cart',
   path: '/cart',
@@ -268,6 +284,30 @@ const AdminMoreMenuIndexRoute = AdminMoreMenuIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminMoreMenuRoute,
 } as any)
+const AdminMoreCustomizationIndexRoute =
+  AdminMoreCustomizationIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AdminMoreCustomizationRoute,
+  } as any)
+const AdminMoreCustomizationReceiptsRoute =
+  AdminMoreCustomizationReceiptsRouteImport.update({
+    id: '/receipts',
+    path: '/receipts',
+    getParentRoute: () => AdminMoreCustomizationRoute,
+  } as any)
+const AdminMoreCustomizationProductsRoute =
+  AdminMoreCustomizationProductsRouteImport.update({
+    id: '/products',
+    path: '/products',
+    getParentRoute: () => AdminMoreCustomizationRoute,
+  } as any)
+const AdminMoreCustomizationCartRoute =
+  AdminMoreCustomizationCartRouteImport.update({
+    id: '/cart',
+    path: '/cart',
+    getParentRoute: () => AdminMoreCustomizationRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -293,6 +333,8 @@ export interface FileRoutesByFullPath {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/customers': typeof AdminMoreCustomersRoute
+  '/admin/more/customization': typeof AdminMoreCustomizationRouteWithChildren
   '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
@@ -312,6 +354,10 @@ export interface FileRoutesByFullPath {
   '/admin/more/tips': typeof AdminMoreTipsRoute
   '/admin/more/vat-export': typeof AdminMoreVatExportRoute
   '/admin/more/': typeof AdminMoreIndexRoute
+  '/admin/more/customization/cart': typeof AdminMoreCustomizationCartRoute
+  '/admin/more/customization/products': typeof AdminMoreCustomizationProductsRoute
+  '/admin/more/customization/receipts': typeof AdminMoreCustomizationReceiptsRoute
+  '/admin/more/customization/': typeof AdminMoreCustomizationIndexRoute
   '/admin/more/menu/': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRoutesByTo {
@@ -336,6 +382,7 @@ export interface FileRoutesByTo {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/customers': typeof AdminMoreCustomersRoute
   '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
@@ -354,6 +401,10 @@ export interface FileRoutesByTo {
   '/admin/more/tips': typeof AdminMoreTipsRoute
   '/admin/more/vat-export': typeof AdminMoreVatExportRoute
   '/admin/more': typeof AdminMoreIndexRoute
+  '/admin/more/customization/cart': typeof AdminMoreCustomizationCartRoute
+  '/admin/more/customization/products': typeof AdminMoreCustomizationProductsRoute
+  '/admin/more/customization/receipts': typeof AdminMoreCustomizationReceiptsRoute
+  '/admin/more/customization': typeof AdminMoreCustomizationIndexRoute
   '/admin/more/menu': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRoutesById {
@@ -381,6 +432,8 @@ export interface FileRoutesById {
   '/admin/more/about': typeof AdminMoreAboutRoute
   '/admin/more/account': typeof AdminMoreAccountRoute
   '/admin/more/cart': typeof AdminMoreCartRoute
+  '/admin/more/customers': typeof AdminMoreCustomersRoute
+  '/admin/more/customization': typeof AdminMoreCustomizationRouteWithChildren
   '/admin/more/discounts': typeof AdminMoreDiscountsRoute
   '/admin/more/financial': typeof AdminMoreFinancialRoute
   '/admin/more/general': typeof AdminMoreGeneralRoute
@@ -400,6 +453,10 @@ export interface FileRoutesById {
   '/admin/more/tips': typeof AdminMoreTipsRoute
   '/admin/more/vat-export': typeof AdminMoreVatExportRoute
   '/admin/more/': typeof AdminMoreIndexRoute
+  '/admin/more/customization/cart': typeof AdminMoreCustomizationCartRoute
+  '/admin/more/customization/products': typeof AdminMoreCustomizationProductsRoute
+  '/admin/more/customization/receipts': typeof AdminMoreCustomizationReceiptsRoute
+  '/admin/more/customization/': typeof AdminMoreCustomizationIndexRoute
   '/admin/more/menu/': typeof AdminMoreMenuIndexRoute
 }
 export interface FileRouteTypes {
@@ -428,6 +485,8 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/customers'
+    | '/admin/more/customization'
     | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
@@ -447,6 +506,10 @@ export interface FileRouteTypes {
     | '/admin/more/tips'
     | '/admin/more/vat-export'
     | '/admin/more/'
+    | '/admin/more/customization/cart'
+    | '/admin/more/customization/products'
+    | '/admin/more/customization/receipts'
+    | '/admin/more/customization/'
     | '/admin/more/menu/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -471,6 +534,7 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/customers'
     | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
@@ -489,6 +553,10 @@ export interface FileRouteTypes {
     | '/admin/more/tips'
     | '/admin/more/vat-export'
     | '/admin/more'
+    | '/admin/more/customization/cart'
+    | '/admin/more/customization/products'
+    | '/admin/more/customization/receipts'
+    | '/admin/more/customization'
     | '/admin/more/menu'
   id:
     | '__root__'
@@ -515,6 +583,8 @@ export interface FileRouteTypes {
     | '/admin/more/about'
     | '/admin/more/account'
     | '/admin/more/cart'
+    | '/admin/more/customers'
+    | '/admin/more/customization'
     | '/admin/more/discounts'
     | '/admin/more/financial'
     | '/admin/more/general'
@@ -534,6 +604,10 @@ export interface FileRouteTypes {
     | '/admin/more/tips'
     | '/admin/more/vat-export'
     | '/admin/more/'
+    | '/admin/more/customization/cart'
+    | '/admin/more/customization/products'
+    | '/admin/more/customization/receipts'
+    | '/admin/more/customization/'
     | '/admin/more/menu/'
   fileRoutesById: FileRoutesById
 }
@@ -829,6 +903,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMoreDiscountsRouteImport
       parentRoute: typeof AdminMoreRoute
     }
+    '/admin/more/customization': {
+      id: '/admin/more/customization'
+      path: '/customization'
+      fullPath: '/admin/more/customization'
+      preLoaderRoute: typeof AdminMoreCustomizationRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
+    '/admin/more/customers': {
+      id: '/admin/more/customers'
+      path: '/customers'
+      fullPath: '/admin/more/customers'
+      preLoaderRoute: typeof AdminMoreCustomersRouteImport
+      parentRoute: typeof AdminMoreRoute
+    }
     '/admin/more/cart': {
       id: '/admin/more/cart'
       path: '/cart'
@@ -857,8 +945,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMoreMenuIndexRouteImport
       parentRoute: typeof AdminMoreMenuRoute
     }
+    '/admin/more/customization/': {
+      id: '/admin/more/customization/'
+      path: '/'
+      fullPath: '/admin/more/customization/'
+      preLoaderRoute: typeof AdminMoreCustomizationIndexRouteImport
+      parentRoute: typeof AdminMoreCustomizationRoute
+    }
+    '/admin/more/customization/receipts': {
+      id: '/admin/more/customization/receipts'
+      path: '/receipts'
+      fullPath: '/admin/more/customization/receipts'
+      preLoaderRoute: typeof AdminMoreCustomizationReceiptsRouteImport
+      parentRoute: typeof AdminMoreCustomizationRoute
+    }
+    '/admin/more/customization/products': {
+      id: '/admin/more/customization/products'
+      path: '/products'
+      fullPath: '/admin/more/customization/products'
+      preLoaderRoute: typeof AdminMoreCustomizationProductsRouteImport
+      parentRoute: typeof AdminMoreCustomizationRoute
+    }
+    '/admin/more/customization/cart': {
+      id: '/admin/more/customization/cart'
+      path: '/cart'
+      fullPath: '/admin/more/customization/cart'
+      preLoaderRoute: typeof AdminMoreCustomizationCartRouteImport
+      parentRoute: typeof AdminMoreCustomizationRoute
+    }
   }
 }
+
+interface AdminMoreCustomizationRouteChildren {
+  AdminMoreCustomizationCartRoute: typeof AdminMoreCustomizationCartRoute
+  AdminMoreCustomizationProductsRoute: typeof AdminMoreCustomizationProductsRoute
+  AdminMoreCustomizationReceiptsRoute: typeof AdminMoreCustomizationReceiptsRoute
+  AdminMoreCustomizationIndexRoute: typeof AdminMoreCustomizationIndexRoute
+}
+
+const AdminMoreCustomizationRouteChildren: AdminMoreCustomizationRouteChildren =
+  {
+    AdminMoreCustomizationCartRoute: AdminMoreCustomizationCartRoute,
+    AdminMoreCustomizationProductsRoute: AdminMoreCustomizationProductsRoute,
+    AdminMoreCustomizationReceiptsRoute: AdminMoreCustomizationReceiptsRoute,
+    AdminMoreCustomizationIndexRoute: AdminMoreCustomizationIndexRoute,
+  }
+
+const AdminMoreCustomizationRouteWithChildren =
+  AdminMoreCustomizationRoute._addFileChildren(
+    AdminMoreCustomizationRouteChildren,
+  )
 
 interface AdminMoreMenuRouteChildren {
   AdminMoreMenuIndexRoute: typeof AdminMoreMenuIndexRoute
@@ -876,6 +1012,8 @@ interface AdminMoreRouteChildren {
   AdminMoreAboutRoute: typeof AdminMoreAboutRoute
   AdminMoreAccountRoute: typeof AdminMoreAccountRoute
   AdminMoreCartRoute: typeof AdminMoreCartRoute
+  AdminMoreCustomersRoute: typeof AdminMoreCustomersRoute
+  AdminMoreCustomizationRoute: typeof AdminMoreCustomizationRouteWithChildren
   AdminMoreDiscountsRoute: typeof AdminMoreDiscountsRoute
   AdminMoreFinancialRoute: typeof AdminMoreFinancialRoute
   AdminMoreGeneralRoute: typeof AdminMoreGeneralRoute
@@ -901,6 +1039,8 @@ const AdminMoreRouteChildren: AdminMoreRouteChildren = {
   AdminMoreAboutRoute: AdminMoreAboutRoute,
   AdminMoreAccountRoute: AdminMoreAccountRoute,
   AdminMoreCartRoute: AdminMoreCartRoute,
+  AdminMoreCustomersRoute: AdminMoreCustomersRoute,
+  AdminMoreCustomizationRoute: AdminMoreCustomizationRouteWithChildren,
   AdminMoreDiscountsRoute: AdminMoreDiscountsRoute,
   AdminMoreFinancialRoute: AdminMoreFinancialRoute,
   AdminMoreGeneralRoute: AdminMoreGeneralRoute,
