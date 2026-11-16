@@ -380,6 +380,9 @@ export const adminApi = {
   getIncomeReport: (period: 'today' | 'week' | 'month' | 'year' = 'today') =>
     reportsDb.getIncomeReport(period) as any,
 
+  getReportsOverview: (params: { start: string; end: string; locationId?: string | null }) =>
+    reportsDb.getReportsOverview(params),
+
   // Settings
   getSettings: () =>
     settingsDb.getSettings() as any,

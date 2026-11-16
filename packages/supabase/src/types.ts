@@ -1283,6 +1283,10 @@ export interface Database {
         Args: { p_date?: string | null; p_location_id?: string | null }
         Returns: Json
       }
+      get_reports_overview: {
+        Args: { p_start: string; p_end: string; p_location_id?: string | null }
+        Returns: Json
+      }
       record_eod_reconciliation: {
         Args: {
           p_business_date: string
