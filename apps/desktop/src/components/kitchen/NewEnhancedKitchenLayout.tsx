@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { cn } from '@/lib/utils';
+import { cn, businessDayStartUtc } from '@/lib/utils';
+import { useSettingsStore } from '@pos/core';
 import apiClient from '@/api/client';
 import { subscribeToOrders, subscribeToOrderItems, unsubscribe, getSupabase } from '@pos/supabase';
 import type { User as UserType, Order, OrderItem, OrderStatus } from '@/types';
@@ -70,8 +71,33 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
     select: (d) => d.data || [],
   });
 
-  const orders: Order[] = Array.isArray(ordersResponse) ? ordersResponse : [];
-  const servedOrders: Order[] = Array.isArray(servedResponse) ? servedResponse : [];
+  // ── Business-day reset ────────────────────────────────────────────────
+  // The board starts fresh each business day: tickets created before the
+  // rollover (settings.businessDayStart, org timezone) are hidden, not
+  // closed — a leftover ticket usually means an unfinished bill, so we
+  // surface a count instead of silently changing order status. Filtering
+  // here (not in the query) keeps it working off the offline cache too.
+  const { settings } = useSettingsStore();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    // Re-evaluate the cutoff every minute so the board clears at rollover
+    // even if no order changes arrive to trigger a re-render.
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const dayStartMs = useMemo(
+    () => businessDayStartUtc(settings.timezone, settings.businessDayStart, new Date(now)).getTime(),
+    [settings.timezone, settings.businessDayStart, now],
+  );
+  const [showOlder, setShowOlder] = useState(false);
+
+  const allOrders: Order[] = Array.isArray(ordersResponse) ? ordersResponse : [];
+  const orders: Order[] = showOlder
+    ? allOrders
+    : allOrders.filter((o) => new Date(o.created_at).getTime() >= dayStartMs);
+  const servedOrders: Order[] = (Array.isArray(servedResponse) ? servedResponse : []).filter(
+    (o) => new Date(o.served_at || o.updated_at || o.created_at).getTime() >= dayStartMs,
+  );
 
   // Refresh both the active (pending/confirmed/preparing/ready) and served lists together.
   // If we only refresh one, an order transitioning to 'served' disappears from the active
@@ -108,6 +134,17 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
   const isItemCooking = useCallback((item: OrderItem) => {
     return !isItemReady(item) && !isItemServed(item);
   }, [isItemReady, isItemServed]);
+
+  // Older tickets that would actually render if shown. Orders whose items are
+  // all served produce no ticket in any lane, so counting them would promise
+  // tickets the "Show" toggle can't deliver.
+  const olderTicketCount = allOrders.filter(
+    (o) =>
+      new Date(o.created_at).getTime() < dayStartMs &&
+      (o.status === 'pending' ||
+        o.status === 'confirmed' ||
+        (o.items || []).some((item) => !isItemServed(item))),
+  ).length;
 
   // ── Build lane tickets ─────────────────────────────────────────────────
   // NEW: fresh tickets awaiting kitchen (KOTs start as 'pending', non-KOT orders may be 'confirmed')
@@ -291,6 +328,24 @@ export function NewEnhancedKitchenLayout({ user }: NewEnhancedKitchenLayoutProps
           <Pill color="bg-emerald-500" count={readyTickets.length} label="Ready" />
           {doneTickets.length > 0 && <Pill color="bg-zinc-500" count={doneTickets.length} label="Done" />}
           {urgentCount > 0 && <Pill color="bg-red-500" count={urgentCount} label="Late" pulse />}
+          {olderTicketCount > 0 && (
+            <>
+              <div className="h-5 w-px bg-zinc-700" />
+              <button
+                onClick={() => setShowOlder(!showOlder)}
+                aria-pressed={showOlder}
+                title="Open tickets from before today's business day started. They usually belong to a bill that was never closed."
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors min-h-[44px]',
+                  showOlder ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200',
+                )}
+              >
+                {showOlder
+                  ? `Hide ${olderTicketCount} from earlier`
+                  : `${olderTicketCount} from earlier hidden · Show`}
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

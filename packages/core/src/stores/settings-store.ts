@@ -40,6 +40,7 @@ const defaultSettings: StoreSettings = {
   theme: 'light',
   language: 'en',
   timezone: 'Europe/London',
+  businessDayStart: '00:00',
   backupFrequency: 'daily',
   notificationEmail: '',
   touchMode: false,
@@ -133,6 +134,7 @@ const apiToStoreSettings = (apiData: Record<string, string>): StoreSettings => {
     theme: (apiData.theme as StoreSettings['theme']) || defaultSettings.theme,
     language: apiData.language || defaultSettings.language,
     timezone: apiData.timezone || defaultSettings.timezone,
+    businessDayStart: apiData.business_day_start || defaultSettings.businessDayStart,
     backupFrequency: (apiData.backup_frequency as StoreSettings['backupFrequency']) || defaultSettings.backupFrequency,
     notificationEmail: apiData.notification_email || '',
     touchMode: apiData.touch_mode === 'true' || defaultSettings.touchMode,
@@ -175,6 +177,7 @@ const storeToApiSettings = (settings: Partial<StoreSettings>): Record<string, st
   if (settings.theme !== undefined) result.theme = settings.theme;
   if (settings.language !== undefined) result.language = settings.language;
   if (settings.timezone !== undefined) result.timezone = settings.timezone;
+  if (settings.businessDayStart !== undefined) result.business_day_start = settings.businessDayStart;
   if (settings.backupFrequency !== undefined) result.backup_frequency = settings.backupFrequency;
   if (settings.notificationEmail !== undefined) result.notification_email = settings.notificationEmail;
   if (settings.touchMode !== undefined) result.touch_mode = settings.touchMode.toString();

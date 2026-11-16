@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock, Volume2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, businessDayStartUtc } from '@/lib/utils';
+import { useSettingsStore } from '@pos/core';
 import apiClient from '@/api/client';
 import { subscribeToOrders, subscribeToOrderItems, unsubscribe } from '@pos/supabase';
 import { kitchenSoundService } from '@/services/soundService';
@@ -225,11 +226,22 @@ export function TokenDisplay() {
     };
   }, [audioActivated, queryClient]);
 
+  // Only this business day's orders: token numbers restart at the rollover,
+  // so a stale ticket from yesterday would show a clashing number.
+  const { settings } = useSettingsStore();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Partition into columns using backend-provided token_number
-  const { preparing, ready } = useMemo(
-    () => partitionOrders(kitchenOrders),
-    [kitchenOrders]
-  );
+  const { preparing, ready } = useMemo(() => {
+    const dayStartMs = businessDayStartUtc(settings.timezone, settings.businessDayStart, new Date(now)).getTime();
+    return partitionOrders(
+      kitchenOrders.filter((o) => new Date(o.created_at).getTime() >= dayStartMs),
+    );
+  }, [kitchenOrders, settings.timezone, settings.businessDayStart, now]);
 
   // Sound alerts for newly ready orders
   useEffect(() => {

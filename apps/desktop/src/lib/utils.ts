@@ -148,6 +148,75 @@ export function dayBoundsUtc(
   return { startUtc: startUtc.toISOString(), endUtc: endUtc.toISOString() }
 }
 
+/** Parse an 'HH:MM' business-day start; anything malformed falls back to midnight. */
+export function parseDayStart(dayStart: string | undefined | null): { hours: number; minutes: number } {
+  const match = /^(\d{1,2}):(\d{2})$/.exec((dayStart || '').trim())
+  if (!match) return { hours: 0, minutes: 0 }
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return { hours: 0, minutes: 0 }
+  return { hours, minutes }
+}
+
+/**
+ * UTC instant at which the current business day began.
+ *
+ * A business day runs from `dayStart` (HH:MM, org-local wall clock) until the
+ * same time the next day, so with '04:00' a ticket rung up at 01:30 still
+ * belongs to the night it was served in. With the default '00:00' this is
+ * plain local midnight. Mirrors `public.get_business_day_start()` in SQL,
+ * which drives token numbering — keep the two in step.
+ */
+export function businessDayStartUtc(
+  timezone: string = 'Europe/London',
+  dayStart: string = '00:00',
+  now: Date = new Date(),
+): Date {
+  const { hours, minutes } = parseDayStart(dayStart)
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  let y = now.getUTCFullYear()
+  let mo = now.getUTCMonth() + 1
+  let d = now.getUTCDate()
+  let localMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
+  let tz = timezone
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(now)
+    const get = (type: string) => Number(parts.find(p => p.type === type)?.value)
+    y = get('year'); mo = get('month'); d = get('day')
+    localMinutes = get('hour') * 60 + get('minute')
+  } catch {
+    tz = 'UTC' // Bad TZ — work in UTC rather than crash the board
+  }
+
+  // Before today's cutoff we're still in yesterday's business day.
+  if (localMinutes < hours * 60 + minutes) {
+    const prev = new Date(Date.UTC(y, mo - 1, d - 1))
+    y = prev.getUTCFullYear(); mo = prev.getUTCMonth() + 1; d = prev.getUTCDate()
+  }
+
+  // Same offset trick as dayBoundsUtc: treat the local wall-clock time as if
+  // it were UTC, then correct by the zone's offset at that instant.
+  const naive = new Date(`${y}-${pad(mo)}-${pad(d)}T${pad(hours)}:${pad(minutes)}:00.000Z`)
+  let offsetMs = 0
+  try {
+    const asInTz = new Date(naive.toLocaleString('en-US', { timeZone: tz }))
+    const asUtc = new Date(naive.toLocaleString('en-US', { timeZone: 'UTC' }))
+    offsetMs = asUtc.getTime() - asInTz.getTime()
+  } catch {
+    // keep UTC
+  }
+  return new Date(naive.getTime() + offsetMs)
+}
+
 export function getOrderStatusColor(status: string): string {
   switch (status) {
     case 'pending':

@@ -46,6 +46,7 @@ type FinancialDraft = Pick<
   | 'privacyPolicyUrl'
   | 'customerRetentionMonths'
   | 'timezone'
+  | 'businessDayStart'
 >
 
 function pick(s: StoreSettings): FinancialDraft {
@@ -63,6 +64,7 @@ function pick(s: StoreSettings): FinancialDraft {
     privacyPolicyUrl: s.privacyPolicyUrl,
     customerRetentionMonths: s.customerRetentionMonths,
     timezone: s.timezone,
+    businessDayStart: s.businessDayStart,
   }
 }
 
@@ -282,10 +284,31 @@ function FinancialSettingsPage() {
             ))}
           </select>
         </FieldGroup>
+        <FieldGroup
+          label="Business day starts at"
+          hint="The kitchen display, token display and token numbers start fresh at this time each day. If you trade past midnight, pick a time after you close."
+        >
+          <select
+            value={draft.businessDayStart || '00:00'}
+            onChange={(e) => setDraft({ ...draft, businessDayStart: e.target.value })}
+            className={inputClass}
+          >
+            {BUSINESS_DAY_START_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </FieldGroup>
       </div>
     </SettingsPageLayout>
   )
 }
+
+// Rollover times for the KDS / token numbering. Hourly up to 6 AM covers
+// late-night trade without letting a mis-tap push the reset into service.
+const BUSINESS_DAY_START_OPTIONS = Array.from({ length: 7 }, (_, h) => ({
+  value: `${String(h).padStart(2, '0')}:00`,
+  label: h === 0 ? 'Midnight (12:00 AM)' : `${h}:00 AM`,
+}))
 
 function SectionHeading({ title }: { title: string }) {
   return (

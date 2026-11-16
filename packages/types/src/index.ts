@@ -1024,6 +1024,9 @@ export interface StoreSettings {
   language: string;
   // IANA timezone (e.g. 'Europe/London', 'Asia/Kolkata') — drives every business-day boundary
   timezone: string;
+  // 'HH:MM' local time the business day rolls over (default '00:00'). Late-night
+  // venues set e.g. '04:00' so the KDS and token numbers reset after close, not mid-service.
+  businessDayStart: string;
   backupFrequency: 'hourly' | 'daily' | 'weekly' | 'manual';
   notificationEmail?: string;
 
