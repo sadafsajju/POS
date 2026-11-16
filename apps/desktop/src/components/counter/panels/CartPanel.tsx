@@ -899,7 +899,9 @@ export function CartPanel({
 
               if (!isFullyPaid) return null
 
-              const allKOTsServed = (activeBill?.kots || []).every(
+              // Without a kitchen screen nobody marks KOTs served, so don't
+              // hold the table on "Awaiting Service" — let it be cleared.
+              const allKOTsServed = !settings.enableKds || (activeBill?.kots || []).every(
                 (kot: Order) => ['served', 'completed', 'cancelled'].includes(kot.status)
               )
               return (

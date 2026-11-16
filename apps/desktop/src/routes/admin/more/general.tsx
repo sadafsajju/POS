@@ -333,8 +333,8 @@ function GeneralSettingsPage() {
           <div className="flex items-center gap-3">
             <ChefHat className="h-5 w-5 text-zinc-400 flex-shrink-0" />
             <div className="space-y-0.5">
-              <span className="block text-sm font-medium text-zinc-200">Kitchen Display System</span>
-              <span className="block text-xs text-zinc-500">Send orders to kitchen display for preparation tracking across all order types</span>
+              <span className="block text-sm font-medium text-zinc-200">Kitchen Display Screen</span>
+              <span className="block text-xs text-zinc-500">Show orders on a kitchen screen and add the Kitchen tab. Turn off if your kitchen works from printed KOTs only — orders still go out as KOTs either way.</span>
             </div>
           </div>
           <div className={cn(
