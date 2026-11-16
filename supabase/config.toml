@@ -368,6 +368,18 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# These functions are called by unauthenticated/external callers (staff invite,
+# aggregator webhook, menu image parsing), so JWT verification is disabled to
+# match how they are deployed on the backend.
+[functions.invite-staff]
+verify_jwt = false
+
+[functions.parse-menu-image]
+verify_jwt = false
+
+[functions.aggregator-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
