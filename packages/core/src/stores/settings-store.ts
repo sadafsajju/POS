@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { StoreSettings } from '@pos/types';
 import { settingsDb } from '@pos/supabase';
+import { withOfflineCache } from '../offline/data-cache';
 
 interface SettingsStore {
   settings: StoreSettings;
@@ -212,7 +213,9 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await settingsDb.getSettings();
+      // Offline-cached: settings (tax rate, currency, receipt config) are
+      // needed for offline order-taking and receipt printing.
+      const response = await withOfflineCache('settings', () => settingsDb.getSettings());
 
       if (response.success && response.data) {
         const storeSettings = apiToStoreSettings(response.data);

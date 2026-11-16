@@ -7,3 +7,4 @@ export * from './sync';
 export * from './database';
 export * from './utils';
 export * from './hooks';
+export * from './offline';

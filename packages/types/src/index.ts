@@ -914,7 +914,8 @@ export interface SyncStatus {
 
 export interface OfflineQueueItem {
   id: string;
-  action: 'create' | 'update' | 'delete';
+  /** e.g. 'create', 'update_status', 'process', 'apply_discount', 'record_tip', 'clear', 'transfer' */
+  action: string;
   entity: string;
   data: unknown;
   timestamp: Date;
@@ -933,6 +934,20 @@ export interface OfflineOrder {
   status: 'pending_sync' | 'syncing' | 'synced' | 'failed';
   createdAt: Date;
   syncError?: string;
+  // Locally-computed amounts so offline receipts/payments have real figures
+  subtotal?: number;
+  tax_amount?: number;
+  total_amount?: number;
+  /** Cart snapshot with names/prices for offline receipt printing */
+  display_items?: Array<{
+    product_id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+  /** Set when a cash payment was taken offline and queued for sync */
+  paid?: boolean;
+  payment_method?: string;
 }
 
 // ============================================

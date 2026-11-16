@@ -8,6 +8,7 @@ import './index.css'
 // Import shared packages
 import { defaultQueryOptions, staleTime } from '@pos/api-client'
 import { createSupabaseClient } from '@pos/supabase'
+import { initOfflineSupport, SYNC_COMPLETE_EVENT } from '@pos/core'
 
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
@@ -35,6 +36,14 @@ const queryClient = new QueryClient({
       refetchOnReconnect: defaultQueryOptions.refetchOnReconnect,
     },
   },
+})
+
+// Offline-first: hydrate the persisted write queue (orders/payments taken
+// offline), auto-sync it when the connection returns, and refresh all query
+// data once a sync pass completes so the UI reflects the server state.
+initOfflineSupport()
+window.addEventListener(SYNC_COMPLETE_EVENT, () => {
+  queryClient.invalidateQueries()
 })
 
 // Register the router instance for type safety

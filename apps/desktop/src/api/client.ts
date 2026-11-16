@@ -49,8 +49,21 @@ import type {
   CreateComboSlotChoiceRequest,
 } from '@/types'
 import type { Json } from '@pos/supabase'
+import { withOfflineCache } from '@pos/core'
 
 type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'paid' | 'completed' | 'cancelled'
+
+// Stable cache key for offline reads — order-independent and ignores volatile
+// params (rolling date windows would otherwise produce a new key per fetch).
+const cacheKey = (entity: string, params?: Record<string, unknown>): string => {
+  if (!params) return entity
+  const stable = Object.keys(params)
+    .filter((k) => k !== 'date_from' && k !== 'date_to' && params[k] !== undefined)
+    .sort()
+    .map((k) => `${k}=${JSON.stringify(params[k])}`)
+    .join('&')
+  return stable ? `${entity}?${stable}` : entity
+}
 
 class APIClient {
   // Authentication endpoints - these remain as stubs since auth is now handled by Supabase Auth
@@ -77,13 +90,15 @@ class APIClient {
 
   // Product endpoints
   async getProducts(filters?: ProductFilters): Promise<PaginatedResponse<Product[]>> {
-    const result = await productsDb.getProducts({
+    const params = {
       page: filters?.page,
       per_page: filters?.per_page,
       search: filters?.search,
       category_id: filters?.category_id,
-    })
-    return result as any
+    }
+    return await withOfflineCache(cacheKey('products', params), () =>
+      productsDb.getProducts(params)
+    ) as any
   }
 
   async getProduct(id: string): Promise<APIResponse<Product>> {
@@ -91,16 +106,22 @@ class APIClient {
   }
 
   async getCategories(activeOnly = true): Promise<APIResponse<Category[]>> {
-    return await categoriesDb.getCategories({ active_only: activeOnly }) as any
+    return await withOfflineCache(cacheKey('categories', { activeOnly }), () =>
+      categoriesDb.getCategories({ active_only: activeOnly })
+    ) as any
   }
 
   async getProductsByCategory(categoryId: string, _availableOnly = true): Promise<APIResponse<Product[]>> {
-    return await productsDb.getProductsByCategory(categoryId) as any
+    return await withOfflineCache(cacheKey('products_by_category', { categoryId }), () =>
+      productsDb.getProductsByCategory(categoryId)
+    ) as any
   }
 
   // Table endpoints
   async getTables(filters?: { status?: string; location_id?: string; search?: string }): Promise<APIResponse<DiningTable[]>> {
-    return await tablesDb.getTables(filters) as any
+    return await withOfflineCache(cacheKey('tables', filters), () =>
+      tablesDb.getTables(filters)
+    ) as any
   }
 
   async getTable(id: string): Promise<APIResponse<DiningTable>> {
@@ -112,12 +133,12 @@ class APIClient {
   }
 
   async getTableStatus(): Promise<APIResponse<TableStatus>> {
-    return await tablesDb.getTableStatus() as any
+    return await withOfflineCache('table_status', () => tablesDb.getTableStatus()) as any
   }
 
   // Order endpoints
   async getOrders(filters?: OrderFilters & { table_id?: string; date_from?: string; date_to?: string; statuses?: string[] }): Promise<PaginatedResponse<Order[]>> {
-    const result = await ordersDb.getOrders({
+    const params = {
       page: filters?.page,
       per_page: filters?.per_page,
       status: filters?.status,
@@ -126,8 +147,10 @@ class APIClient {
       table_id: filters?.table_id,
       date_from: filters?.date_from,
       date_to: filters?.date_to,
-    })
-    return result as any
+    }
+    return await withOfflineCache(cacheKey('orders', params), () =>
+      ordersDb.getOrders(params)
+    ) as any
   }
 
   async createOrder(order: CreateOrderRequest): Promise<APIResponse<Order>> {
@@ -420,7 +443,9 @@ class APIClient {
 
   // Product option group endpoints
   async getOptionGroups(productId: string): Promise<APIResponse<ProductOptionGroup[]>> {
-    return await optionsDb.getOptionGroups(productId) as any
+    return await withOfflineCache(cacheKey('option_groups', { productId }), () =>
+      optionsDb.getOptionGroups(productId)
+    ) as any
   }
 
   async createOptionGroup(productId: string, data: CreateOptionGroupRequest): Promise<APIResponse<ProductOptionGroup>> {
@@ -488,7 +513,9 @@ class APIClient {
 
   // Combo slot management
   async getComboSlots(productId: string): Promise<APIResponse<ComboSlot[]>> {
-    return await combosDb.getComboSlots(productId) as any
+    return await withOfflineCache(cacheKey('combo_slots', { productId }), () =>
+      combosDb.getComboSlots(productId)
+    ) as any
   }
 
   async createComboSlot(productId: string, data: CreateComboSlotRequest): Promise<APIResponse<ComboSlot[]>> {

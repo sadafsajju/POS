@@ -23,6 +23,8 @@ interface MethodStepProps {
   /** Current tip amount in major units. */
   tipAmount?: number
   onTipChange?: (next: number) => void
+  /** Offline mode: card/digital need a live connection, only cash is accepted. */
+  cashOnly?: boolean
 }
 
 const TIP_PRESETS = [10, 12.5, 15, 20] as const
@@ -42,6 +44,7 @@ export function MethodStep({
   tipEnabled = false,
   tipAmount = 0,
   onTipChange,
+  cashOnly = false,
 }: MethodStepProps) {
   const [customTipOpen, setCustomTipOpen] = useState(false)
   const [customTipInput, setCustomTipInput] = useState('')
@@ -59,6 +62,9 @@ export function MethodStep({
 
       <div className="text-center mb-2">
         <h3 className="text-2xl font-black tracking-tight text-zinc-100">How is the customer paying?</h3>
+        {cashOnly && (
+          <p className="text-xs text-amber-400 mt-1">Offline — only cash payments are available</p>
+        )}
         <div className=' rounded bg-zinc-800 py-3 my-3'>
           {tipEnabled && tipAmount > 0 && (
             <div className="text-xs text-zinc-500 mb-1 flex justify-center gap-3">
@@ -191,7 +197,7 @@ export function MethodStep({
         variant="outline"
         size="lg"
         onClick={() => onMethodSelect('card')}
-        disabled={isProcessing}
+        disabled={isProcessing || cashOnly}
       >
         {isProcessing && selectedMethod === 'card' ? (
           <>
@@ -211,7 +217,7 @@ export function MethodStep({
         variant="outline"
         size="lg"
         onClick={() => onMethodSelect('digital')}
-        disabled={isProcessing}
+        disabled={isProcessing || cashOnly}
       >
         {isProcessing && selectedMethod === 'digital' ? (
           <>

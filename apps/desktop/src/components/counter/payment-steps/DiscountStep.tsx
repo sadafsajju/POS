@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Percent, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { adminApi, queryKeys, staleTime } from '@pos/api-client'
+import { withOfflineCache } from '@pos/core'
 import type { DiscountItem } from '@pos/api-client'
 
 interface DiscountStepProps {
@@ -38,7 +39,12 @@ export function DiscountStep({
 }: DiscountStepProps) {
   const { data: res, isLoading } = useQuery({
     queryKey: queryKeys.discounts.active,
-    queryFn: () => adminApi.getActiveDiscounts(),
+    // Offline-cached so discount presets stay available during offline payments
+    queryFn: async () =>
+      (await withOfflineCache('discounts_active', () => adminApi.getActiveDiscounts())) as {
+        success: boolean
+        data?: DiscountItem[]
+      },
     staleTime: staleTime.discounts,
   })
 

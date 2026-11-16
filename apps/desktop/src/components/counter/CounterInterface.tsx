@@ -10,7 +10,7 @@ import { QWERTY_LAYOUT } from '@/components/ui/on-screen-keyboard/keyboard-layou
 import type { KeyConfig } from '@/components/ui/on-screen-keyboard/types'
 import { Table as TableIcon, Search, CloudOff, RefreshCw, X, ArrowLeft, Package, Car, UtensilsCrossed, MapPin } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast, useAuthStore } from '@pos/core'
+import { useSettingsStore, useSyncStore, useOfflineOrder, useCustomerDisplayBroadcast, useAuthStore, queueTableClear } from '@pos/core'
 import { subscribeToOrders, subscribeToTables, unsubscribe } from '@pos/supabase'
 import type { DisplayCartItem } from '@pos/core'
 import { counterApi, adminApi } from '@pos/api-client'
@@ -573,8 +573,9 @@ export function CounterInterface() {
   }, [cart.cart])
 
   // Handle order creation
-  // When KDS is enabled: all order types use KOT mode (creates bill + KOT structure)
-  // When KDS is disabled: simple order creation, no kitchen workflow
+  // Always KOT mode (bill + KOT structure), whether or not the KDS screen is on.
+  // settings.enableKds only controls the kitchen *screen*; stores without one
+  // still print KOTs, and dine-in rounds must land on the same table bill.
   //
   // allergensConfirmed=true means the user just dismissed AllergenConfirmDialog;
   // we replay the submission and pass the confirmation flag to create_order.
@@ -584,11 +585,9 @@ export function CounterInterface() {
 
     pendingPrintCartRef.current = [...cart.cart]
     const items = cart.toOrderItems()
-    const kdsEnabled = settings.enableKds
-
-    // When KDS is enabled, fetch fresh active bill data to avoid stale parent_order_id
+    // Fetch fresh active bill data to avoid stale parent_order_id
     let currentActiveBillId: string | undefined = undefined
-    if (kdsEnabled && orderType === 'dine_in' && selectedTable && isOnline) {
+    if (orderType === 'dine_in' && selectedTable && isOnline) {
       try {
         const freshBillData = await queryClient.fetchQuery({
           queryKey: ['activeBill', selectedTable.id],
@@ -634,29 +633,80 @@ export function CounterInterface() {
       }
     }
 
-    // Build order data — KOT mode for all order types when KDS enabled
+    // Build order data — KOT mode for all order types
     const orderData: CreateOrderRequest = {
       table_id: orderType === 'dine_in' ? selectedTable?.id : undefined,
       customer_name: customerName || undefined,
       order_type: orderType,
       items,
       notes: orderNotes || undefined,
-      create_as_kot: kdsEnabled,
+      create_as_kot: true,
       parent_order_id: currentActiveBillId,
       dining_mode: diningMode,
       allergens_confirmed: allergensConfirmed,
       allergens_acknowledged_codes: cartAllergens.length > 0 ? cartAllergens : undefined,
     }
 
-    // Offline handling
+    // Offline handling — the order is queued locally and synced on reconnect.
     if (!isOnline) {
-      // Payment can't proceed offline — drop any pending Pay intent so it doesn't
-      // fire against a different order after reconnect.
+      const wantPayment = pendingPayment.current
       pendingPayment.current = false
       try {
-        const result = await createOfflineOrder(orderData)
+        // Compute totals locally (the create_order RPC normally does this server-side)
+        const taxRate = settings.taxRate || 0
+        const displayItems = cart.cart.map(item => {
+          const optionsAdj = (item.selectedOptions || []).reduce((s, o) => s + o.priceAdjustment, 0)
+          const comboAdj = (item.selectedComboChoices || []).reduce((s, c) => s + c.priceAdjustment, 0)
+          const unitPrice = item.product.price + optionsAdj + comboAdj
+          return { product_id: item.product.id, name: item.product.name, quantity: item.quantity, price: unitPrice }
+        })
+        const subtotal = displayItems.reduce((s, i) => s + i.price * i.quantity, 0)
+        const taxAmount = subtotal * (taxRate / 100)
+        const totalAmount = subtotal + taxAmount
+        // Snapshot KOT items now — createOfflineOrder's onSuccess clears the
+        // cart AND pendingPrintCartRef before we get to print below.
+        const kotItems = cartToKotItems(pendingPrintCartRef.current)
+
+        const result = await createOfflineOrder(orderData, {
+          subtotal,
+          tax_amount: taxAmount,
+          total_amount: totalAmount,
+          display_items: displayItems,
+        })
         if (shouldPrint && 'orderNumber' in result) {
-          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, cartToKotItems(pendingPrintCartRef.current), orderData.notes, false, undefined, undefined, undefined, currentStaffName)
+          printKOT(result.orderNumber, selectedTable?.table_number, orderData.customer_name, orderData.order_type, kotItems, orderData.notes, false, undefined, undefined, undefined, currentStaffName)
+        }
+
+        // Offline Pay: open the payment overlay against a locally-built bill.
+        // Cash only — the payment is queued and syncs right after the order does.
+        if (wantPayment && 'localId' in result) {
+          const offlineBill: BillSummary = {
+            bill: {
+              id: result.localId,
+              order_number: result.orderNumber,
+              order_type: orderData.order_type,
+              status: 'pending',
+              subtotal,
+              tax_amount: taxAmount,
+              total_amount: totalAmount,
+              items: displayItems.map((di, idx) => ({
+                id: `${result.localId}_item_${idx}`,
+                product_id: di.product_id,
+                quantity: di.quantity,
+                unit_price: di.price,
+                total_price: di.price * di.quantity,
+                product: { id: di.product_id, name: di.name },
+              })),
+            } as any,
+            kots: [],
+            aggregated_total: totalAmount,
+            aggregated_subtotal: subtotal,
+            aggregated_tax: taxAmount,
+            paid_amount: 0,
+            balance_due: totalAmount,
+          }
+          setTakeawayBill(offlineBill)
+          setShowPaymentOverlay(true)
         }
       } catch (error) {
         console.error('Failed to create offline order:', error)
@@ -756,6 +806,14 @@ export function CounterInterface() {
 
   const handleClearTable = async () => {
     if (!selectedTable) return
+    // Offline: queue the clear and update the UI optimistically
+    if (!isOnline) {
+      await queueTableClear(selectedTable.id)
+      setSelectedTable(null)
+      navigateTo('tables')
+      showSuccess('Table clear saved offline — will sync when connected')
+      return
+    }
     try {
       await (isAdmin ? apiClient.clearAdminTable(selectedTable.id) : apiClient.clearCounterTable(selectedTable.id))
       setSelectedTable(null)

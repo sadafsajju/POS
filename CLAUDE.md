@@ -125,9 +125,13 @@ Wrapper helpers in `packages/supabase/src/helpers.ts`: `wrapOne()`, `wrapMany()`
 4. Data fetching: TanStack React Query with `@pos/api-client`
 
 ### New offline-capable feature
-1. Add migration in `packages/core/src/database/migrations.ts`
-2. Add to sync queue in `packages/core/src/stores/sync-store.ts`
-3. Handle in `packages/core/src/sync/sync-engine.ts`
+The offline layer lives in `packages/core/src/offline/` (SQLite KV via Tauri, localStorage fallback in browser):
+1. **Offline reads**: wrap the fetch with `withOfflineCache(key, fetcher)` (`data-cache.ts`) — caches the last successful response, serves it when offline. Applied in `apps/desktop/src/api/client.ts` for products/categories/tables/orders/options/combos, and in `settings-store.ts`.
+2. **Offline writes**: `enqueue({ entity, action, data })` (`offline-queue.ts`) — persistent FIFO queue, survives restarts. Add a matching handler in `sync-manager.ts` `handlers` map (`'entity:action'`). Queue drains automatically on reconnect (see `initOfflineSupport()`, called from `main.tsx`).
+3. **Local ids**: offline-created orders get `offline_*` ids. Queued writes referencing them are remapped to server ids via the id map after the order syncs. Use `isLocalId()` / `resolveId()`.
+4. Convenience helpers: `queueOfflinePayment`, `queueOfflineDiscount`, `queueOfflineTip`, `queueOrderStatusUpdate`, `queueTableClear`, `queueTableTransfer`.
+
+Note: `packages/core/src/sync/sync-engine.ts` and `packages/core/src/database/` are legacy/unused — the live implementation is `packages/core/src/offline/`.
 
 ## Database Conventions (PostgreSQL via Supabase)
 

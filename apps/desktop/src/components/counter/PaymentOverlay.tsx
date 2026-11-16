@@ -9,7 +9,15 @@ import {
   User,
   MapPin,
 } from 'lucide-react'
-import { useCustomerDisplayBroadcast, useSettingsStore } from '@pos/core'
+import {
+  useCustomerDisplayBroadcast,
+  useSettingsStore,
+  useSyncStore,
+  isLocalId,
+  queueOfflinePayment,
+  queueOfflineDiscount,
+  queueOfflineTip,
+} from '@pos/core'
 import { ordersDb } from '@pos/supabase'
 import type { DiningTable, Order, BillSummary } from './types'
 import type { PaidPaymentDetails } from './types'
@@ -43,6 +51,10 @@ export function PaymentOverlay({
   onPaymentComplete
 }: PaymentOverlayProps) {
   const { settings } = useSettingsStore()
+  const { isOnline } = useSyncStore()
+  // Offline mode: either the connection is down, or this bill was created
+  // offline and only exists locally (its id is a local offline_ id).
+  const offlineMode = !isOnline || isLocalId(activeBill.bill?.id)
   const [step, setStep] = useState<PaymentStep>('customer')
   const [selectedMethod, setSelectedMethod] = useState<SelectedMethod | null>(null)
   const [cashReceived, setCashReceived] = useState<string>('')
@@ -93,6 +105,37 @@ export function PaymentOverlay({
 
   // Payment API call
   const processPayment = async (method: 'cash' | 'credit_card' | 'digital_wallet') => {
+    // Offline: queue the payment for sync. Cash only — card/digital need a
+    // live connection to be processed.
+    if (offlineMode) {
+      if (method !== 'cash') {
+        setPaymentError('Only cash payments are available offline.')
+        return
+      }
+      setIsProcessing(true)
+      setPaymentError(null)
+      try {
+        await queueOfflinePayment({
+          order_id: activeBill.bill.id,
+          payment_method: 'cash',
+          amount: total,
+          cash_received: cashReceivedNum > 0 ? cashReceivedNum : undefined,
+        })
+        if (settings.tippingEnabled && tipShown > 0) {
+          await queueOfflineTip(activeBill.bill.id, tipShown, 'cash')
+        }
+        const change = cashReceivedNum > grandTotal ? cashReceivedNum - grandTotal : undefined
+        setPaidTotal(total)
+        broadcastPaymentComplete(grandTotal, change)
+        setStep('complete')
+      } catch (error: any) {
+        setPaymentError(error.message || 'Failed to save offline payment. Please try again.')
+      } finally {
+        setIsProcessing(false)
+      }
+      return
+    }
+
     setIsProcessing(true)
     setPaymentError(null)
     try {
@@ -219,6 +262,19 @@ export function PaymentOverlay({
   // get updated (or cleared if no discount selected) before moving to the
   // method picker.
   const handleDiscountContinue = async () => {
+    // Offline: queue the discount write so it lands on the order after sync
+    // (right after the order itself, before the payment — FIFO queue).
+    if (offlineMode) {
+      if (selectedDiscount) {
+        await queueOfflineDiscount(activeBill.bill.id, {
+          id: selectedDiscount.id,
+          name: selectedDiscount.name,
+          percent: selectedDiscount.percent,
+        })
+      }
+      setStep('method')
+      return
+    }
     try {
       await ordersDb.applyDiscountToOrder(
         activeBill.bill.id,
@@ -401,6 +457,7 @@ export function PaymentOverlay({
               tipEnabled={settings.tippingEnabled && !isDelivery}
               tipAmount={tipAmount}
               onTipChange={setTipAmount}
+              cashOnly={offlineMode}
             />
           )}
 
